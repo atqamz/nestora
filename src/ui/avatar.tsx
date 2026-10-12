@@ -8,11 +8,13 @@ const initials = (name: string) => {
   return `${first.toUpperCase()}${second.toLowerCase()}`;
 };
 
+const loaded = new Set<string>();
+
 export function Avatar({ side, size = 20 }: { side: Side | null; size?: number }) {
   const { label, photo } = usePartner();
   const src = photoSource(photo(side), size);
   const [seen, setSeen] = useState<{ src: string; ok: boolean } | null>(null);
-  const state = src !== null && seen?.src === src ? seen.ok : undefined;
+  const state = src === null ? undefined : seen?.src === src ? seen.ok : loaded.has(src) || undefined;
   return (
     <span className="av" data-side={side ?? "none"} data-photo={state ? "ready" : undefined} aria-hidden="true">
       {side === null ? null : initials(label(side))}
@@ -24,8 +26,14 @@ export function Avatar({ side, size = 20 }: { side: Side | null; size?: number }
           height={size}
           decoding="async"
           referrerPolicy="no-referrer"
-          onLoad={() => setSeen({ src, ok: true })}
-          onError={() => setSeen({ src, ok: false })}
+          onLoad={() => {
+            loaded.add(src);
+            setSeen({ src, ok: true });
+          }}
+          onError={() => {
+            loaded.delete(src);
+            setSeen({ src, ok: false });
+          }}
         />
       )}
     </span>
