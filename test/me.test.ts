@@ -90,6 +90,12 @@ test("the fallback reads the cookie among others and ignores look-alike names", 
   const { me, calls } = setup(() => Response.json({ custom: { picture: PHOTO } }));
   await me(await withCookie(undefined, "theme=dark; XCF_Authorization=wrong; CF_Authorization=a=b==; other=1"));
   assert.deepEqual(calls[0]?.init?.headers, { cookie: "CF_Authorization=a=b==" });
+  const prefixed = setup(() => Response.json({ custom: { picture: PHOTO } }));
+  await prefixed.me(await withCookie(undefined, "CF_Authorization_x=wrong; CF_Authorization=right"));
+  assert.deepEqual(prefixed.calls[0]?.init?.headers, { cookie: "CF_Authorization=right" });
+  const only = setup();
+  assert.deepEqual(await (await only.me(await withCookie(undefined, "CF_Authorization_x=wrong; CF_AuthorizationX=wrong"))).json(), { photo: null });
+  assert.deepEqual(only.calls, []);
   const none = setup();
   assert.deepEqual(await (await none.me(await withCookie(undefined, "XCF_Authorization=wrong; CF_Authorization="))).json(), { photo: null });
   assert.deepEqual(none.calls, []);

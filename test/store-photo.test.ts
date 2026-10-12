@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { memoryPersistence } from "../src/store/memory.ts";
+import { createStore } from "../src/store/store.ts";
 import { createApi } from "../src/store/api.ts";
 import type { Fetch } from "../src/store/api.ts";
 import { createServer } from "./store-server.ts";
@@ -155,4 +157,41 @@ test("the question is a manual-redirect GET to /api/me with a 15 second limit", 
   assert.equal(seen[0]?.init.method, "GET");
   assert.equal(seen[0]?.init.redirect, "manual");
   assert.equal(seen[0]?.init.signal instanceof AbortSignal, true);
+});
+
+test("a photo is not written when the link drops while the answer is in flight", async () => {
+  const server = createServer();
+  server.control.photo = RANI;
+  const c = client(server, "a");
+  server.control.onMe = async () => {
+    server.control.down = true;
+    await c.store.sync();
+    server.control.down = false;
+  };
+  await c.store.open();
+  await settle();
+  assert.equal(c.store.getSnapshot().link, "offline");
+  assert.equal(server.asked.length, 1);
+  assert.equal(c.store.getSnapshot().pending, 0);
+  await c.store.sync();
+  await settle();
+  assert.equal(server.asked.length, 1);
+  assert.deepEqual(photos(server), { partner_a_photo: null, partner_b_photo: null });
+});
+
+test("a photo is not written under a side that is no longer the signed-in one", async () => {
+  const server = createServer();
+  server.control.photo = RANI;
+  let side: "a" | "b" = "a";
+  const persistence = memoryPersistence();
+  const store = createStore({ persistence, api: createApi((url, init) => server.as(side)(url, init)) });
+  server.control.onMe = async () => {
+    side = "b";
+    await store.sync();
+  };
+  await store.open();
+  await settle();
+  assert.equal(store.getSnapshot().me, "b");
+  assert.equal(store.getSnapshot().pending, 0);
+  assert.deepEqual(photos(server), { partner_a_photo: null, partner_b_photo: null });
 });

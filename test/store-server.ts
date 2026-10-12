@@ -53,7 +53,7 @@ export const createServer = () => {
   let epoch = newEpoch();
   let state: State = Object.fromEntries(tableNames.map((table) => [table, new Map()])) as State;
   const seen: Seen[] = [];
-  const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null };
+  const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
   const asked: Seen[] = [];
 
   const pointers = (draft: State, table: TableName, row: Dict, columns: readonly string[]): Refusal | null => {
@@ -185,6 +185,7 @@ export const createServer = () => {
       if (control.session === "forbidden") return json(403, { error: "forbidden" });
       if (url.pathname === "/api/me") {
         asked.push({ method: "GET", mutations: 0, bytes: 0, ...meta(new Headers(init.headers), init) });
+        await control.onMe?.();
         return json(200, { photo: control.photo });
       }
       const failure = control.fail.shift();

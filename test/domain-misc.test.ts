@@ -166,6 +166,17 @@ test("settings default the zone and leave the rest empty", () => {
   );
 });
 
+test("settings read each side's photo from its own key", () => {
+  const row = (key: string, value: string) => ({ key, value, rev: 1, created_at: "", updated_at: "", updated_by: null, deleted_at: null });
+  const { photoA, photoB, partnerA, partnerB } = readSettings([
+    row("partner_a_photo", "https://lh3.googleusercontent.com/a/one"),
+    row("partner_b_photo", "https://lh3.googleusercontent.com/a/two"),
+    row("partner_a_label", "Rani"),
+    row("partner_b_label", "Dimas"),
+  ]);
+  assert.deepEqual([photoA, photoB, partnerA, partnerB], ["https://lh3.googleusercontent.com/a/one", "https://lh3.googleusercontent.com/a/two", "Rani", "Dimas"]);
+});
+
 test("headcount sums people per side, skips declined, counts a missing size as one", () => {
   const guest = (fields: Parameters<typeof item>[0]) => item({ kind: "guest", status: "todo", ...fields });
   assert.deepEqual(

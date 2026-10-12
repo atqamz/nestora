@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { photoSource } from "../src/domain/photo.ts";
+import { photoFor, photoSource } from "../src/domain/photo.ts";
 
 const HOST = "https://lh3.googleusercontent.com";
 
@@ -24,4 +24,16 @@ test("photo source: any other url is returned as it is", () => {
   for (const url of [`${HOST}/a/example`, `${HOST}/a/example=s96`, `${HOST}/a/example=w96-h96`, `${HOST}/a/example=s96-c?x=1`, `${HOST}/a/example=s96-c-rj`, `${HOST}/a=s96-c/example`, `${HOST}/a/example=s12345-c`, `${HOST}/a/example=S96-C`]) {
     assert.equal(photoSource(url, 20), url);
   }
+});
+
+test("photo for a side: its own setting, nothing when offline or for nobody", () => {
+  const photos = { a: `${HOST}/a/one`, b: `${HOST}/a/two` };
+  assert.equal(photoFor("a", photos, "online"), photos.a);
+  assert.equal(photoFor("b", photos, "online"), photos.b);
+  assert.equal(photoFor("a", photos, "expired"), photos.a);
+  assert.equal(photoFor("a", photos, "offline"), null);
+  assert.equal(photoFor("b", photos, "offline"), null);
+  assert.equal(photoFor(null, photos, "online"), null);
+  assert.equal(photoFor("a", { a: null, b: photos.b }, "online"), null);
+  assert.equal(photoFor("b", { a: photos.a, b: null }, "online"), null);
 });

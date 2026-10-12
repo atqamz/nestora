@@ -1,6 +1,7 @@
 import type { Side } from "../../shared/api.ts";
 import { useEffect, useMemo, useState } from "react";
 import { todayIn } from "../domain/dates.ts";
+import { photoFor } from "../domain/photo.ts";
 import { sideName } from "../domain/names.ts";
 import { readSettings } from "../domain/settings.ts";
 import { text } from "../ui/text.ts";
@@ -31,6 +32,6 @@ export const usePartner = () => {
   const { partnerA, partnerB, photoA, photoB } = useSettings();
   const { me, link } = useSnapshot();
   const label = (side: string | null) => sideName(side, me, { a: partnerA, b: partnerB }, text);
-  const photo = (side: Side | null) => (link === "offline" ? null : side === "a" ? photoA : side === "b" ? photoB : null);
+  const photo = (side: Side | null) => photoFor(side, { a: photoA, b: photoB }, link);
   return { me, label, photo };
 };
