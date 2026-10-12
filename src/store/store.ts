@@ -1,3 +1,4 @@
+import { settingKeys } from "../domain/settings.ts";
 import { toInstant } from "../../shared/api.ts";
 import type { Side } from "../../shared/api.ts";
 import { tableNames, tables } from "../../shared/tables.ts";
@@ -48,6 +49,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
   let storage: Snapshot["storage"] = "ok";
   let loaded = false;
   let attempted = false;
+  let photoChecked = false;
   let nextSeq = 1;
   let sending: ReadonlySet<number> = new Set();
   let running: Promise<void> | null = null;
@@ -133,6 +135,15 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     return "reset";
   };
 
+  const publishPhoto = async () => {
+    const side = me;
+    if (side === null || link !== "online") return;
+    const photo = await api.me();
+    if (photo === null || me !== side || link !== "online") return;
+    const key = side === "a" ? settingKeys.photoA : settingKeys.photoB;
+    if (view.settings.get(key)?.value !== photo) await setSetting(key, photo);
+  };
+
   const catchUp = async (): Promise<boolean> => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const res = await api.pull(rev);
@@ -150,6 +161,10 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
       verified = true;
       link = "online";
       emit();
+      if (!photoChecked) {
+        photoChecked = true;
+        void publishPhoto().catch(() => undefined);
+      }
       return true;
     }
     failed("offline");
