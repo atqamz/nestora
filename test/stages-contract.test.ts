@@ -124,6 +124,8 @@ test("stages: the key is declared next to the other known settings keys and the 
     "timezone",
     "partner_a_label",
     "partner_b_label",
+    "partner_a_photo",
+    "partner_b_photo",
     "hijri_calendar",
     "hijri_offset_days",
     "holidays",
