@@ -53,7 +53,8 @@ export const createServer = () => {
   let epoch = newEpoch();
   let state: State = Object.fromEntries(tableNames.map((table) => [table, new Map()])) as State;
   const seen: Seen[] = [];
-  const control = { down: false, session: "ok" as Session, fail: [] as number[] };
+  const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
+  const asked: Seen[] = [];
 
   const pointers = (draft: State, table: TableName, row: Dict, columns: readonly string[]): Refusal | null => {
     const errors: string[] = [];
@@ -182,6 +183,11 @@ export const createServer = () => {
       if (control.session === "html") return new Response("<!doctype html><title>Sign in</title>", { headers: { "content-type": "text/html" } });
       if (control.session === "unauthorized") return json(401, { error: "unauthorized" });
       if (control.session === "forbidden") return json(403, { error: "forbidden" });
+      if (url.pathname === "/api/me") {
+        asked.push({ method: "GET", mutations: 0, bytes: 0, ...meta(new Headers(init.headers), init) });
+        await control.onMe?.();
+        return json(200, { photo: control.photo });
+      }
       const failure = control.fail.shift();
       if (failure !== undefined) return new Response("upstream error", { status: failure });
       if (url.pathname !== "/api/sync") return json(404, { error: "not_found" });
@@ -200,6 +206,7 @@ export const createServer = () => {
     as,
     control,
     seen,
+    asked,
     row: (table: TableName, id: string) => state[table].get(id),
     wipe: () => {
       state = Object.fromEntries(tableNames.map((table) => [table, new Map()])) as State;

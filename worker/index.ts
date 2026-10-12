@@ -1,7 +1,9 @@
+import type { JWTPayload } from "jose";
 import type { ErrorBody } from "../shared/api.ts";
 import { createAuthenticator } from "./auth.ts";
 import type { AuthEnv } from "./auth.ts";
 import { exportData } from "./export.ts";
+import { photoOf } from "./me.ts";
 import { getSync, json, postSync } from "./sync.ts";
 import type { Db } from "./sync.ts";
 
@@ -40,13 +42,14 @@ const designPage = async (request: Request, env: Bindings, pathname: string) => 
   return new Response(method === "HEAD" ? null : page, { headers: DESIGN_HEADERS });
 };
 
-export const createWorker = (authenticate = createAuthenticator()) => ({
+export const createWorker = (authenticate = createAuthenticator(), fetcher: typeof fetch = (input, init) => fetch(input, init)) => ({
   async fetch(request: Request, env: Bindings): Promise<Response> {
     try {
       const url = new URL(request.url);
       const design = url.pathname.startsWith("/design/");
       if (!design && !url.pathname.startsWith("/api/")) return fail("not_found", 404);
-      const who = await authenticate(request, env);
+      const verified: { payload: JWTPayload | null } = { payload: null };
+      const who = await authenticate(request, env, (payload) => void (verified.payload = payload));
       if (who === null) return fail("unauthorized", 401);
       if (design) return await designPage(request, env, url.pathname);
       const { method } = request;
@@ -57,6 +60,8 @@ export const createWorker = (authenticate = createAuthenticator()) => ({
           return method === "GET" ? new Response(null, { status: 302, headers: { location: "/", "cache-control": "no-store" } }) : notAllowed("GET");
         case "/api/export":
           return method === "GET" ? await exportData(url, env.DB) : notAllowed("GET");
+        case "/api/me":
+          return method === "GET" ? json({ photo: await photoOf(request, env, verified.payload, fetcher) }, 200, { "cache-control": "private, no-store" }) : notAllowed("GET");
         case "/api/sync":
           if (method === "GET") return await getSync(url, env.DB, who);
           if (method !== "POST") return notAllowed("GET, POST");

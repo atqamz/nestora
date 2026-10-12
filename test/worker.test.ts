@@ -37,7 +37,7 @@ test("GET /api/health returns ok for an authenticated caller", async () => {
 
 test("every /api route needs authentication, including health and unknown paths", async () => {
   const { env } = setup({ AUTH_MODE: undefined });
-  for (const [method, path] of [["GET", "/api/health"], ["GET", "/api/login"], ["GET", "/api/sync"], ["POST", "/api/sync"], ["GET", "/api/export?format=json"], ["GET", "/api/nope"], ["DELETE", "/api/sync"]]) {
+  for (const [method, path] of [["GET", "/api/health"], ["GET", "/api/me"], ["POST", "/api/me"], ["GET", "/api/login"], ["GET", "/api/sync"], ["POST", "/api/sync"], ["GET", "/api/export?format=json"], ["GET", "/api/nope"], ["DELETE", "/api/sync"]]) {
     const res = await call(env, path, { method });
     assert.equal(res.status, 401, `${method} ${path}`);
     assert.deepEqual(await res.json(), { error: "unauthorized" });
@@ -57,6 +57,7 @@ test("wrong methods are 405 with Allow", async () => {
   const { env } = setup();
   const cases: [string, string, string][] = [
     ["POST", "/api/health", "GET"],
+    ["POST", "/api/me", "GET"],
     ["PUT", "/api/login", "GET"],
     ["POST", "/api/export?format=json", "GET"],
     ["DELETE", "/api/sync", "GET, POST"],

@@ -203,7 +203,7 @@ export function Home() {
             <ul>
               {recent.map((activity) => (
                 <li key={activity.id}>
-                  <Avatar side={activity.by} />
+                  <Avatar side={activity.by} size={28} />
                   <p>
                     <b>{label(activity.by)}</b> {text.lately.verb[activity.verb]} {activity.title}
                     <span>{formatStamp(activity.at, timezone)}</span>

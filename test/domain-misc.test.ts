@@ -158,12 +158,23 @@ test("today follows the saved time zone, not the machine", () => {
 
 test("settings default the zone and leave the rest empty", () => {
   assert.equal(DEFAULT_ZONE, "Asia/Jakarta");
-  assert.deepEqual(readSettings([]), { ceremonyDate: null, timezone: "Asia/Jakarta", partnerA: null, partnerB: null, stages: STAGES, hijriOffset: 0 });
+  assert.deepEqual(readSettings([]), { ceremonyDate: null, timezone: "Asia/Jakarta", partnerA: null, partnerB: null, photoA: null, photoB: null, stages: STAGES, hijriOffset: 0 });
   const row = (key: string, value: string) => ({ key, value, rev: 1, created_at: "", updated_at: "", updated_by: null, deleted_at: null });
   assert.deepEqual(
     readSettings([row("ceremony_date", "2027-01-01"), row("timezone", "Asia/Makassar"), row("partner_a_label", "Sam")]),
-    { ceremonyDate: "2027-01-01", timezone: "Asia/Makassar", partnerA: "Sam", partnerB: null, stages: STAGES, hijriOffset: 0 },
+    { ceremonyDate: "2027-01-01", timezone: "Asia/Makassar", partnerA: "Sam", partnerB: null, photoA: null, photoB: null, stages: STAGES, hijriOffset: 0 },
   );
+});
+
+test("settings read each side's photo from its own key", () => {
+  const row = (key: string, value: string) => ({ key, value, rev: 1, created_at: "", updated_at: "", updated_by: null, deleted_at: null });
+  const { photoA, photoB, partnerA, partnerB } = readSettings([
+    row("partner_a_photo", "https://lh3.googleusercontent.com/a/one"),
+    row("partner_b_photo", "https://lh3.googleusercontent.com/a/two"),
+    row("partner_a_label", "Rani"),
+    row("partner_b_label", "Dimas"),
+  ]);
+  assert.deepEqual([photoA, photoB, partnerA, partnerB], ["https://lh3.googleusercontent.com/a/one", "https://lh3.googleusercontent.com/a/two", "Rani", "Dimas"]);
 });
 
 test("headcount sums people per side, skips declined, counts a missing size as one", () => {

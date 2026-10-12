@@ -419,6 +419,7 @@ fieldset.field {
 }
 
 .av {
+  position: relative;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -436,6 +437,26 @@ fieldset.field {
 
 .av[data-side="b"] {
   background: var(--tint-b);
+}
+
+.av img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  opacity: 0;
+}
+
+.av[data-photo="ready"] img {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .av img {
+    transition: opacity var(--dur-state);
+  }
 }
 
 .av[data-side="none"] {

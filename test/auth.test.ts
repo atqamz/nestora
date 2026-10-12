@@ -14,10 +14,10 @@ const signer = await generateKeyPair("RS256", { extractable: true });
 const stranger = await generateKeyPair("RS256", { extractable: true });
 const jwk = { ...(await exportJWK(signer.publicKey)), kid: "k1", alg: "RS256", use: "sig" };
 
-type Claims = { email?: unknown; iss?: string; aud?: string; exp?: string | number | null; alg?: string; key?: CryptoKey; kid?: string };
+type Claims = { custom?: unknown; email?: unknown; iss?: string; aud?: string; exp?: string | number | null; alg?: string; key?: CryptoKey; kid?: string };
 
-const token = async ({ email = emails.a, iss = `https://${domain}`, aud = audience, exp = "5m", alg = "RS256", key = signer.privateKey, kid = "k1" }: Claims = {}) => {
-  const jwt = new SignJWT({ email }).setProtectedHeader({ alg, kid }).setIssuer(iss).setAudience(aud).setIssuedAt();
+const token = async ({ custom, email = emails.a, iss = `https://${domain}`, aud = audience, exp = "5m", alg = "RS256", key = signer.privateKey, kid = "k1" }: Claims = {}) => {
+  const jwt = new SignJWT({ email, ...(custom === undefined ? {} : { custom }) }).setProtectedHeader({ alg, kid }).setIssuer(iss).setAudience(aud).setIssuedAt();
   if (exp !== null) jwt.setExpirationTime(exp);
   return jwt.sign(key);
 };
@@ -140,4 +140,48 @@ test("dev mode needs AUTH_MODE dev and a valid DEV_WHO", async () => {
   assert.equal(await authenticate(request, { DEV_WHO: "a" }), null);
   assert.equal(await authenticate(request, { AUTH_MODE: "prod", DEV_WHO: "a" }), null);
   assert.equal(await authenticate(request, { ...env, DEV_WHO: "a" }), null);
+});
+
+test("the verified payload goes to the callback once, after every check, and only for an allowed e-mail", async () => {
+  const { authenticate } = setup();
+  const run = async (jwt: string | undefined, environment: AuthEnv = env) => {
+    const seen: unknown[] = [];
+    const side = await authenticate(requestWith(jwt), environment, (payload) => seen.push(payload));
+    return { side, seen };
+  };
+  const custom = { picture: "https://lh3.googleusercontent.com/a/example=s96-c" };
+  const allowed = await run(await token({ custom }));
+  assert.equal(allowed.side, "a");
+  assert.equal(allowed.seen.length, 1);
+  assert.deepEqual((allowed.seen[0] as { custom: unknown; email: string }).custom, custom);
+  assert.equal((allowed.seen[0] as { email: string }).email, emails.a);
+  const second = await run(await token({ email: emails.b.toUpperCase() }));
+  assert.deepEqual([second.side, second.seen.length], ["b", 1]);
+
+  const pss = await generateKeyPair("PS256", { extractable: true });
+  const refused: [string, string | undefined, AuthEnv?][] = [
+    ["another e-mail", await token({ email: "stranger@example.test" })],
+    ["a null e-mail", await token({ email: null })],
+    ["an e-mail that is not text", await token({ email: 5 })],
+    ["a wrong issuer", await token({ iss: "https://other.example.test" })],
+    ["a wrong audience", await token({ aud: "other-aud" })],
+    ["an expired token", await token({ exp: Math.floor(Date.now() / 1000) - 3600 })],
+    ["no exp", await token({ exp: null })],
+    ["another key", await token({ key: stranger.privateKey })],
+    ["another key id", await token({ kid: "k9" })],
+    ["another algorithm", await token({ alg: "PS256", key: pss.privateKey })],
+    ["garbage", "not-a-jwt"],
+    ["no header", undefined],
+    ["no audience in the environment", await token(), { ...env, ACCESS_AUD: undefined }],
+    ["no team domain", await token(), { ...env, ACCESS_TEAM_DOMAIN: undefined }],
+    ["one allowed e-mail", await token(), { ...env, ALLOWED_EMAILS: emails.a }],
+    ["three allowed e-mails", await token(), { ...env, ALLOWED_EMAILS: `${emails.a},${emails.b},x@example.test` }],
+    ["a blank allowed e-mail", await token(), { ...env, ALLOWED_EMAILS: `${emails.a},` }],
+  ];
+  for (const [name, jwt, environment] of refused) {
+    const result = await run(jwt, environment);
+    assert.deepEqual([result.side, result.seen.length], [null, 0], name);
+  }
+  const dev = await run(undefined, { AUTH_MODE: "dev", DEV_WHO: "b" });
+  assert.deepEqual([dev.side, dev.seen.length], ["b", 0]);
 });

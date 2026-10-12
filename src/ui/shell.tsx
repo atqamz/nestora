@@ -41,7 +41,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
           </a>
           <SyncBadge />
           <a className="pair" href="#/settings" aria-label={text.nav.settings} aria-current={section === "settings" ? "page" : undefined}>
-            <Pair />
+            <Pair size={32} />
           </a>
         </header>
         <Nav className="rail" section={section} />

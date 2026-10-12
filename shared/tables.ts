@@ -19,6 +19,7 @@ export type Type =
   | "decimal"
   | "dates"
   | "stages"
+  | "photo"
   | readonly string[];
 
 export type Column = {
@@ -82,6 +83,8 @@ export const tables = {
       timezone: "zone",
       partner_a_label: "text",
       partner_b_label: "text",
+      partner_a_photo: "photo",
+      partner_b_photo: "photo",
       hijri_calendar: ["islamic", "islamic-umalqura", "islamic-civil", "islamic-tbla", "islamic-rgsa"],
       hijri_offset_days: ["-2", "-1", "0", "1", "2"],
       holidays: "dates",

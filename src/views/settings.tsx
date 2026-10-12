@@ -115,7 +115,7 @@ export function Settings() {
           {sides.map((side) => (
             <SettingRow
               key={side}
-              lead={<Avatar side={side} />}
+              lead={<Avatar side={side} size={44} />}
               field={{ name: keys[side], label: side === me ? text.settings.yourNickname : text.settings.theirNickname, type: "text", value: nicknames[side], words: true }}
               kicker={side === me ? text.settings.yourNickname : text.settings.theirNickname}
               shown={<b>{nicknames[side] ?? text.settings.noNickname}</b>}

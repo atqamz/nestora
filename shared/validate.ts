@@ -21,6 +21,8 @@ const INSTANT = /^(\d{4}-\d\d-\d\d)T(\d\d):(\d\d):(\d\d)Z$/;
 const ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/;
 const DECIMAL = /^(0|[1-9]\d{0,5})(\.\d{1,4})?$/;
 const URL_SHAPE = /^https?:\/\/[^\s\p{Cc}\p{Cf}\p{Cs}/?#][^\s\p{Cc}\p{Cf}\p{Cs}]*$/iu;
+const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
+const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
 const UNWANTED = /(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}]/u;
 const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
 
@@ -32,6 +34,7 @@ export type StageProblem = {
   code: "shape" | "count" | "key" | "key_twice" | "name" | "name_twice" | "range" | "bounds" | "overlap";
 };
 
+export const PHOTO_MAX = 512;
 export const STAGES_MAX = 12;
 export const STAGE_NAME_MAX = 40;
 export const MONTH_MIN = -36;
@@ -64,6 +67,16 @@ const isUrl = (v: unknown) => {
   if (typeof v !== "string" || v.length > URL_MAX || !URL_SHAPE.test(v)) return false;
   try {
     return new URL(v).hostname !== "";
+  } catch {
+    return false;
+  }
+};
+
+export const isPhoto = (v: unknown): v is string => {
+  if (typeof v !== "string" || v.length > PHOTO_MAX || !PHOTO_SHAPE.test(v)) return false;
+  try {
+    const url = new URL(v);
+    return url.protocol === "https:" && url.username === "" && url.password === "" && url.port === "" && PHOTO_HOST.test(url.hostname);
   } catch {
     return false;
   }
@@ -148,6 +161,7 @@ const expected: Record<string, string> = {
   zone: "an IANA time zone such as Asia/Jakarta",
   decimal: "a positive decimal number such as 1.5",
   dates: "a JSON array of YYYY-MM-DD dates",
+  photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
   stages: `a JSON array of 1 to ${STAGES_MAX} stages, each with a unique key, a unique name of up to ${STAGE_NAME_MAX} characters and a month range from ${MONTH_MIN} to ${MONTH_MAX} that starts after the stage before`,
 };
 
@@ -171,6 +185,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "decimal" ? typeof v === "string" && DECIMAL.test(v) && Number(v) > 0
     : type === "dates" ? isDates(v)
     : type === "stages" ? isStages(v)
+    : type === "photo" ? isPhoto(v)
     : isPlain(v);
   return ok ? null : `must be ${expected[type as string]}`;
 };
@@ -233,7 +248,7 @@ const checkVariant = (
   }
 };
 
-const checkColumns = (table: Table, input: Plain, mode: Mode, errors: string[]) => {
+const checkColumns = (table: Table, keyName: unknown, input: Plain, mode: Mode, errors: string[]) => {
   for (const [name, value] of Object.entries(input)) {
     const column: Column | undefined = lookup(table.columns, name);
     if (column === undefined) errors.push(`${name}: unknown column`);
@@ -247,7 +262,7 @@ const checkColumns = (table: Table, input: Plain, mode: Mode, errors: string[]) 
     } else if (value === null) {
       if (column.notNull) errors.push(`${name}: must not be null`);
     } else if (value !== undefined) {
-      const bad = problem(column.type, value);
+      const bad = name === "value" && value === "" && lookup(table.values, keyName) === "photo" ? null : problem(column.type, value);
       if (bad) errors.push(`${name}: ${bad}`);
     }
   }
@@ -266,7 +281,7 @@ const validateFull = (tableName: unknown, row: unknown, mode: "create" | "stored
   if (table === undefined) return [`unknown table ${show(tableName)}`];
   if (!isPlain(row)) return ["row: must be an object"];
   const errors: string[] = [];
-  checkColumns(table, row, mode, errors);
+  checkColumns(table, row[table.key], row, mode, errors);
   for (const [name, column] of Object.entries(table.columns)) {
     if (column.notNull && (mode === "stored" || !column.server) && column.default === undefined && row[name] === undefined) {
       errors.push(`${name}: required`);
@@ -291,7 +306,7 @@ export const validatePatch = (tableName: unknown, variantName: unknown, patch: u
   if (table === undefined) return [`unknown table ${show(tableName)}`];
   if (!isPlain(patch)) return ["patch: must be an object"];
   const errors: string[] = [];
-  checkColumns(table, patch, "patch", errors);
+  checkColumns(table, variantName, patch, "patch", errors);
   if (!table.by && problem(table.columns[table.key].type, variantName)) errors.push(`${table.key}: the stored row key is invalid`);
   if (table.by) {
     const variant = lookup(table.variants, variantName);

@@ -130,7 +130,7 @@ test("every request uses manual redirects and a 15 second abort signal", async (
     assert.equal(server.seen.length > 2, true);
     assert.deepEqual([...new Set(server.seen.map((request) => request.redirect))], ["manual"]);
     assert.deepEqual([...new Set(server.seen.map((request) => request.signal))], [true]);
-    assert.equal(timeouts.length, server.seen.length);
+    assert.equal(timeouts.length, server.seen.length + server.asked.length);
     assert.deepEqual([...new Set(timeouts)], [15_000]);
   } finally {
     mock.restoreAll();

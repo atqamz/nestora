@@ -11,9 +11,12 @@ export type PushResult = { kind: "ok"; body: SyncResult } | { kind: "rejected"; 
 export type Api = {
   pull(since: number): Promise<PullResult>;
   push(mutations: Mutation[]): Promise<PushResult>;
+  me(): Promise<string | null>;
 };
 
 export const SYNC_URL = "/api/sync";
+
+export const ME_URL = "/api/me";
 
 export const LOGIN_URL = "/api/login";
 
@@ -68,5 +71,9 @@ export const createApi = (fetcher: Fetch): Api => ({
       return { kind: "rejected", rejection: body as unknown as Rejection };
     }
     return { kind: "offline" };
+  },
+  me: async () => {
+    const res = await call(fetcher, ME_URL, { method: "GET" });
+    return res.kind === "response" && res.status === 200 && isDict(res.body) && typeof res.body.photo === "string" && res.body.photo !== "" ? res.body.photo : null;
   },
 });
