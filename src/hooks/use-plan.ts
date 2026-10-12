@@ -1,3 +1,4 @@
+import type { Side } from "../../shared/api.ts";
 import { useEffect, useMemo, useState } from "react";
 import { todayIn } from "../domain/dates.ts";
 import { sideName } from "../domain/names.ts";
@@ -27,8 +28,9 @@ export const useStamp = () => {
 };
 
 export const usePartner = () => {
-  const { partnerA, partnerB } = useSettings();
-  const { me } = useSnapshot();
+  const { partnerA, partnerB, photoA, photoB } = useSettings();
+  const { me, link } = useSnapshot();
   const label = (side: string | null) => sideName(side, me, { a: partnerA, b: partnerB }, text);
-  return { me, label };
+  const photo = (side: Side | null) => (link === "offline" ? null : side === "a" ? photoA : side === "b" ? photoB : null);
+  return { me, label, photo };
 };
