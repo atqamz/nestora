@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
+import { tables } from "../shared/tables.ts";
+import { validatePatch } from "../shared/validate.ts";
 import { sideName } from "../src/domain/names.ts";
+import { reasonText, settingName } from "../src/ui/labels.ts";
 import { text } from "../src/ui/text.ts";
 
 const strings = (value: unknown): string[] =>
@@ -85,4 +88,33 @@ test("guest and vendor statuses read as the design words, and no other status ch
 test("the repeated call and WhatsApp actions name the row they belong to", () => {
   assert.equal(text.callNamed("Hall"), "Call Hall");
   assert.equal(text.whatsappNamed("Hall"), "WhatsApp Hall");
+});
+
+test("every known setting has a plain name, mine or theirs, that never shows the key or says Partner", () => {
+  const keys = Object.keys(tables.settings.values);
+  assert.ok(keys.length >= 11);
+  for (const me of ["a", "b", null] as const) {
+    for (const key of keys) {
+      const name = settingName(key, me);
+      assert.match(name, /\S/, key);
+      assert.notEqual(name, key);
+      assert.doesNotMatch(name, /partner|_/i, key);
+    }
+  }
+  assert.equal(settingName("partner_a_photo", "a"), "Your profile photo");
+  assert.equal(settingName("partner_a_photo", "b"), "Their profile photo");
+  assert.equal(settingName("partner_b_photo", "b"), "Your profile photo");
+  assert.equal(settingName("partner_b_label", "a"), "Their nickname");
+  assert.equal(settingName("not_a_setting", "a"), "not_a_setting");
+});
+
+test("a refusal reason names the setting by its plain name", () => {
+  for (const key of Object.keys(tables.settings.values)) {
+    const reason = `value: must be something for key ${key}`;
+    for (const me of ["a", "b", null] as const) assert.doesNotMatch(reasonText(reason, me), /partner|_/i, key);
+  }
+  const [refusal] = validatePatch("settings", "partner_b_photo", { value: "http://lh3.googleusercontent.com/a" });
+  assert.match(reasonText(refusal, "a"), /for their profile photo$/);
+  const [stages] = validatePatch("settings", "stages", { value: "[]" });
+  assert.equal(reasonText(stages, "a"), stages.replace("for key stages", "for route stages"));
 });

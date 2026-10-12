@@ -3,18 +3,19 @@ import { changedValues } from "../domain/changes.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
 import type { Pending } from "../hooks/use-store.ts";
+import { reasonText, settingName } from "../ui/labels.ts";
 import { formatDate, formatMoney } from "../ui/format.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 
 export function Sync() {
   const { link, pending, rejected, storage, rows } = useSnapshot();
-  const { label } = usePartner();
+  const { me, label } = usePartner();
 
   const nameOf = (entry: Pending) => {
     if (typeof entry.patch.title === "string") return entry.patch.title;
     const known = (rows[entry.table] as Record<string, unknown>[]).find((row) => row[tables[entry.table].key] === entry.row_id);
-    return typeof known?.title === "string" ? known.title : entry.table === "settings" ? entry.row_id : text.sync.unknownRow;
+    return typeof known?.title === "string" ? known.title : entry.table === "settings" ? settingName(entry.row_id, me) : text.sync.unknownRow;
   };
 
   const shown = (field: string, value: unknown) =>
@@ -75,7 +76,7 @@ export function Sync() {
                     </span>
                     <span className="meta reason">
                       {entry.rejected?.map((reason) => (
-                        <span key={reason}>{reason}</span>
+                        <span key={reason}>{reasonText(reason, me)}</span>
                       ))}
                     </span>
                   </div>
