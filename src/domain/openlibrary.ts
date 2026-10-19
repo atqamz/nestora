@@ -104,11 +104,13 @@ export const settle = (typed: string, found: string): { title: string; original:
 
 const SUBTITLE = /\s*(?::|–|—|\s-\s).*$/su;
 
-const SUFFIXES = [/\s*\([^)]*\)$/, /\s+(?:(?:vol(?:ume)?|book|bk|no|part|#)\.?\s*)?\d{1,3}$/i];
+const NOTE = /\s*\([^)]*\)$/;
 
-const heads = (title: string) =>
+const NUMBER = /\s+(?:(?:vol(?:ume)?|book|bk|no|part|#)\.?\s*)?\d{1,3}$/i;
+
+const heads = (title: string, suffixes = [NOTE, NUMBER]) =>
   [title, title.replace(SUBTITLE, "")]
-    .flatMap((whole) => [whole, ...SUFFIXES.map((suffix) => whole.replace(suffix, ""))])
+    .flatMap((whole) => [whole, ...suffixes.map((suffix) => whole.replace(suffix, ""))])
     .map(fold)
     .filter(Boolean);
 
@@ -116,7 +118,7 @@ const subtitled = (title: string) => SUBTITLE.test(title);
 
 export const sameTitle = (typed: string, found: string) => {
   const [left, right] = [fold(typed), fold(found)];
-  return left === right || heads(typed).includes(right) || ((subtitled(typed) || !subtitled(found)) && heads(found).includes(left));
+  return left === right || heads(typed).includes(right) || ((subtitled(typed) || !subtitled(found)) && heads(found, [NOTE]).includes(left));
 };
 
 const blank = (value: string) => value.trim() === "";
