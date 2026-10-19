@@ -100,7 +100,8 @@ const piecesOf = (text: string): Piece[] => {
       if (last && bare && continues && (next === undefined || Number(next[1]) > number)) {
         last.stop ??= start;
         skipped = number;
-      } else if (last && !bare) last.joined = true;
+      } else if (last && bare && number === 1 && lineStart) last.stop ??= start;
+      else if (last && !bare) last.joined = true;
       return;
     }
     skipped = null;

@@ -413,3 +413,12 @@ test("text between an empty numbered line and the next entry is never dropped", 
   const found = parseList("1. A  Penulis: X  Sinopsis: One. 2. 3. Words after");
   assert.deepEqual(found.map((entry) => [entry.title, entry.blurb, entry.warnings]), [["A", "One. 2. 3. Words after", ["joined"]]]);
 });
+
+test("a restarted list that opens with an empty 1. line leaves no stray mark in the entry before it", () => {
+  const read = (text: string) => parseList(text).map((entry) => [entry.title, entry.author, entry.blurb]);
+  assert.deepEqual(read("1. A Penulis: X\n\n1.\n2. C Penulis: Y"), [["A", "X", ""], ["C", "Y", ""]]);
+  assert.deepEqual(read("1. A Penulis: X Sinopsis: s\n\n1.\n2. C Penulis: Y"), [["A", "X", "s"], ["C", "Y", ""]]);
+  assert.deepEqual(read("1. A Penulis: X\n2. B Penulis: Y\n\n1.\n2. C Penulis: Z"), [["A", "X", ""], ["B", "Y", ""], ["C", "Z", ""]]);
+  assert.deepEqual(read("1. A Penulis: X\n\n1.\n1.\n2. C Penulis: Y"), [["A", "X", ""], ["C", "Y", ""]]);
+  assert.deepEqual(read("1. A Penulis: X Sinopsis: Book 1. 3. C Penulis: Z"), [["A", "X", "Book 1."], ["C", "Z", ""]]);
+});

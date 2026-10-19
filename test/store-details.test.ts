@@ -140,10 +140,10 @@ test("what was typed or imported is never overwritten, and no blurb is requested
   assert.equal(state.calls.some((call) => call.startsWith("/works/")), false);
 });
 
-test("a title that matches only an author of a different name is not accepted, and a hit by the same surname is", async () => {
+test("a title that matches only an author of a different name is skipped as not sure, and a hit by the same name is written", async () => {
   const wrong = rig([book("Bumi Manusia", { author: "Somebody Else" })]);
   assert.equal(await wrong.run(), "finished");
-  assert.deepEqual([wrong.saved.length, wrong.steps[0][1]], [0, { filled: 0, empty: 1, failed: 0, unsure: 0 }]);
+  assert.deepEqual([wrong.saved.length, wrong.steps[0][1]], [0, { filled: 0, empty: 0, failed: 0, unsure: 1 }]);
   const right = rig([book("Bumi Manusia", { author: "Pramoedya Ananta Toer" }), book("Bumi Manusia", { author: "Toer, Pramoedya Ananta" })]);
   await right.run();
   assert.deepEqual(right.saved.map(([, patch]) => patch.ol), ["OL307247W", "OL307247W"]);
@@ -160,38 +160,33 @@ const outcome = async (typed: Record<string, unknown>, ...docs: ReturnType<typeo
   return { saved, tally: steps[0][1] };
 };
 
-test("a hit by another author is never written, whatever the title and however much of the name is shared", async () => {
-  const none = { filled: 0, empty: 1, failed: 0, unsure: 0 };
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["John Green"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "Pramoedya" }, doc("OL1W", "Placeholder Gamma", ["Pramoedya Ananta Toer"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "Pramudya Ananta Tur" }, doc("OL1W", "Placeholder Gamma", ["Pramoedya Ananta Toer"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John S." }, doc("OL1W", "Placeholder Gamma", ["John Smith"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma")), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Another Placeholder", ["John Smith"])), { saved: [], tally: none });
-});
+const unsure = { saved: [], tally: { filled: 0, empty: 0, failed: 0, unsure: 1 } };
 
-test("a hit by a different person with the same surname or the same suffix is skipped as not sure, never written", async () => {
-  const unsure = { saved: [], tally: { filled: 0, empty: 0, failed: 0, unsure: 1 } };
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"])), unsure);
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["Smith, Adam"])), unsure);
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["A. Smith"])), unsure);
-  assert.deepEqual(await outcome({ author: "Wang Wei" }, doc("OL1W", "Placeholder Gamma", ["Li Wei"])), unsure);
-  assert.deepEqual(await outcome({ author: "Ed Ford Jr." }, doc("OL1W", "Placeholder Gamma", ["Al Ford Jr."])), unsure);
-  assert.deepEqual(await outcome({ author: "Ed Ford II" }, doc("OL1W", "Placeholder Gamma", ["Al Ford III"])), unsure);
+test("a hit by another author, a part of the name or a title that differs is never written", async () => {
+  const none = { saved: [], tally: { filled: 0, empty: 1, failed: 0, unsure: 0 } };
+  for (const [typed, found] of [["John Smith", "John Green"], ["John Smith", "Adam Smith"], ["John Smith", "Smith, Adam"], ["Wang Wei", "Li Wei"], ["Pramoedya", "Pramoedya Ananta Toer"], ["Pramudya Ananta Tur", "Pramoedya Ananta Toer"], ["Ed Ford II", "Al Ford III"], ["J. Smith", "John Smith"], ["John S.", "John Smith"], ["Prof. John Smith", "John Smith"]])
+    assert.deepEqual(await outcome({ author: typed }, doc("OL1W", "Placeholder Gamma", [found])), unsure, `${typed} / ${found}`);
+  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma")), unsure);
+  assert.deepEqual(await outcome({ author: "" }, doc("OL1W", "Placeholder Gamma", ["John Smith"])), unsure);
+  assert.deepEqual(await outcome({}, doc("OL1W", "Placeholder Gamma", ["John Smith"])), unsure);
   assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", ["Jane Smith"])), unsure);
-  const right = await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", ["John Smith"]));
-  assert.deepEqual([right.saved[0][1].ol, right.tally.unsure], ["OL2W", 0]);
-  const suffix = await outcome({ author: "Ed Ford Jr." }, doc("OL1W", "Placeholder Gamma", ["Ed Ford"]));
-  assert.deepEqual([suffix.saved[0][1].ol, suffix.tally.unsure], ["OL1W", 0]);
-  const initial = await outcome({ author: "J. Smith" }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", ["John Smith"]));
-  assert.deepEqual([initial.saved[0][1].ol, initial.tally.unsure], ["OL2W", 0]);
+  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Another Placeholder", ["John Smith"])), none);
 });
 
-test("a hit by the same surname with the same title is written, and nothing else on it is trusted beyond the existing rules", async () => {
-  const { saved, tally } = await outcome({ author: "J. Smith" }, doc("OL1W", "Placeholder Gamma", ["John Smith"]));
-  assert.deepEqual(tally, { filled: 1, empty: 0, failed: 0, unsure: 0 });
-  assert.equal(saved[0][1].ol, "OL1W");
-  assert.equal(saved[0][1].blurb, "Invented synopsis.");
+test("a typed two-author list with Surname, Given entries is written only from a hit that lists both authors", async () => {
+  const typed = { author: "Okoye, Maren and Lindqvist, Tove" };
+  for (const found of [["Rafi Lindqvist"], ["Anna Tove"], ["Dara Maren"], ["Maren Okoye"], ["Tove Lindqvist"]]) assert.deepEqual(await outcome(typed, doc("OL1W", "Placeholder Gamma", found)), unsure, found.join());
+  for (const found of [["Maren Okoye", "Tove Lindqvist"], ["Tove Lindqvist", "Maren Okoye"], ["Okoye, Maren", "Lindqvist, Tove", "Rafi Okoye"]]) {
+    const { saved, tally } = await outcome(typed, doc("OL1W", "Placeholder Gamma", ["Rafi Voss"]), doc("OL2W", "Placeholder Gamma", found));
+    assert.deepEqual([saved[0][1].ol, saved[0][1].blurb, tally.unsure], ["OL2W", "Invented synopsis.", 0], found.join());
+  }
+});
+
+test("an author that is the same name in another order, or with a generational suffix, is written", async () => {
+  for (const [given, found] of [["John Smith", "Smith, John"], ["Ed Ford Jr.", "Ed Ford"], ["Smith, John", "John Smith"]]) {
+    const { saved, tally } = await outcome({ author: given }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", [found]));
+    assert.deepEqual([saved[0][1].ol, saved[0][1].blurb, tally], ["OL2W", "Invented synopsis.", { filled: 1, empty: 0, failed: 0, unsure: 0 }], given);
+  }
 });
 
 test("an empty typed author is skipped as not sure, never matched on the title alone", async () => {
@@ -201,7 +196,7 @@ test("an empty typed author is skipped as not sure, never matched on the title a
   assert.deepEqual((await outcome({}, doc("OL1W", "Another Placeholder", ["Writer One"]))).tally, { filled: 0, empty: 1, failed: 0, unsure: 0 });
 });
 
-test("a common title with several authors is written only when exactly one work carries the typed surname", async () => {
+test("a common title with several authors is written only when exactly one work carries the typed author", async () => {
   const crowd = [doc("OL1W", "Placeholder Gamma", ["Writer One"]), doc("OL2W", "Placeholder Gamma", ["Writer One", "Writer Two"]), doc("OL3W", "Placeholder Gamma", ["Writer Three"])];
   assert.deepEqual(await outcome({ author: "Writer One" }, ...crowd), { saved: [], tally: { filled: 0, empty: 0, failed: 0, unsure: 1 } });
   const alone = await outcome({ author: "Writer Three" }, ...crowd);

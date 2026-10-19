@@ -1,6 +1,6 @@
 import { toIsbn13 } from "../domain/isbn.ts";
 import { fresh } from "../domain/scan.ts";
-import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameAuthor, sameBook, searchUrl, sharesSurname, workUrl } from "../domain/openlibrary.ts";
+import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameAuthor, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
 export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale"; retry?: number };
@@ -146,10 +146,9 @@ export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled | {
   const found = await lookup.search({ title, author: word(data?.author), original: word(data?.original_title) });
   if (found.kind !== "ok") return found;
   const titled = found.value.filter((candidate) => fillPatch(read(), candidate, null) !== null);
-  if (titled.length > 0 && word(data?.author).trim() === "") return { kind: "unsure" };
   const confirmed = titled.filter((candidate) => sameAuthor(data?.author, candidate.author));
   if (new Set(confirmed.map((candidate) => candidate.work)).size > 1) return { kind: "unsure" };
-  if (confirmed.length === 0) return titled.some((candidate) => sharesSurname(data?.author, candidate.author)) ? { kind: "unsure" } : { kind: "empty" };
+  if (confirmed.length === 0) return titled.length > 0 ? { kind: "unsure" } : { kind: "empty" };
   return complete(lookup, confirmed[0], read);
 };
 

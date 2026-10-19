@@ -20,9 +20,10 @@ const generate = (next: () => number) => {
   let text = "";
   for (let list = 0; list < (next() < 0.25 ? 2 : 1); list++) {
     const size = 1 + Math.floor(next() * 6);
+    const lead = list > 0 && !entries.at(-1)?.bare && next() < 0.4 ? 1 : 0;
     const labels = Array.from({ length: size }, (_, at) => labelled && ((at === 0 && list > 0) || next() < 0.75));
     for (let at = 0; at < size; at++) {
-      const number = at + 1;
+      const number = at + 1 + lead;
       const entry: Entry = { title: `Placeholder T${entries.length}`, number, bare: false };
       let part = `${number}. ${entry.title}`;
       if (labels[at]) {
@@ -42,7 +43,7 @@ const generate = (next: () => number) => {
         const alone = labelled && !labels[at] && (at === size - 1 || !labels[at + 1]);
         const glue = previous?.synopsis !== undefined && !previous.bare && labels[at];
         text += alone ? "\n" : pick(glue ? ["\n", " ", "   ", ""] : ["\n", " ", "   "]);
-      } else if (list > 0) text += pick(["\n", "\n\n"]);
+      } else if (list > 0) text += pick(["\n", "\n\n"]) + (lead ? "1.\n" : "");
       text += part;
       entries.push(entry);
     }
@@ -50,7 +51,7 @@ const generate = (next: () => number) => {
   return { text, entries };
 };
 
-test("random lists of labelled and title-only entries, bare numbers in synopses, years and restarted numbering lose no entry and no text", () => {
+test("random lists of labelled and title-only entries, bare numbers in synopses, years, restarted numbering and an empty restart line lose no entry and no text", () => {
   const next = random(20260101);
   let total = 0;
   for (let round = 0; round < 3000; round++) {
