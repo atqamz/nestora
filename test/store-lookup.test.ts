@@ -1,7 +1,7 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createLookup, fillBook, fillOutcome, follow, searchOf, turns } from "../src/store/lookup.ts";
+import { createLookup, fillBook, fillOutcome, follow, scanBook, searchOf, turns } from "../src/store/lookup.ts";
 import { parseSearch } from "../src/domain/openlibrary.ts";
 import type { Fetcher, Search } from "../src/store/lookup.ts";
 
@@ -515,6 +515,59 @@ test("a failed, slow, offline or superseded lookup is reported as it is, so the 
   await tick(5);
   void lookup.search(input("another"));
   assert.deepEqual(await filling, { kind: "stale" });
+});
+
+const PRINCE = "9780156012195";
+
+const isbnServer = () => server(() => reply(sample("laskar-pelangi-isbn")));
+
+test("a scan on a detail with no ISBN is written only after the lookup says the ISBN is this book", async () => {
+  const { calls, fetcher } = isbnServer();
+  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("Laskar Pelangi")), { kind: "write" });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("Pangeran Kecil", { original_title: "Laskar Pelangi" })), { kind: "write" });
+  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("  ")), { kind: "write" });
+});
+
+test("the ISBN of a different book is never written, with or without an ISBN already on the book", async () => {
+  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Pangeran Kecil")), { kind: "mismatch" });
+  assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Pangeran Kecil", { isbn: PRINCE })), { kind: "mismatch" });
+  assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar", { isbn: PRINCE })), { kind: "mismatch" });
+});
+
+test("a scan over an existing ISBN asks first and carries the old one, and the same ISBN again asks for nothing", async () => {
+  const { calls, fetcher } = isbnServer();
+  const lookup = createLookup({ fetcher });
+  assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar Pelangi", { isbn: PRINCE })), { kind: "confirm", old: PRINCE });
+  assert.equal(calls.length, 1);
+  for (const same of [CODE, " 978-979-3062-79-2 ", "ISBN 9789793062792"]) assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar Pelangi", { isbn: same })), { kind: "same" });
+  assert.equal(calls.length, 1);
+});
+
+test("a lookup that cannot answer does not decide the match: no ISBN is written, an ISBN is asked about, a superseded lookup is dropped", async () => {
+  const none = bookOf("Laskar Pelangi");
+  const held = bookOf("Laskar Pelangi", { isbn: PRINCE });
+  for (const fetcher of [server(() => reply({}, 500)).fetcher, server(() => reply({ docs: [] })).fetcher]) {
+    assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => none), { kind: "write" });
+    assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => held), { kind: "confirm", old: PRINCE });
+  }
+  const offline = createLookup({ fetcher: isbnServer().fetcher, online: () => false });
+  assert.deepEqual(await scanBook(offline, CODE, () => none), { kind: "write" });
+  const hold = server(() => new Promise<Response>(() => {}));
+  const lookup = createLookup({ fetcher: hold.fetcher, wait: 1 });
+  const scanning = scanBook(lookup, CODE, () => none);
+  await tick(5);
+  void lookup.search(input("another"));
+  assert.deepEqual(await scanning, { kind: "stale" });
+});
+
+test("the title is read when the answer arrives, so a rename during the lookup is honoured", async () => {
+  let book = bookOf("Laskar Pelangi");
+  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  const scanning = scanBook(lookup, CODE, () => book);
+  book = bookOf("Pangeran Kecil");
+  assert.deepEqual(await scanning, { kind: "mismatch" });
 });
 
 test("a description lookup superseded while filling is stale, and a failed one still fills the rest", async () => {

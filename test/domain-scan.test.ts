@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { isbnCheck } from "../src/domain/isbn.ts";
-import { INTERVAL, LIMIT, accept, fresh, refusal, scan, timer } from "../src/domain/scan.ts";
+import { INTERVAL, LIMIT, accept, camera, frameOf, fresh, refusal, scan, timer } from "../src/domain/scan.ts";
 import type { Deps, Stream, Timer } from "../src/domain/scan.ts";
 import { isbnNote } from "../src/ui/isbn-note.ts";
 import { text } from "../src/ui/text.ts";
@@ -71,7 +71,7 @@ const settle = async () => {
 test("only an ISBN-13 with the 978 or 979 prefix and a valid check digit is accepted from a barcode", () => {
   assert.equal(accept([LASKAR]), LASKAR);
   assert.equal(accept(["9791234567896"]), "9791234567896");
-  for (const bad of ["9789793062793", "0156012197", "0123456789012", "9780156012190", "978979306279", "97897930627921", "978979306279X", " 9789793062792", "9789793062792 ", "ISBN 9789793062792", "978-979-3062-79-2", "", "1234567890128"])
+  for (const bad of ["9771234567003", "9701234567895", "9501234567891", "9601234567898", "9123456789013", "9789793062793", "0156012197", "0123456789012", "9780156012190", "978979306279", "97897930627921", "978979306279X", " 9789793062792", "9789793062792 ", "ISBN 9789793062792", "978-979-3062-79-2", "", "1234567890128"])
     assert.equal(accept([bad]), null, bad);
   assert.equal(accept([]), null);
 });
@@ -344,8 +344,11 @@ test("the camera opens only inside the dialog, asks for the back camera, reads f
   assert.match(view, /getUserMedia\(\{ video: \{ facingMode: "environment" \} \}\)/);
   assert.match(view, /\{open && <Camera onDone=\{done\} \/>\}/);
   assert.match(view, /<button type="button" className="secondary" data-first onClick=\{cancel\}>/);
-  assert.match(view, /addEventListener\("pagehide", hide\)/);
-  assert.match(view, /document\.addEventListener\("visibilitychange", hidden\)/);
+  assert.match(view, /\n      window,\n      document,\n/);
+  assert.match(view, /frame: \(\) => frameOf\(element\)/);
+  assert.match(view, /if \(was\.current && !open\) button\.current\?\.focus\(\);/);
+  assert.match(view, /if \(outcome\.kind === "found"\) \{\s*setNote\(WORDS\.scanned\(outcome\.isbn\)\);\s*onIsbn\(outcome\.isbn\);/);
+  assert.match(view, /return tip && navigator\.maxTouchPoints > 0 \? <p className="hint">\{WORDS\.liveText\}<\/p> : null;/);
   assert.match(view, /<p className="hint look-note" role="status">/);
   for (const file of ["ui/scan.tsx", "hooks/use-scan.ts", "domain/scan.ts"]) {
     assert.doesNotMatch(read(file), /canvas|toDataURL|toBlob|createImageBitmap|ImageCapture|MediaRecorder|fetch|sendBeacon|XMLHttpRequest|localStorage|indexedDB/i, file);
@@ -355,7 +358,7 @@ test("the camera opens only inside the dialog, asks for the back camera, reads f
 test("the button is offered only where BarcodeDetector exists and reads EAN-13, by feature and never by user agent", () => {
   const hook = read("hooks/use-scan.ts");
   assert.match(hook, /typeof BarcodeDetector === "undefined"/);
-  assert.match(hook, /formats\.includes\("ean_13"\)/);
+  assert.match(hook, /formats\.includes\("ean_13"\),\s*\(\) => false,/);
   assert.match(hook, /new BarcodeDetector\(\{ formats: \["ean_13"\] \}\)/);
   for (const file of ["ui/scan.tsx", "hooks/use-scan.ts", "domain/scan.ts", "ui/book-lookup.tsx"]) assert.doesNotMatch(read(file), /userAgent|platform|vendor/, file);
 });
@@ -367,12 +370,210 @@ test("both Add sheets and the book detail get the scan: the shared form fills th
   assert.match(sheet, /typed\.current = \{ \.\.\.typed\.current, isbn: code \};\s*setIsbn\(code\);\s*void lookUp\(code, code\);/);
   const detail = read("ui/book-lookup.tsx");
   assert.match(detail, /\{\(isbn === null \|\| kept\) && <ScanIsbn onIsbn=\{\(code\) => void onScan\(code\)\} \/>\}/);
-  assert.match(detail, /actions\.update\("items", book\.id, \{ data: \{ isbn: code \} \}\)/);
+  assert.match(detail, /if \(isbn === null && work === null && !can\) return null;/);
+  assert.match(detail, /const step = await scanBook\(lookup, code, \(\) => latest\.current\);/);
+  assert.match(detail, /if \(step\.kind === "write"\) return write\(code\);/);
+  assert.match(detail, /if \(step\.kind === "confirm"\) setPending\(\{ old: step\.old, code \}\);/);
+  assert.match(detail, /onClick=\{\(\) => void write\(pending\.code\)\}/);
+  assert.equal(detail.match(/actions\.update\("items", book\.id, \{ data: \{ isbn: code \} \}\)/g)?.length, 1);
   assert.match(detail, /if \(result\.ok\) await run\(code\);/);
+  assert.equal(text.books.lookup.replace, "Replace ISBN?");
+  assert.equal(text.books.lookup.replaceBody(PRINCE, LASKAR), `Now ${PRINCE}. Scanned ${LASKAR}.`);
   assert.match(read("views/book.tsx"), /<FillBook key=\{book\.id\} book=\{book\} \/>/);
 });
 
 test("a dialog inside a sheet closes alone: the sheet's close handler ignores a close that came from a dialog within it", () => {
   assert.match(read("ui/modal.tsx"), /onClose=\{\(event\) => event\.target === event\.currentTarget && onClose\(\)\}/);
   assert.match(read("ui/add-sheet.tsx"), /onClose=\{\(event\) => \{\s*if \(event\.target !== event\.currentTarget\) return;\s*overlay\.closeAdd\(\);/);
+});
+
+const track = () => {
+  const one = {
+    readyState: "live" as "live" | "ended",
+    stop: () => {
+      one.readyState = "ended";
+    },
+  };
+  return one;
+};
+
+const cam = (over: Partial<Deps> & { codes?: (string | undefined)[][] } = {}) => {
+  const time = clock();
+  const tracks: ReturnType<typeof track>[] = [];
+  const page = new EventTarget();
+  const doc = Object.assign(new EventTarget(), { hidden: false });
+  const done: unknown[] = [];
+  const shown: number[] = [];
+  const queue = [...(over.codes ?? [])];
+  const deps: Deps = {
+    secure: true,
+    camera: true,
+    getStream: async () => {
+      const mine = [track(), track()];
+      tracks.push(...mine);
+      return { getTracks: () => mine };
+    },
+    detector: { detect: async () => (queue.shift() ?? []).map((rawValue) => ({ rawValue })) },
+    view: { show: () => shown.push(1), frame: () => ({}) },
+    timer: time.timer,
+    ...over,
+  };
+  delete (deps as { codes?: unknown }).codes;
+  const mount = () => camera(deps, page, doc, (outcome) => done.push(outcome.kind));
+  const live = () => tracks.filter((one) => one.readyState === "live").length;
+  return { mount, live, tracks, page, doc, done, shown, time };
+};
+
+test("every way out of the dialog ends with every camera track stopped: Cancel, Escape, the X, the host sheet closing", async () => {
+  for (const way of ["Cancel", "Escape", "the X", "the host sheet closing"]) {
+    const one = cam();
+    const unmount = one.mount();
+    await settle();
+    assert.equal(one.tracks.length, 2, way);
+    assert.equal(one.live(), 2, way);
+    unmount();
+    assert.equal(one.live(), 0, way);
+    assert.equal(one.time.pending(), 0, way);
+  }
+});
+
+test("a good scan, a detector error and the minute limit each stop every track by themselves, and report once", async () => {
+  const found = cam({ codes: [[LASKAR]] });
+  found.mount();
+  await settle();
+  await found.time.advance(INTERVAL);
+  assert.deepEqual(found.done, ["found"]);
+  assert.equal(found.live(), 0);
+
+  const broken = cam({
+    detector: {
+      detect: async () => {
+        throw new Error("boom");
+      },
+    },
+  });
+  broken.mount();
+  await settle();
+  await broken.time.advance(INTERVAL);
+  assert.deepEqual(broken.done, ["failed"]);
+  assert.equal(broken.live(), 0);
+
+  const slow = cam();
+  slow.mount();
+  await settle();
+  await slow.time.advance(LIMIT - 1);
+  assert.equal(slow.live(), 2);
+  await slow.time.advance(1);
+  assert.deepEqual(slow.done, ["slow"]);
+  assert.equal(slow.live(), 0);
+});
+
+test("a refused or missing camera leaves nothing running and says so once", async () => {
+  const denied = cam({ getStream: () => Promise.reject(Object.assign(new Error("x"), { name: "NotAllowedError" })) });
+  const unmount = denied.mount();
+  await settle();
+  assert.deepEqual(denied.done, ["denied"]);
+  assert.equal(denied.live(), 0);
+  unmount();
+  assert.deepEqual(denied.done, ["denied"]);
+});
+
+test("the host unmounting is silent: the stopped session never reports closed back to the host", async () => {
+  const one = cam();
+  const unmount = one.mount();
+  await settle();
+  unmount();
+  await settle();
+  assert.deepEqual(one.done, []);
+});
+
+test("leaving the page or hiding the tab stops the camera and closes the dialog; showing the tab does nothing", async () => {
+  const visible = cam();
+  visible.mount();
+  await settle();
+  visible.doc.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(visible.live(), 2);
+  assert.deepEqual(visible.done, []);
+
+  const hidden = cam();
+  hidden.mount();
+  await settle();
+  hidden.doc.hidden = true;
+  hidden.doc.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(hidden.live(), 0);
+  assert.deepEqual(hidden.done, ["closed"]);
+
+  const gone = cam();
+  gone.mount();
+  await settle();
+  gone.page.dispatchEvent(new Event("pagehide"));
+  assert.equal(gone.live(), 0);
+  assert.deepEqual(gone.done, ["closed"]);
+});
+
+test("after the dialog closed no page event reaches the host", async () => {
+  const one = cam();
+  const unmount = one.mount();
+  await settle();
+  unmount();
+  one.doc.hidden = true;
+  one.doc.dispatchEvent(new Event("visibilitychange"));
+  one.page.dispatchEvent(new Event("pagehide"));
+  assert.deepEqual(one.done, []);
+});
+
+test("a camera that arrives after the dialog closed is stopped on arrival and never shown", async () => {
+  let arrive!: () => void;
+  const gate = new Promise<void>((resolve) => (arrive = resolve));
+  const mine = [track(), track()];
+  const one = cam({
+    getStream: async () => {
+      await gate;
+      return { getTracks: () => mine };
+    },
+  });
+  const unmount = one.mount();
+  await settle();
+  unmount();
+  assert.deepEqual(mine.map((each) => each.readyState), ["live", "live"]);
+  arrive();
+  await settle();
+  assert.deepEqual(mine.map((each) => each.readyState), ["ended", "ended"]);
+  assert.deepEqual(one.shown, []);
+});
+
+test("two starts in a row and React's double mount leave no stream running once both are closed, and the first never closes the second", async () => {
+  const twice = cam();
+  const first = twice.mount();
+  const second = twice.mount();
+  await settle();
+  first();
+  second();
+  await settle();
+  assert.equal(twice.live(), 0);
+  assert.deepEqual(twice.done, []);
+
+  const strict = cam();
+  const early = strict.mount();
+  early();
+  const kept = strict.mount();
+  await settle();
+  assert.deepEqual(strict.done, []);
+  assert.equal(strict.live(), 2);
+  assert.equal(strict.shown.length, 1);
+  kept();
+  assert.equal(strict.live(), 0);
+  assert.equal(strict.time.pending(), 0);
+});
+
+test("a frame is offered only once the video has data and a size", () => {
+  const video = (readyState: number, videoWidth: number) => ({ readyState, videoWidth });
+  assert.equal(frameOf(video(0, 0)), null);
+  assert.equal(frameOf(video(1, 640)), null);
+  assert.equal(frameOf(video(2, 0)), null);
+  assert.equal(frameOf(video(4, 0)), null);
+  const ready = video(2, 640);
+  assert.equal(frameOf(ready), ready);
+  const full = video(4, 640);
+  assert.equal(frameOf(full), full);
 });

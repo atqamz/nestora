@@ -291,10 +291,12 @@ const SAME: [string, string][] = [
   ["Laskar Pelangi — Novel", "Laskar Pelangi"],
   ["Bumi Manusia - Novel", "Bumi Manusia"],
   ["Bumi Manusia (Series 1)", "Bumi Manusia"],
-  ["Laskar Pelangi", "Laskar Pelangi Vol. 3"],
+  ["Laskar Pelangi Vol. 3", "Laskar Pelangi Vol. 3"],
   ["Laskar Pelangi, Book 2", "Laskar Pelangi"],
   ["Pangeran Kecil #2", "Pangeran Kecil"],
-  ["Pangeran Kecil", "Pangeran Kecil 2"],
+  ["Pangeran Kecil 2", "Pangeran Kecil"],
+  ["Marrow Coast Vol. 4", "Marrow Coast"],
+  ["Marrow Coast, Volume 4", "Marrow Coast"],
   ["Le petit prince", "Le Petit Prince!"],
 ];
 
@@ -320,6 +322,18 @@ const BARE: [string, string][] = [
   ["Laskar Pelangi", "Laskar Pelangi: Sekuel (Seri 2)"],
 ];
 
+const NUMBERED: [string, string][] = [
+  ["Laskar Pelangi", "Laskar Pelangi Vol. 3"],
+  ["Pangeran Kecil", "Pangeran Kecil 2"],
+  ["Bumi Manusia", "Bumi Manusia, Book 2"],
+  ["Marrow Coast", "Marrow Coast Vol. 4"],
+  ["Marrow Coast", "Marrow Coast, Vol. 4"],
+  ["Marrow Coast", "Marrow Coast #4"],
+  ["Marrow Coast", "Marrow Coast 4"],
+  ["Ember Tide", "Ember Tide Part 12"],
+  ["Ember Tide", "Ember Tide: Salt Road 2"],
+];
+
 test("the same title: equal after folding, or one is the other plus a subtitle, a bracketed series note or a volume number", () => {
   for (const [typed, found] of SAME) assert.equal(sameTitle(typed, found), true, `${typed} / ${found}`);
 });
@@ -336,6 +350,17 @@ test("a bare series title is not the title of a sibling that has a subtitle the 
     assert.equal(sameTitle(typed, found), false, `${typed} / ${found}`);
     assert.equal(sameTitle(found, typed), true, `${found} / ${typed}`);
   }
+});
+
+test("a bare series title is not the title of a numbered sibling, though the typed numbered title still matches the bare one and the same number", () => {
+  for (const [typed, found] of NUMBERED) {
+    assert.equal(sameTitle(typed, found), false, `${typed} / ${found}`);
+    assert.equal(sameTitle(found, typed), true, `${found} / ${typed}`);
+  }
+  assert.equal(sameTitle("Marrow Coast Vol. 4", "Marrow Coast, Vol. 4"), true);
+  assert.equal(sameTitle("Marrow Coast Vol. 4", "Marrow Coast Vol. 5"), false);
+  assert.equal(sameBook({ title: "Marrow Coast", original: "" }, "Marrow Coast Vol. 4"), false);
+  assert.equal(sameBook({ title: "Marrow Coast Vol. 4", original: "" }, "Marrow Coast"), true);
 });
 
 test("one rule says whether a hit is the book: its title, its original title when there is one, or any hit while the title is still blank", () => {

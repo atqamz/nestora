@@ -1,4 +1,5 @@
 import { toIsbn13 } from "../domain/isbn.ts";
+import { fresh } from "../domain/scan.ts";
 import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
@@ -137,4 +138,19 @@ export const fillOutcome = (out: Outcome<Hit | null>, typed: { title: string; or
   if (out.kind !== "ok") return { hit: null, state: out.kind };
   if (out.value === null) return { hit: null, state: "empty" };
   return sameBook(typed, out.value.title) ? { hit: out.value, state: "done" } : { hit: null, state: "mismatch" };
+};
+
+export type Scan = { kind: "same" | "mismatch" | "stale" | "write" } | { kind: "confirm"; old: string };
+
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+export const scanBook = async (lookup: Lookup, code: string, read: () => { title: string; data: Record<string, unknown> | null }): Promise<Scan> => {
+  if (!fresh(text(read().data?.isbn), code)) return { kind: "same" };
+  const out = await lookup.byIsbn(code);
+  const book = read();
+  const { state } = fillOutcome(out, { title: book.title, original: text(book.data?.original_title), isbn: code }, code, true);
+  if (state === "idle") return { kind: "stale" };
+  if (state === "mismatch") return { kind: "mismatch" };
+  const old = text(book.data?.isbn);
+  return old === "" ? { kind: "write" } : { kind: "confirm", old };
 };
