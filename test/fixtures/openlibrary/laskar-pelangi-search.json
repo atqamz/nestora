@@ -1,0 +1,85 @@
+{
+  "numFound": 8,
+  "start": 0,
+  "docs": [
+    {
+      "author_name": [
+        "Andrea Hirata"
+      ],
+      "cover_i": 7079796,
+      "first_publish_year": 2005,
+      "key": "/works/OL15302003W",
+      "title": "Laskar Pelangi",
+      "editions": {
+        "numFound": 1,
+        "start": 0,
+        "numFoundExact": true,
+        "docs": [
+          {
+            "title": "Laskar pelangi",
+            "cover_i": 7079796,
+            "language": [
+              "ind"
+            ],
+            "isbn": [
+              "9793062797",
+              "9789793062792"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "author_name": [
+        "Andrea Hirata"
+      ],
+      "cover_i": 13007588,
+      "first_publish_year": 2009,
+      "key": "/works/OL15302005W",
+      "title": "The rainbow troops",
+      "editions": {
+        "numFound": 2,
+        "start": 0,
+        "numFoundExact": true,
+        "docs": [
+          {
+            "title": "The rainbow troops",
+            "cover_i": 13007586,
+            "language": [
+              "eng"
+            ],
+            "isbn": [
+              "9780374246310",
+              "0374246319"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "author_name": [
+        "Asrori S. Karni"
+      ],
+      "first_publish_year": 2008,
+      "key": "/works/OL13719321W",
+      "title": "Laskar pelangi",
+      "editions": {
+        "numFound": 1,
+        "start": 0,
+        "numFoundExact": true,
+        "docs": [
+          {
+            "title": "Laskar pelangi",
+            "language": [
+              "ind"
+            ],
+            "isbn": [
+              "9789791142274",
+              "9791142270"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

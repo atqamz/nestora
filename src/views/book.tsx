@@ -11,6 +11,7 @@ import { actions } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { useBookActions } from "../ui/book-actions.ts";
 import { Cover, Stars } from "../ui/book-bits.tsx";
+import { FillBook } from "../ui/book-lookup.tsx";
 import { CopySheet } from "../ui/copy-sheet.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { formatDate } from "../ui/format.ts";
@@ -140,7 +141,7 @@ export function BookDetail({ id }: { id: string }) {
         </a>
       </p>
       <div className="bk-head">
-        <Cover book={book} />
+        <Cover book={book} alt={text.books.lookup.coverOf(book.title)} />
         <div className="bk-id">
           <Title>{book.title}</Title>
           {original && <p className="bk-sub">{text.books.original(original)}</p>}
@@ -148,6 +149,7 @@ export function BookDetail({ id }: { id: string }) {
           {facts.length > 0 && <p className="hint">{facts.join(" · ")}</p>}
         </div>
       </div>
+      <FillBook key={book.id} book={book} />
       {wish ? (
         <section aria-labelledby="bk-wish">
           <h2 id="bk-wish">{text.books.wishBook}</h2>

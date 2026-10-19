@@ -17,6 +17,10 @@ export type BookInput = {
   author: string;
   original: string;
   isbn: string;
+  language: string;
+  blurb: string;
+  cover: string;
+  ol: string;
   ownerPick: BookOwner | null;
   placePick: string | null;
 };
@@ -33,7 +37,16 @@ export const saveBook = async (items: readonly ItemRow[], create: Store["create"
   if (!checked.ok) return { ok: false, errors: [text.invalid.isbn] };
   const { owner, placeId } = bookDefaults(input, items, me);
   const code = checked.value !== null ? { isbn: String(checked.value) } : {};
-  const data = Object.fromEntries(Object.entries({ author: input.author.trim(), original_title: input.original.trim() }).filter(([, value]) => value !== ""));
+  const details = {
+    author: input.author.trim(),
+    original_title: input.original.trim(),
+    language: input.language,
+    blurb: input.blurb.trim().replace(/\s+/g, " "),
+    cover: input.cover,
+    ol: input.ol,
+  };
+  const data = Object.fromEntries(Object.entries(details).filter(([, value]) => value !== ""));
+  const language = input.language === "" ? {} : { language: input.language };
   const book = await create("items", {
     kind: "book",
     title,
@@ -51,7 +64,7 @@ export const saveBook = async (items: readonly ItemRow[], create: Store["create"
           status: "here",
           who: owner,
           group_key: placeId === "" ? null : placeId,
-          data: { format: "print", ...code },
+          data: { format: "print", ...code, ...language },
         })
       : book;
   if (copy.ok) {

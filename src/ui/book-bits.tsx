@@ -1,12 +1,18 @@
+import { useState } from "react";
+import { isCover } from "../../shared/validate.ts";
 import { coverOf } from "../domain/cover.ts";
 import { Icon } from "./icons.tsx";
 import { text } from "./text.ts";
 
-export function Cover({ book }: { book: { id: string; title: string } }) {
+export function Cover({ book, alt }: { book: { id: string; title: string; data?: Record<string, unknown> | null }; alt?: string }) {
   const { initials, tone } = coverOf(book);
+  const [failed, setFailed] = useState<string | null>(null);
+  const url = book.data?.cover;
+  const src = isCover(url) && url !== failed ? url : null;
   return (
-    <span className="cover" data-tone={tone} aria-hidden="true">
+    <span className="cover" data-tone={tone} aria-hidden={alt === undefined || src === null ? "true" : undefined}>
       {initials}
+      {src !== null && <img src={src} alt={alt ?? ""} width="200" height="300" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(src)} />}
     </span>
   );
 }

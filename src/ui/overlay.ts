@@ -1,9 +1,21 @@
 import { useSyncExternalStore } from "react";
 import type { Field, Kind } from "../domain/draft.ts";
+import type { Found } from "../domain/openlibrary.ts";
 
 export type SheetDraft = { input: string; kindPick: Kind | null; ignore: Field[]; edits: Record<string, string>; ownerPick: string | null };
 
-export type BookDraft = { kind: "shelf" | "wish"; title: string; author: string; original: string; isbn: string; ownerPick: string | null; placePick: string | null };
+export type BookDraft = {
+  kind: "shelf" | "wish";
+  title: string;
+  author: string;
+  original: string;
+  isbn: string;
+  language: string;
+  blurb: string;
+  found: Found | null;
+  ownerPick: string | null;
+  placePick: string | null;
+};
 
 export const withSeed = (kept: string, seed: string) => [kept.trim(), seed.trim()].filter((part) => part !== "").join(" ");
 

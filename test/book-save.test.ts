@@ -8,7 +8,7 @@ import { text } from "../src/ui/text.ts";
 import { client, idOf } from "./store-client.ts";
 import { createServer } from "./store-server.ts";
 
-const blank: BookInput = { kind: "shelf", title: "Laskar Pelangi", author: "", original: "", isbn: "", ownerPick: null, placePick: null };
+const blank: BookInput = { kind: "shelf", title: "Laskar Pelangi", author: "", original: "", isbn: "", language: "", blurb: "", cover: "", ol: "", ownerPick: null, placePick: null };
 
 const world = async (me: "a" | "b" = "a") => {
   const { store } = client(createServer(), me);
@@ -94,7 +94,7 @@ test("an empty title or a wrong ISBN is refused and writes nothing", async () =>
 
 test("a saved book clears the one shared draft for both sheets, a refused save keeps it", async () => {
   const w = await world();
-  const book = { kind: "wish" as const, title: "Draft Leak Probe", author: "", original: "", isbn: "", ownerPick: null, placePick: null };
+  const book = { kind: "wish" as const, title: "Draft Leak Probe", author: "", original: "", isbn: "", language: "", blurb: "", found: null, ownerPick: null, placePick: null };
   const sheet = { input: "Draft Leak Probe", kindPick: "book" as const, ignore: [], edits: {}, ownerPick: null };
   overlay.keepBook(book);
   overlay.keepDraft(sheet);
@@ -116,4 +116,47 @@ test("a write the store refuses keeps the draft and reports the failure", async 
   assert.deepEqual(await saveBook(w.rows(), half, blank, "a"), refused);
   assert.equal(overlay.keptDraft(), sheet);
   overlay.keepDraft(null);
+});
+
+const found = { language: "id", blurb: "  A school\n  on an island.\r\n", cover: "https://covers.openlibrary.org/b/id/7079796-M.jpg", ol: "OL15302003W" };
+
+test("a book picked from Open Library keeps its cover, work, language and one-line description, and the copy takes the language", async () => {
+  const w = await world();
+  const result = await w.save({ ...found, author: "Andrea Hirata", isbn: "9789793062792" });
+  assert.ok(result.ok);
+  const [book] = w.books();
+  const [copy] = w.copies();
+  assert.deepEqual(book.data, { author: "Andrea Hirata", isbn: "9789793062792", language: "id", blurb: "A school on an island.", cover: found.cover, ol: "OL15302003W" });
+  assert.deepEqual(copy.data, { format: "print", isbn: "9789793062792", language: "id" });
+});
+
+test("a wish keeps the same details and creates no copy", async () => {
+  const w = await world();
+  assert.ok((await w.save({ ...found, kind: "wish" })).ok);
+  assert.equal(w.books()[0].data?.cover, found.cover);
+  assert.equal(w.copies().length, 0);
+});
+
+test("a book typed by hand stores no cover, work, language or description, and an empty language is left out of the copy", async () => {
+  const w = await world();
+  assert.ok((await w.save({ blurb: "   " })).ok);
+  assert.deepEqual(w.books()[0].data, {});
+  assert.deepEqual(w.copies()[0].data, { format: "print" });
+});
+
+test("a cover from any other host is refused and nothing is saved", async () => {
+  const w = await world();
+  for (const cover of ["https://example.com/b/id/1-M.jpg", "http://covers.openlibrary.org/b/id/1-M.jpg", "javascript:alert(1)"]) {
+    const result = await w.save({ cover });
+    assert.equal(result.ok, false, cover);
+    assert.match(result.ok ? "" : result.errors.join(" "), /data\.cover: must be an https URL on covers\.openlibrary\.org/);
+  }
+  assert.equal(w.books().length, 0);
+});
+
+test("a description over 2000 characters is refused with the field's name", async () => {
+  const w = await world();
+  const result = await w.save({ blurb: "x".repeat(2001) });
+  assert.match(result.ok ? "" : result.errors.join(" "), /data\.blurb/);
+  assert.equal(w.books().length, 0);
 });
