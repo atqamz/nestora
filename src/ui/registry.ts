@@ -53,6 +53,7 @@ export const views = {
       "amount",
       "data.shop",
       "data.shop_url",
+      "data.rated_elsewhere",
       "note",
     ],
     summary: [],

@@ -5,9 +5,9 @@ import type { Column, Table, Type, Variant } from "./tables.ts";
 type Plain = Record<string, unknown>;
 type Mode = "create" | "stored" | "patch";
 
-const TEXT_MAX = 500;
-const LONGTEXT_MAX = 2000;
-const NOTE_MAX = 10000;
+export const TEXT_MAX = 500;
+export const LONGTEXT_MAX = 2000;
+export const NOTE_MAX = 10000;
 const URL_MAX = 2048;
 const DATA_MAX = 20000;
 

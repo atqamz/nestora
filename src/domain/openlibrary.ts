@@ -124,6 +124,12 @@ const blank = (value: string) => value.trim() === "";
 export const sameBook = (book: { title: string; original: unknown }, found: string) =>
   blank(book.title) || sameTitle(book.title, found) || (typeof book.original === "string" && !blank(book.original) && sameTitle(book.original, found));
 
+export const sameAuthor = (typed: unknown, found: string) => {
+  const wanted = typeof typed === "string" ? fold(typed).split(" ").filter((name) => name.length >= 3) : [];
+  const have = fold(found).split(" ");
+  return wanted.length === 0 || found.trim() === "" || wanted.some((name) => have.includes(name));
+};
+
 export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
 
 export type Field = (typeof AUTO)[number];

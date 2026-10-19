@@ -1,5 +1,5 @@
 import { toIsbn13 } from "../domain/isbn.ts";
-import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
+import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameAuthor, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
 export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale" };
@@ -11,6 +11,7 @@ export type Lookup = {
   byIsbn(isbn: string): Promise<Outcome<Hit | null>>;
   blurb(work: string): Promise<Outcome<string | null>>;
   cancel(): void;
+  stop(): void;
 };
 
 type Options = { fetcher?: Fetcher; online?: () => boolean; wait?: number; timeout?: number; remember?: number };
@@ -84,6 +85,7 @@ export const createLookup = ({
     byIsbn: (isbn) => get(begin(), isbnUrl(isbn), (body) => parseIsbn(body, isbn)),
     blurb: (work) => get(begin(), workUrl(work), parseBlurb),
     cancel: () => searching && current?.abort(),
+    stop: () => current?.abort(),
   };
 };
 
@@ -112,17 +114,31 @@ export const follow = (lookup: Lookup, ready: boolean, input: { title: string; a
 
 export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale" };
 
-export const fillBook = async (lookup: Lookup, code: string, read: () => { title: string; data: Record<string, unknown> | null }): Promise<Filled> => {
-  const found = await lookup.byIsbn(code);
-  if (found.kind !== "ok") return found;
-  const hit = found.value;
-  if (hit === null) return { kind: "empty" };
+type Typed = () => { title: string; data: Record<string, unknown> | null };
+
+const complete = async (lookup: Lookup, hit: Hit, read: Typed): Promise<Filled> => {
   if (fillPatch(read(), hit, null) === null) return { kind: "mismatch" };
   const wanted = read().data?.blurb === undefined ? await lookup.blurb(hit.work) : null;
   if (wanted?.kind === "stale") return wanted;
   const patch = fillPatch(read(), hit, wanted?.kind === "ok" ? wanted.value : null);
   if (patch === null) return { kind: "mismatch" };
   return Object.keys(patch).length === 0 ? { kind: "nothing" } : { kind: "patch", patch };
+};
+
+export const fillBook = async (lookup: Lookup, code: string, read: Typed): Promise<Filled> => {
+  const found = await lookup.byIsbn(code);
+  if (found.kind !== "ok") return found;
+  return found.value === null ? { kind: "empty" } : complete(lookup, found.value, read);
+};
+
+const word = (value: unknown) => (typeof value === "string" ? value : "");
+
+export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled> => {
+  const { title, data } = read();
+  const found = await lookup.search({ title, author: word(data?.author), original: word(data?.original_title) });
+  if (found.kind !== "ok") return found;
+  const hit = found.value.find((candidate) => fillPatch(read(), candidate, null) !== null && sameAuthor(data?.author, candidate.author));
+  return hit === undefined ? { kind: "empty" } : complete(lookup, hit, read);
 };
 
 export type Fill = "idle" | "busy" | "empty" | "mismatch" | "offline" | "failed" | "slow" | "done";

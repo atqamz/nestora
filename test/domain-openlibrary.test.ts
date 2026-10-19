@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { draftFor } from "../src/domain/draft.ts";
-import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import type { Hit, Typed } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -350,4 +350,16 @@ test("one rule says whether a hit is the book: its title, its original title whe
   assert.equal(book("Pangeran Kecil", "Laskar Pelangi"), false);
   assert.equal(book(" "), true);
   assert.equal(book("", "Laskar Pelangi"), true);
+});
+
+test("an author matches when any name of three letters or more is shared, and a blank side never blocks", () => {
+  assert.equal(sameAuthor("Andrea Hirata", "Hirata, Andrea"), true);
+  assert.equal(sameAuthor("Pramoedya Ananta Toer", "Song, Poo Yong"), false);
+  assert.equal(sameAuthor("", "Anyone"), true);
+  assert.equal(sameAuthor(undefined, "Anyone"), true);
+  assert.equal(sameAuthor("Someone", ""), true);
+  assert.equal(sameAuthor("Al Bo", "Al Bo"), true);
+  assert.equal(sameAuthor("Tan Zzzzz", "Tan Yyyy"), true);
+  assert.equal(sameAuthor("Andrea Hirata", "Hirata, A."), true);
+  assert.equal(sameAuthor("Antoine de Saint-Exupéry", "Antoine de Saint Exupery"), true);
 });

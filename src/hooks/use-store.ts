@@ -12,6 +12,7 @@ export const actions = {
   create: store.create,
   update: store.update,
   remove: store.remove,
+  many: store.many,
   setSetting: store.setSetting,
   discard: store.discard,
   dismissNotice: store.dismissNotice,

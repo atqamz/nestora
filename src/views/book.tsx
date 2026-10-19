@@ -129,6 +129,7 @@ export function BookDetail({ id }: { id: string }) {
   const series = word(book, "series");
   const seriesNo = typeof book.data?.series_no === "number" ? book.data.series_no : null;
   const isbn = word(book, "isbn");
+  const rated = word(book, "rated_elsewhere");
   const blurb = word(book, "blurb");
   const facts = [series === null ? null : text.books.series(series, seriesNo), book.group_key, isbn === null ? null : text.books.isbnLabel(isbn)].filter(Boolean);
 
@@ -147,6 +148,7 @@ export function BookDetail({ id }: { id: string }) {
           {original && <p className="bk-sub">{text.books.original(original)}</p>}
           {author && <p className="bk-sub">{author}</p>}
           {facts.length > 0 && <p className="hint">{facts.join(" · ")}</p>}
+          {rated !== null && <p className="hint">{text.books.ratedElsewhere(rated)}</p>}
         </div>
       </div>
       <FillBook key={book.id} book={book} />
