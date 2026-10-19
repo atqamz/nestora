@@ -169,7 +169,8 @@ export const text = {
   },
   lately: {
     heading: "Lately",
-    verb: { added: "added", ticked: "ticked off", paid: "paid", changed: "changed" },
+    verb: { added: "added", ticked: "ticked off", paid: "paid", changed: "changed", moved: "moved" },
+    to: "to",
   },
   money: {
     due: "due in the next 30 days",
@@ -370,14 +371,15 @@ export const text = {
     title: "Add",
     close: "Close",
     kind: "Kind",
-    kinds: { task: "Task", planned: "Budget line", payment: "Payment", guest: "Guest", vendor: "Vendor" },
-    first: { task: "Task", planned: "Budget line", payment: "Payment", guest: "Guest", vendor: "Vendor" },
+    kinds: { task: "Task", planned: "Budget line", payment: "Payment", guest: "Guest", vendor: "Vendor", book: "Book" },
+    first: { task: "Task", planned: "Budget line", payment: "Payment", guest: "Guest", vendor: "Vendor", book: "Book title" },
     placeholder: {
       task: "Book the venue visit Friday",
       planned: "Photography 12 jt",
       payment: "Venue deposit 5 jt Friday",
       guest: "Neighbour 0812 3456 7890",
       vendor: "Florist 0812 3456 7890",
+      book: "Laskar Pelangi",
     },
     savedAs: (title: string) => `Saved as “${title}”`,
     chips: "Read from your text",
@@ -398,6 +400,7 @@ export const text = {
     },
     save: { task: "Add task", planned: "Add budget line", payment: "Add payment", guest: "Add guest", vendor: "Add vendor" },
     hint: "Only the first line is needed. Dates, amounts and names are read from it. Tap a chip to fix one. What you type is kept until you add it.",
+    hintBook: "Only the title is needed. What you type is kept until you add it.",
     added: (title: string) => `Added: ${title}`,
   },
   capture: {
@@ -515,6 +518,7 @@ export const text = {
       confirm: "Move and delete",
       deleted: (name: string, moved: number) => (moved > 0 ? `Deleted ${name}. ${moved === 1 ? "1 book" : `${moved} books`} moved.` : `Deleted ${name}`),
       needName: "Add a name for the place.",
+      duplicate: "There is already a place with that name.",
     },
   },
   connect: {

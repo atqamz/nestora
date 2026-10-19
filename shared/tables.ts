@@ -184,6 +184,7 @@ export const tables = {
           lent_on: "date",
           from: "text",
           moved_on: "date",
+          moved_by: ["a", "b"],
           was_at: "id",
           import_batch: "text",
         },

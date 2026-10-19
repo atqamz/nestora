@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { copiesAt, placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
-import { actions, useTable } from "../hooks/use-store.ts";
+import { useTable } from "../hooks/use-store.ts";
 import { useBookActions } from "../ui/book-actions.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Field } from "../ui/field.tsx";
@@ -62,7 +62,7 @@ function Reassign({ place, others, count, onClose }: { place: ItemRow; others: r
 }
 
 function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index: number; last: boolean; count: number; others: readonly ItemRow[] }) {
-  const { swapPlace, deletePlace } = useBookActions();
+  const { swapPlace, deletePlace, renamePlace } = useBookActions();
   const { busy, once } = useBusy();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -73,7 +73,7 @@ function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index
     event.preventDefault();
     if (draft.trim() === "") return setFailure([copy.needName]);
     return once(async () => {
-      const result = await actions.update("items", place.id, { title: draft.trim() });
+      const result = await renamePlace(place, draft.trim());
       setFailure(failureOf(result));
       if (result.ok) setEditing(false);
     });

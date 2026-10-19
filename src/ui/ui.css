@@ -712,7 +712,9 @@ progress::-moz-progress-bar {
 
 .acts {
   display: flex;
-  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
   gap: var(--s1);
   margin-left: auto;
 }

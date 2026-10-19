@@ -5,12 +5,14 @@ export const placesOf = (rows: readonly ItemRow[]) => rows.filter((row) => row.k
 
 export const copiesAt = (rows: readonly ItemRow[], placeId: string) => rows.filter((row) => row.kind === "copy" && row.group_key === placeId);
 
-export const moveCopy = (copy: ItemRow, placeId: string | null, today: string): Patch<"items"> | null =>
-  copy.group_key === placeId ? null : { group_key: placeId, data: { was_at: copy.group_key, moved_on: today } };
+export const moveCopy = (copy: ItemRow, placeId: string | null, today: string, by: "a" | "b" | null): Patch<"items"> | null =>
+  copy.group_key === placeId ? null : { group_key: placeId, data: { was_at: copy.group_key, moved_on: today, moved_by: by } };
+
+export const moverOf = (copy: ItemRow): "a" | "b" | null => (copy.data?.moved_by === "a" || copy.data?.moved_by === "b" ? copy.data.moved_by : null);
 
 export const restoreMove = (before: ItemRow): Patch<"items"> => ({
   group_key: before.group_key,
-  data: { was_at: before.data?.was_at ?? null, moved_on: before.data?.moved_on ?? null },
+  data: { was_at: before.data?.was_at ?? null, moved_on: before.data?.moved_on ?? null, moved_by: before.data?.moved_by ?? null },
 });
 
 export const lastPlace = (rows: readonly ItemRow[]): string | null => {

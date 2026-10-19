@@ -41,3 +41,5 @@ export const shelfSections = (rows: readonly ItemRow[]): ShelfSection[] => {
       (a.where.kind === "place" && b.where.kind === "place" ? bySort(a.where.place, b.where.place) : 0),
   );
 };
+
+export const movable = (copy: ItemRow) => copy.status !== "gone" && copy.status !== "lent" && copy.data?.format !== "ebook";

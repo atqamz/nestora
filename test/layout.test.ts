@@ -53,8 +53,8 @@ test("the Add sheet locks the page without moving it, rides above the keyboard a
   assert.match(sheet, /overscroll-behavior:\s*contain/);
   assert.match(rule(".sheet-foot"), /var\(--safe-b\)/);
   assert.match(rule(".sheet-body"), /overflow-y:\s*auto/);
-  assert.match(read("ui/add-sheet.tsx"), /setProperty\("--lock-gap"/);
-  assert.match(read("ui/add-sheet.tsx"), /removeProperty\("--lock-gap"\)/);
+  assert.match(read("ui/use-sheet.ts"), /setProperty\("--lock-gap"/);
+  assert.match(read("ui/use-sheet.ts"), /removeProperty\("--lock-gap"\)/);
 });
 
 test("the sheet and the dialog use the same breakpoint as the shell and animate only when motion is allowed", () => {
@@ -69,8 +69,9 @@ test("every control of the Add sheet that is not a full row keeps a 44 px target
   assert.match(rule(".chip"), /min-height:\s*var\(--target-min\)/);
   assert.match(rule(".kinds button"), /min-height:\s*var\(--target-min\)/);
   assert.match(rule(".choices label"), /min-height:\s*var\(--target-min\)/);
-  assert.match(rule(".tab-add"), /width:\s*3\.5rem/);
-  assert.match(rule(".tab-add"), /height:\s*3\.5rem/);
+  assert.match(rule(".tab-add"), /width:\s*min\(3\.5rem, 16vw\)/);
+  assert.match(rule(".tab-add"), /height:\s*min\(3\.5rem, 16vw\)/);
+  assert.ok(0.16 * 320 >= 44);
 });
 
 const sources = readdirSync(new URL("../src/", import.meta.url), { recursive: true, withFileTypes: true })

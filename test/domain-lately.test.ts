@@ -86,3 +86,69 @@ test("added means unsynced, or never changed since the server stored it", () => 
   assert.equal(verb({ updated_at: "2026-10-06T10:00:00Z" }), "changed");
   assert.equal(verb({ updated_at: "2026-10-06T10:00:00Z", rev: 0 }), "added");
 });
+
+const shelf = (title: string, at: string, fields: Parameters<typeof item>[0] = {}) =>
+  item({ kind: "book", title, status: "shelf", updated_by: "a", created_at: at, updated_at: at, ...fields });
+const place = (title: string) => item({ kind: "place", title, status: null, updated_by: "a", updated_at: "2026-10-05T01:00:00Z" });
+const copyOf = (book: ReturnType<typeof item>, fields: Parameters<typeof item>[0] = {}) =>
+  item({ kind: "copy", parent_id: book.id, title: book.title, status: "here", updated_by: "a", created_at: book.created_at, updated_at: book.updated_at, ...fields });
+const summary = (rows: ReturnType<typeof item>[]) => lately(rows, []).map((activity) => [activity.verb, activity.title, activity.to]);
+
+test("a book added with its copy reads as one line, and the places are left out", () => {
+  const book = shelf("Laskar Pelangi", "2026-10-05T10:00:00Z");
+  const home = place("Home A");
+  const copy = copyOf(book, { created_at: "2026-10-05T10:00:02Z", updated_at: "2026-10-05T10:00:02Z", group_key: home.id });
+  assert.deepEqual(summary([home, book, copy]), [["added", "Laskar Pelangi", null]]);
+});
+
+test("a copy made by We got it, at the moment the book changed, is hidden too", () => {
+  const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z", { status: "shelf", updated_at: "2026-10-05T10:00:00Z", rev: 3 });
+  const copy = copyOf(book, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-05T10:00:00Z" });
+  assert.deepEqual(summary([book, copy]), [["changed", "Laskar Pelangi", null]]);
+});
+
+test("a copy added to an older book shows as added", () => {
+  const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z");
+  const copy = copyOf(book, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-05T10:00:00Z" });
+  assert.deepEqual(summary([book, copy]), [["added", "Laskar Pelangi", null], ["added", "Laskar Pelangi", null]]);
+});
+
+test("a move reads as moved <title> to <place>, even for a copy that was added together with its book a minute ago", () => {
+  const home = place("Home B");
+  const book = shelf("Laskar Pelangi", "2026-10-05T10:00:00Z");
+  const copy = copyOf(book, { updated_at: "2026-10-05T10:00:30Z", rev: 2, group_key: home.id, data: { moved_on: "2026-10-05", moved_by: "a" } });
+  assert.deepEqual(summary([home, copy]), [["moved", "Laskar Pelangi", "Home B"]]);
+});
+
+test("a move seen from a zone a day ahead still reads as moved, and a copy edited long after its move reads as changed", () => {
+  const home = place("Home B");
+  const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z");
+  const next = copyOf(book, { created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-05T20:00:00Z", rev: 2, group_key: home.id, data: { moved_on: "2026-10-06" } });
+  assert.equal(summary([home, next])[0][0], "moved");
+  const later = copyOf(book, { created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-20T20:00:00Z", rev: 3, group_key: home.id, data: { moved_on: "2026-10-05" } });
+  assert.equal(summary([home, later])[0][0], "changed");
+});
+
+test("a move to a place that is gone or unset reads without a destination", () => {
+  const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z");
+  const copy = copyOf(book, { updated_at: "2026-10-05T20:00:00Z", rev: 2, group_key: null, data: { moved_on: "2026-10-05" } });
+  assert.deepEqual(summary([copy]), [["moved", "Laskar Pelangi", null]]);
+});
+
+test("rows that carry an import batch are left out, whatever their kind", () => {
+  const book = shelf("Imported", "2026-10-05T10:00:00Z", { data: { import_batch: "b1" } });
+  const copy = copyOf(book, { created_at: "2026-10-09T10:00:00Z", updated_at: "2026-10-09T10:00:00Z", data: { import_batch: "b1" } });
+  const task = item({ title: "kept", updated_by: "a", updated_at: "2026-10-04T10:00:00Z", data: { note: "x" } });
+  assert.deepEqual(summary([book, copy, task]), [["changed", "kept", null]]);
+});
+
+test("books do not push the wedding work off Home: 5 slots hold the latest wedding changes when books are old", () => {
+  const rows = [
+    item({ title: "t1", updated_by: "a", updated_at: "2026-10-05T10:00:00Z" }),
+    item({ title: "t2", updated_by: "b", updated_at: "2026-10-05T09:00:00Z" }),
+  ];
+  const book = shelf("Laskar Pelangi", "2026-10-05T11:00:00Z");
+  const home = place("Home A");
+  const copy = copyOf(book, { group_key: home.id });
+  assert.deepEqual(summary([...rows, book, copy, home]).map(([, title]) => title), ["Laskar Pelangi", "t1", "t2"]);
+});

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { STORED, draftFor, fallbacks, isPhone, parseDraft } from "../src/domain/draft.ts";
 import type { Context, Kind } from "../src/domain/draft.ts";
 
-const KINDS: readonly Kind[] = ["task", "planned", "payment", "guest", "vendor"];
+const KINDS = ["task", "planned", "payment", "guest", "vendor"] as const;
 
 const context: Context = {
   today: "2026-10-07",
@@ -219,7 +219,7 @@ const mbak: Context = { ...context, nicknames: { a: "Mbak Rani", b: "Dimas" } };
 
 type Read = [amount: number | null, due: string | null, who: string | null, phone: string | null, title: string];
 
-const CROSSING: [string, Context, Record<Kind, Read>][] = [
+const CROSSING: [string, Context, Record<Exclude<Kind, "book">, Read>][] = [
   ["Top up for 0812 3456 7890 50k", context, {
     task: [50_000, null, null, null, "Top up for 0812 3456 7890"],
     planned: [50_000, null, null, null, "Top up for 0812 3456 7890"],

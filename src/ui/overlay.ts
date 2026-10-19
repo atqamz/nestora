@@ -3,6 +3,8 @@ import type { Field, Kind } from "../domain/draft.ts";
 
 export type SheetDraft = { input: string; kindPick: Kind | null; ignore: Field[]; edits: Record<string, string>; ownerPick: string | null };
 
+export type BookDraft = { kind: "shelf" | "wish"; title: string; author: string; original: string; isbn: string; ownerPick: string | null; placePick: string | null };
+
 export const withSeed = (kept: string, seed: string) => [kept.trim(), seed.trim()].filter((part) => part !== "").join(" ");
 
 export type ToastAction = { label: string; run: () => void };
@@ -17,6 +19,7 @@ let opener: HTMLElement | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let toasts = 0;
 let kept: SheetDraft | null = null;
+let keptBook: BookDraft | null = null;
 const listeners = new Set<() => void>();
 
 const set = (next: Partial<State>) => {
@@ -39,6 +42,10 @@ export const overlay = {
     kept = draft;
   },
   keptDraft: () => kept,
+  keepBook: (draft: BookDraft | null) => {
+    keptBook = draft;
+  },
+  keptBook: () => keptBook,
   returnFocus: () => {
     const target = opener?.isConnected ? opener : document.querySelector<HTMLElement>("h1");
     opener = null;

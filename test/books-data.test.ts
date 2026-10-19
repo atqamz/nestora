@@ -116,11 +116,15 @@ test("choice and typed data keys are checked", () => {
   rejects(book(2, { data: { priority: "normal" } }), /data\.priority: must be one of high, low/);
   rejects(copy(3, 2, { data: { format: "scroll" } }), /data\.format: must be one of print, ebook, audio/);
   rejects(copy(3, 2, { data: { was_at: "p-1" } }), /data\.was_at: must be a lowercase UUID/);
+  rejects(copy(3, 2, { data: { moved_by: "c" } }), /data\.moved_by: must be one of a, b/);
+  accepts(copy(3, 2, { data: { moved_by: "b" } }));
   rejects(copy(3, 2, { data: { rating_a: "5" } }), /data\.rating_a: unknown key/);
 });
 
-test("a move is one valid patch: the place column and the previous place and date", () => {
-  assert.deepEqual(validatePatch("items", "copy", { group_key: id(2), data: { was_at: id(1), moved_on: "2026-10-19" } }), []);
+test("a move is one valid patch: the place column and the previous place, date and mover", () => {
+  assert.deepEqual(validatePatch("items", "copy", { group_key: id(2), data: { was_at: id(1), moved_on: "2026-10-19", moved_by: "a" } }), []);
+  assert.deepEqual(validatePatch("items", "copy", { group_key: id(2), data: { was_at: null, moved_on: null, moved_by: null } }), []);
+  assert.notDeepEqual(validatePatch("items", "book", { data: { moved_by: "a" } }), []);
   assert.deepEqual(validatePatch("items", "book", { data: { reading_a: "reading", rating_a: null } }), []);
 });
 
