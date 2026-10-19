@@ -102,11 +102,29 @@ export const settle = (typed: string, found: string): { title: string; original:
     : { title: typed.trim(), original: found };
 };
 
-export const fillPatch = (book: { title: string; data: Record<string, unknown> | null }, hit: Hit, blurb: string | null): Record<string, string> => {
+export const sameTitle = (typed: string, found: string) => settle(typed, found).original === "";
+
+const blank = (value: string) => value.trim() === "";
+
+export const adopt = (typed: { title: string; author: string; original: string; isbn: string; language: string }, hit: Hit) => {
+  const next = settle(typed.title, hit.title);
+  const edition = next.original === "";
+  return {
+    title: next.title,
+    author: blank(typed.author) && hit.author !== "" ? hit.author : null,
+    original: blank(typed.original) && !edition ? next.original : null,
+    isbn: edition && blank(typed.isbn) ? hit.isbn : null,
+    language: edition && blank(typed.language) ? hit.language : null,
+  };
+};
+
+export const fillPatch = (book: { title: string; data: Record<string, unknown> | null }, hit: Hit, blurb: string | null): Record<string, string> | null => {
+  const original = book.data?.original_title;
+  const edition = sameTitle(book.title, hit.title);
+  if (!edition && !(typeof original === "string" && !blank(original) && sameTitle(original, hit.title))) return null;
   const found: Record<string, string | null> = {
     author: hit.author,
-    original_title: settle(book.title, hit.title).original,
-    language: hit.language,
+    language: edition ? hit.language : null,
     cover: hit.coverId === null ? null : coverUrl(hit.coverId),
     ol: hit.work,
     blurb,

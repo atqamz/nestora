@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
-import { coverUrl, fillPatch, workPage } from "../domain/openlibrary.ts";
+import { coverUrl, workPage } from "../domain/openlibrary.ts";
 import { lookup } from "../hooks/use-lookup.ts";
 import { actions } from "../hooks/use-store.ts";
+import { fillBook } from "../store/lookup.ts";
 import { Cover } from "./book-bits.tsx";
 import type { BookForm, Fill } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
@@ -11,7 +12,7 @@ import { text } from "./text.ts";
 const WORDS = text.books.lookup;
 
 const notice = (state: string) =>
-  state === "busy" ? WORDS.searching : state === "offline" ? WORDS.offline : state === "failed" ? WORDS.failed : state === "slow" ? WORDS.slow : state === "empty" ? WORDS.empty : "";
+  state === "busy" ? WORDS.searching : state === "offline" ? WORDS.offline : state === "failed" ? WORDS.failed : state === "slow" ? WORDS.slow : state === "empty" ? WORDS.empty : state === "mismatch" ? WORDS.mismatch : "";
 
 export function Credit({ work }: { work?: string | null }) {
   const page = work ? workPage(work) : null;
@@ -76,6 +77,8 @@ export function FillDetails({ form }: { form: BookForm }) {
 export function FillBook({ book }: { book: ItemRow }) {
   const [state, setState] = useState<Fill | "nothing">("idle");
   const [failure, setFailure] = useState<string[]>([]);
+  const latest = useRef(book);
+  latest.current = book;
   const isbn = typeof book.data?.isbn === "string" ? book.data.isbn : null;
   const work = typeof book.data?.ol === "string" ? book.data.ol : null;
   if (isbn === null && work === null) return null;
@@ -83,14 +86,10 @@ export function FillBook({ book }: { book: ItemRow }) {
   const run = async (code: string) => {
     setState("busy");
     setFailure([]);
-    const out = await lookup.byIsbn(code);
-    if (out.kind === "stale") return;
-    if (out.kind !== "ok" || out.value === null) return setState(out.kind === "ok" ? "empty" : out.kind);
-    const wanted = book.data?.blurb === undefined ? await lookup.blurb(out.value.work) : null;
-    if (wanted?.kind === "stale") return;
-    const patch = fillPatch(book, out.value, wanted?.kind === "ok" ? wanted.value : null);
-    if (Object.keys(patch).length === 0) return setState("nothing");
-    const result = await actions.update("items", book.id, { data: patch });
+    const out = await fillBook(lookup, code, () => latest.current);
+    if (out.kind === "stale") return setState("idle");
+    if (out.kind !== "patch") return setState(out.kind === "nothing" ? "nothing" : out.kind);
+    const result = await actions.update("items", book.id, { data: out.patch });
     setFailure(failureOf(result));
     setState(result.ok ? "done" : "idle");
   };

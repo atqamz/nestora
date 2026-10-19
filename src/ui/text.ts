@@ -511,6 +511,7 @@ export const text = {
       fill: "Fill details",
       filling: "Looking up the ISBN",
       filled: "Details filled in.",
+      mismatch: "The ISBN belongs to a different book",
       nothingNew: "Nothing new to add.",
       coverOf: (title: string) => `Cover of ${title}`,
     },

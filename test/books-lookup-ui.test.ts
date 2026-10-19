@@ -86,3 +86,16 @@ test("a result row wraps its text under the cover when the line is too narrow fo
   assert.match(rule(css, ".hit"), /flex-wrap:\s*wrap/);
   assert.match(rule(css, ".hit .bk-text"), /flex:\s*1 1 8rem/);
 });
+
+test("the search hook follows the pure state machine, and the screens fill through the pure helpers and let go on stale", () => {
+  assert.match(read("hooks/use-lookup.ts"), /useEffect\(\(\) => follow\(lookup, ready, \{ title, author, original \}, setSearch\), \[ready, title, author, original\]\);/);
+  const sheet = read("ui/book-sheet.tsx");
+  assert.match(sheet, /const next = adopt\(now, hit\);/);
+  assert.doesNotMatch(sheet, /setBlurb\(""\)/);
+  assert.match(sheet, /if \(turn\.current === mine\) setFill\(\{ isbn, state: "idle" \}\);/);
+  assert.match(sheet, /!sameTitle\(typed\.current\.title, hit\.title\)/);
+  const view = read("ui/book-lookup.tsx");
+  assert.match(view, /fillBook\(lookup, code, \(\) => latest\.current\)/);
+  assert.match(view, /if \(out\.kind === "stale"\) return setState\("idle"\);/);
+  assert.equal(text.books.lookup.mismatch, "The ISBN belongs to a different book");
+});

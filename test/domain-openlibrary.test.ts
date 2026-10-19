@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { adopt, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
 const sample = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/openlibrary/${name}.json`, import.meta.url), "utf8"));
@@ -73,6 +73,7 @@ test("a description is the first paragraph on one line, from a string or a typed
   assert.equal(parseBlurb({ description: "\n\nAfter a gap" }), "After a gap");
   assert.equal(parseBlurb({ description: "Well --- known" }), "Well --- known");
   assert.equal(parseBlurb({ description: "Well ---- known" }), "Well ---- known");
+  assert.equal(parseBlurb({ description: "Intro -----\nSee also" }), "Intro");
   assert.equal(parseBlurb({ description: "Read [more](https://example.com/x) now" }), "Read more now");
   assert.equal(parseBlurb({ description: { value: "Typed" } }), "Typed");
   for (const body of [null, {}, { description: "" }, { description: " \n " }, { description: 5 }, { description: { value: 5 } }]) {
@@ -143,17 +144,49 @@ test("filling an existing book adds only what it lacks and never replaces what i
     blurb: "Short",
   });
   assert.deepEqual(fillPatch({ title: "Bumi Manusia", data: { author: "Typed", cover: "https://covers.openlibrary.org/b/id/1-M.jpg", blurb: "Mine", ol: "OL1W", language: "en" } }, hit, "Short"), {});
-  assert.deepEqual(fillPatch({ title: "Pulau", data: { author: "X" } }, hit, null), {
-    original_title: "Bumi Manusia",
-    language: "id",
-    cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
-    ol: "OL307247W",
-  });
-  assert.deepEqual(fillPatch({ title: "Pulau", data: { author: null, ol: "OL1W" } }, hit, null), {
+  assert.deepEqual(fillPatch({ title: "Bumi", data: { author: null, ol: "OL1W" } }, hit, null), {
     author: "Pramoedya Ananta Toer",
-    original_title: "Bumi Manusia",
     language: "id",
     cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
   });
-  assert.deepEqual(fillPatch({ title: "Pulau", data: { original_title: "Mine" } }, { ...hit, author: "", coverId: null, language: null }, ""), { ol: "OL307247W" });
+  assert.deepEqual(fillPatch({ title: "Bumi Manusia", data: null }, { ...hit, author: "", coverId: null, language: null }, ""), { ol: "OL307247W" });
+});
+
+test("filling a book whose title is not the hit's title writes nothing, so another work's cover, key and blurb never land on it", () => {
+  const [laskar] = parseSearch(sample("laskar-pelangi-isbn"));
+  assert.equal(fillPatch({ title: "Pangeran Kecil", data: null }, laskar, "Blurb of Laskar Pelangi"), null);
+  assert.equal(fillPatch({ title: "Pangeran Kecil", data: { author: "Partner A" } }, laskar, null), null);
+  assert.equal(fillPatch({ title: "Laskar Pelangi 2", data: null }, laskar, null), null);
+  assert.notEqual(fillPatch({ title: "Laskar Pelangi", data: null }, laskar, null), null);
+});
+
+test("a translated book matches the hit by its original title, and then takes no language from that edition", () => {
+  const [prince] = parseSearch(sample("little-prince-search"));
+  const patch = fillPatch({ title: "Pangeran Kecil", data: { original_title: "Le petit prince" } }, { ...prince, language: "en" }, "Blurb");
+  assert.deepEqual(patch, {
+    author: "Antoine de Saint-Exupéry",
+    cover: "https://covers.openlibrary.org/b/id/10708272-M.jpg",
+    ol: "OL10263W",
+    blurb: "Blurb",
+  });
+  assert.equal(fillPatch({ title: "Pangeran Kecil", data: { original_title: "" } }, prince, null), null);
+  assert.equal(fillPatch({ title: "Pangeran Kecil", data: { original_title: "Mine" } }, prince, null), null);
+  assert.equal(fillPatch({ title: "Pangeran Kecil", data: { original_title: 5 } }, prince, null), null);
+});
+
+test("tapping a result fills only the empty fields and keeps what the user typed", () => {
+  const [laskar] = parseSearch(sample("laskar-pelangi-search"));
+  const blank = { title: "Laskar Pelangi", author: "", original: "", isbn: "", language: "" };
+  assert.deepEqual(adopt(blank, laskar), { title: "Laskar Pelangi", author: "Andrea Hirata", original: null, isbn: "9789793062792", language: "id" });
+  assert.deepEqual(adopt({ ...blank, title: "laskar", author: " ", isbn: "\n" }, laskar), { title: "Laskar Pelangi", author: "Andrea Hirata", original: null, isbn: "9789793062792", language: "id" });
+  assert.deepEqual(adopt({ ...blank, author: "My typed author", language: "other", isbn: "9780156012195" }, laskar), { title: "Laskar Pelangi", author: null, original: null, isbn: null, language: null });
+  assert.deepEqual(adopt(blank, { ...laskar, author: "", isbn: null, language: null }), { title: "Laskar Pelangi", author: null, original: null, isbn: null, language: null });
+});
+
+test("a hit under another title gives its original title and author, but not the ISBN and language of an edition the user may not own", () => {
+  const [, rainbow] = parseSearch(sample("laskar-pelangi-search"));
+  const typed = { title: "Laskar Pelangi", author: "", original: "", isbn: "", language: "" };
+  assert.deepEqual(adopt(typed, rainbow), { title: "Laskar Pelangi", author: "Andrea Hirata", original: "The rainbow troops", isbn: null, language: null });
+  assert.equal(adopt({ ...typed, original: "Mine" }, rainbow).original, null);
+  assert.deepEqual(adopt({ ...typed, title: "" }, rainbow), { title: "The rainbow troops", author: "Andrea Hirata", original: null, isbn: "9780374246310", language: "en" });
 });

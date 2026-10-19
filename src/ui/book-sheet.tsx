@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { parseField } from "../domain/field.ts";
-import { coverUrl, settle } from "../domain/openlibrary.ts";
+import { adopt, coverUrl, sameTitle } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 import { placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -32,7 +32,7 @@ export const ownerOptions = (label: (side: string | null) => string) => [
 
 export const placeOptions = (places: readonly ItemRow[]) => places.map((place) => ({ value: place.id, label: place.title }));
 
-export type Fill = "idle" | "busy" | "empty" | "offline" | "failed" | "slow" | "done";
+export type Fill = "idle" | "busy" | "empty" | "mismatch" | "offline" | "failed" | "slow" | "done";
 
 const LANGUAGES = [
   { value: "id", label: text.option["book.data.language"].id },
@@ -56,6 +56,9 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
   const [ownerPick, setOwnerPick] = useState<Owner | null>((kept?.ownerPick ?? null) as Owner | null);
   const [placePick, setPlacePick] = useState<string | null>(kept?.placePick ?? null);
   const [attempt, setAttempt] = useState(false);
+  const turn = useRef(0);
+  const typed = useRef({ title, author, original, isbn, language, blurb });
+  typed.current = { title, author, original, isbn, language, blurb };
 
   const { owner, placeId } = bookDefaults({ kind, ownerPick, placePick }, items, me);
   const checked = parseField("isbn", isbn);
@@ -70,28 +73,35 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
   }, [live, pristine, kind, title, author, original, isbn, language, blurb, settled, ownerPick, placePick]);
 
   const accept = (hit: Hit) => {
-    const next = settle(title, hit.title);
+    const now = typed.current;
+    const next = adopt(now, hit);
     setTitle(next.title);
-    if (hit.author !== "") setAuthor(hit.author);
-    if (original.trim() === "") setOriginal(next.original);
-    if (isbn.trim() === "" && hit.isbn !== null) setIsbn(hit.isbn);
-    if (hit.language !== null) setLanguage(hit.language);
-    setBlurb("");
+    if (next.author !== null) setAuthor(next.author);
+    if (next.original !== null) setOriginal(next.original);
+    if (next.isbn !== null) setIsbn(next.isbn);
+    if (next.language !== null) setLanguage(next.language);
     setFound({ title: next.title.trim(), cover: hit.coverId === null ? null : coverUrl(hit.coverId), ol: hit.work });
+    if (now.blurb.trim() !== "") return;
     void lookup.blurb(hit.work).then((out) => {
       const found = out.kind === "ok" ? (out.value ?? "") : "";
-      setBlurb((current) => (current === "" ? found : current));
+      setBlurb((current) => (current.trim() === "" ? found : current));
     });
   };
 
   const fillIn = async () => {
     if (!checked.ok || checked.value === null) return;
     const code = String(checked.value);
+    const mine = ++turn.current;
     setFill({ isbn, state: "busy" });
     const out = await lookup.byIsbn(code);
-    if (out.kind === "stale") return;
-    if (out.kind === "ok" && out.value !== null) accept(out.value);
-    setFill({ isbn, state: out.kind !== "ok" ? out.kind : out.value === null ? "empty" : "done" });
+    if (out.kind === "stale") {
+      if (turn.current === mine) setFill({ isbn, state: "idle" });
+      return;
+    }
+    const hit = out.kind === "ok" ? out.value : null;
+    const mismatch = hit !== null && !sameTitle(typed.current.title, hit.title);
+    if (hit !== null && !mismatch) accept(hit);
+    setFill({ isbn, state: out.kind !== "ok" ? out.kind : hit === null ? "empty" : mismatch ? "mismatch" : "done" });
   };
 
   const save = (): Promise<Written> =>
