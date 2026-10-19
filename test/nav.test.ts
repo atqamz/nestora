@@ -5,17 +5,17 @@ import { screenOf, screens } from "../src/ui/routes.ts";
 import type { Screen } from "../src/ui/routes.ts";
 import { text } from "../src/ui/text.ts";
 
-test("the phone tab bar holds Home, Money and People and no Settings", () => {
+test("the phone tab bar holds Home, Money, People and Books and no Settings", () => {
   assert.deepEqual(
     navItems("tabs").map((item) => item.section),
-    ["", "money", "people"],
+    ["", "money", "people", "books"],
   );
 });
 
 test("the sidebar holds the same destinations and ends on Settings", () => {
   assert.deepEqual(
     navItems("rail").map((item) => item.section),
-    ["", "money", "people", "settings"],
+    ["", "money", "people", "books", "settings"],
   );
   assert.equal(navItems("rail").at(-1)?.label, text.nav.settings);
 });
@@ -36,6 +36,9 @@ test("every route, old and new, opens one screen and highlights exactly one dest
     people: ["people", "people"],
     guests: ["people", "people"],
     vendors: ["people", "people"],
+    books: ["books", "books"],
+    wishlist: ["books", "books"],
+    places: ["books", "books"],
     settings: ["settings", "settings"],
   };
   for (const [section, [screen, destination]] of Object.entries(expected)) {
@@ -64,8 +67,8 @@ test("Sync and routes that do not exist highlight nothing and open nothing", () 
 const order = (kind: "tabs" | "rail") => navEntries(kind).map((entry) => (entry === "add" ? "add" : entry.section));
 
 test("the Add button sits in the middle of the phone tab bar and first in the sidebar, in tab order", () => {
-  assert.deepEqual(order("tabs"), ["", "money", "add", "people"]);
-  assert.deepEqual(order("rail"), ["add", "", "money", "people", "settings"]);
+  assert.deepEqual(order("tabs"), ["", "money", "add", "people", "books"]);
+  assert.deepEqual(order("rail"), ["add", "", "money", "people", "books", "settings"]);
 });
 
 test("Add is a button that is reachable on every main screen, and no destination is lost", () => {

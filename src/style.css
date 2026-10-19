@@ -182,7 +182,7 @@ a {
   left: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: 1fr 1fr 4.5rem 1fr;
+  grid-template-columns: 1fr 1fr 4.5rem 1fr 1fr;
   align-items: center;
   padding: var(--s2) var(--safe-r) calc(var(--safe-b) + var(--s1)) var(--safe-l);
   background: var(--surface);

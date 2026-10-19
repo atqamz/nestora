@@ -13,7 +13,7 @@ export const copiesByBook = (rows: readonly ItemRow[]) => {
 
 const ORDER = ["ebook", "unplaced", "lent", "away"] as const;
 
-const whereOf = (copy: ItemRow, places: ReadonlyMap<string, ItemRow>): Where | null => {
+export const whereOf = (copy: ItemRow, places: ReadonlyMap<string, ItemRow>): Where | null => {
   if (copy.status === "gone") return null;
   if (copy.status === "lent") return { kind: "lent" };
   if (copy.data?.format === "ebook") return { kind: "ebook" };

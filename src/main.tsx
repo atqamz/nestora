@@ -11,6 +11,7 @@ import { Shell } from "./ui/shell.tsx";
 import { text } from "./ui/text.ts";
 import { applyTheme, readTheme } from "./ui/theme.ts";
 import { Title } from "./ui/title.tsx";
+import { Books } from "./views/books.tsx";
 import { Connect } from "./views/connect.tsx";
 import { Denied, SignIn } from "./views/entry.tsx";
 import { GenericItem } from "./views/generic-item.tsx";
@@ -27,6 +28,7 @@ import "./ui/sheet.css";
 import "./views/home.css";
 import "./views/money.css";
 import "./views/people.css";
+import "./views/books.css";
 import "./views/settings.css";
 import "./views/entry.css";
 
@@ -43,6 +45,8 @@ function Page({ section, id }: { section: string; id?: string }) {
       return id ? <GenericItem key={id} name="payment" id={id} /> : <MoneyView />;
     case "people":
       return <People route={section} id={id} />;
+    case "books":
+      return <Books route={section} id={id} />;
     case "settings":
       return <Settings />;
     case "sync":

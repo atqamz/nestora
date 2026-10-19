@@ -1,0 +1,96 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { navEntries } from "../src/ui/nav.ts";
+import { overlay } from "../src/ui/overlay.ts";
+
+const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
+
+const books = read("views/books.css");
+
+const all = [books, read("style.css"), read("ui/ui.css"), read("ui/sheet.css")].join("\n");
+
+const rule = (css: string, selector: string) =>
+  new RegExp(`(?:^|\\n)${selector.replace(/[.>*[\]="():]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+
+test("the phone tab bar has one column per entry, the Add button's wider than the rest", () => {
+  const columns = /\.tabs\s*\{[^}]*grid-template-columns:\s*([^;]+);/.exec(read("style.css"))?.[1].trim().split(/\s+/) ?? [];
+  assert.equal(columns.length, navEntries("tabs").length);
+  assert.deepEqual(columns, ["1fr", "1fr", "4.5rem", "1fr", "1fr"]);
+});
+
+test("the location chip, the book link, the section header, the place choices and the stars keep a 44 px target", () => {
+  assert.match(rule(books, "button.where"), /min-height:\s*var\(--target-min\)/);
+  assert.match(rule(books, ".bk-link"), /min-height:\s*var\(--target-min\)/);
+  assert.match(rule(books, ".shelf-sec summary"), /min-height:\s*var\(--target-min\)/);
+  assert.match(rule(books, ".pick"), /min-height:\s*var\(--row-min\)/);
+  assert.doesNotMatch(rule(books, ".star"), /(?:^|[\s;])(?:min-)?(?:width|height):/);
+  assert.match(read("ui/ui.css"), /button,\s*\.button\s*\{[^}]*min-width:\s*var\(--target-min\)/);
+});
+
+test("long titles, authors and places can shrink and wrap, so no row pushes the page sideways", () => {
+  for (const selector of [".bk-link", ".bk-text", ".bk-where", ".where", ".copy", ".bk-id", ".place-b"]) assert.match(rule(books, selector), /min-width:\s*0/, selector);
+  for (const selector of [".where span", ".pick span"]) assert.match(rule(books, selector), /overflow-wrap:\s*anywhere/, selector);
+  assert.match(rule(books, ".bk-by"), /overflow-wrap:\s*anywhere/);
+  assert.doesNotMatch(books, /white-space:\s*nowrap/);
+  assert.match(rule(books, ".cover"), /flex:\s*none/);
+});
+
+test("the cover keeps a 2 to 3 ratio and uses only the existing tints", () => {
+  assert.match(rule(books, ".cover"), /aspect-ratio:\s*2 \/ 3/);
+  assert.match(rule(books, ".cover"), /background:\s*var\(--tint-a\)/);
+  assert.match(rule(books, '.cover[data-tone="b"]'), /background:\s*var\(--tint-b\)/);
+  assert.doesNotMatch(books, /#[0-9a-f]{3,8}\b|rgb\(|hsl\(|oklch\(/i);
+});
+
+test("the Reading now mark is the rose signal colour", () => {
+  assert.match(rule(books, '.reads[data-reading]::before'), /background:\s*var\(--signal\)/);
+});
+
+test("the toast takes taps on its action only, so the page under it stays usable", () => {
+  assert.match(rule(all, ".toast"), /pointer-events:\s*none/);
+  assert.match(rule(all, ".toast button"), /pointer-events:\s*auto/);
+});
+
+test("an action toast carries its action, lasts longer than a plain one, and can be dismissed", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let ran = 0;
+  overlay.announce("Moved to Home B", { label: "Undo", run: () => (ran += 1) });
+  const toast = overlay.getSnapshot().toast!;
+  assert.deepEqual([toast.message, toast.action?.label], ["Moved to Home B", "Undo"]);
+  toast.action!.run();
+  assert.equal(ran, 1);
+  t.mock.timers.tick(6000);
+  assert.equal(overlay.getSnapshot().toast?.message, "Moved to Home B");
+  t.mock.timers.tick(6000);
+  assert.equal(overlay.getSnapshot().toast, null);
+  overlay.announce("Plain");
+  assert.equal(overlay.getSnapshot().toast?.action, undefined);
+  t.mock.timers.tick(6000);
+  assert.equal(overlay.getSnapshot().toast, null);
+  overlay.announce("Again", { label: "Undo", run: () => undefined });
+  overlay.dismissToast();
+  assert.equal(overlay.getSnapshot().toast, null);
+});
+
+test("the book dialogs are native modals that lock the page, ride above the keyboard, give focus back and close on a route change", () => {
+  const modal = read("ui/modal.tsx");
+  assert.match(modal, /showModal\(\)/);
+  assert.match(modal, /setProperty\("--lock-gap"/);
+  assert.match(modal, /removeProperty\("--lock-gap"\)/);
+  assert.match(modal, /keyboardInset\(innerHeight, viewport\)/);
+  assert.match(modal, /opener\.focus\(/);
+  assert.match(modal, /addEventListener\("hashchange"/);
+  assert.match(modal, /onClose=\{onClose\}/);
+  assert.match(modal, /aria-labelledby=\{heading\}/);
+  assert.match(modal, /aria-label=\{text\.sheet\.close\}/);
+});
+
+test("every icon-only button in the book screens has a label", () => {
+  for (const file of ["views/books.tsx", "views/book.tsx", "views/places.tsx", "ui/where.tsx", "ui/copy-sheet.tsx", "ui/book-sheet.tsx"]) {
+    const source = read(file);
+    for (const [match] of source.matchAll(/<button[^>]*className="[^"]*\bib\b[^"]*"[^>]*>/g)) assert.match(match, /aria-label=/, `${file}: ${match}`);
+  }
+  for (const [match] of read("views/book.tsx").matchAll(/<button[^>]*className="star"[^>]*>/g)) assert.match(match, /aria-label=/);
+  for (const [match] of read("ui/where.tsx").matchAll(/<button[^>]*className="where"[^>]*>/g)) assert.match(match, /aria-label=/);
+});

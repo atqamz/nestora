@@ -4,7 +4,7 @@ import type { ItemRow } from "../shared/tables.ts";
 import { validateChange, validateCreate } from "../shared/validate.ts";
 import { fold, searchBooks } from "../src/domain/search.ts";
 import { shelfSections } from "../src/domain/shelf.ts";
-import { weGotIt } from "../src/domain/wish.ts";
+import { weGotIt, wishSections } from "../src/domain/wish.ts";
 import { item } from "./domain-rows.ts";
 
 const book = (title: string, fields: Partial<ItemRow> = {}) => item({ kind: "book", title, status: "shelf", ...fields });
@@ -209,4 +209,62 @@ test("We got it copies only what the wish has, and allows no place yet", () => {
   assert.equal(done.copy.group_key, null);
   assert.deepEqual(weGotIt(book("Bumi Manusia", { status: "wish", data: { isbn: "9789799731234" } }), null).copy.data, { format: "print", isbn: "9789799731234" });
   assert.equal(plain.status, "wish");
+});
+
+test("places order the sections by their own order, even when books and places were made in the opposite order", () => {
+  const first = place("First", 1);
+  const second = place("Second", 2);
+  const third = place("Third", 3);
+  const early = book("Early", { sort: 0 });
+  const late = book("Late", { sort: 1 });
+  const rows = [third, second, first, early, late, copy(early, { group_key: third.id }), copy(late, { group_key: first.id })];
+  assert.deepEqual(
+    shelfSections(rows).map((s) => (s.where.kind === "place" ? s.where.place.title : s.where.kind)),
+    ["First", "Third"],
+  );
+  assert.deepEqual(
+    shelfSections([...rows].reverse()).map((s) => titles(s.books)),
+    [["Late"], ["Early"]],
+  );
+});
+
+test("a partial or prefixed ISBN finds the book after hyphens, spaces and an isbn label are dropped", () => {
+  assert.deepEqual(titles(searchBooks("978-979", world)), ["Bumi Manusia", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("978-979-3062", world)), ["Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("978 979 3062 79", world)), ["Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("isbn 9789793062792", world)), ["Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("ISBN: 978-979-3062-79-2", world)), ["Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("isbn 0156012197", world)), ["The Little Prince"]);
+  assert.deepEqual(titles(searchBooks("9780156", world)), ["The Little Prince"]);
+});
+
+test("a short number is still an ordinary word, and a prefix that matches no ISBN finds nothing", () => {
+  assert.deepEqual(titles(searchBooks("978", world)), ["Bumi Manusia", "Pangeran Kecil", "The Little Prince"]);
+  assert.deepEqual(titles(searchBooks("978-111", world)), []);
+  const numbered = book("Catch 22");
+  assert.deepEqual(titles(searchBooks("22", [numbered])), ["Catch 22"]);
+  assert.deepEqual(titles(searchBooks("isbn", world)), []);
+});
+
+test("a gone copy no longer matches its ISBN, and a wish keeps its own ISBN searchable", () => {
+  const sold = book("Sold");
+  const wanted = book("Wanted", { status: "wish", data: { isbn: "9789799731234" } });
+  const rows = [sold, copy(sold, { status: "gone", data: { isbn: "9789793062792" } }), wanted];
+  assert.deepEqual(titles(searchBooks("978-979-3062", rows)), []);
+  assert.deepEqual(titles(searchBooks("978-979-9731", rows)), ["Wanted"]);
+});
+
+test("the wishlist splits next-up wishes from the rest, both by manual order, and leaves the shelf out", () => {
+  const rows = [
+    book("Low", { status: "wish", sort: 1, data: { priority: "low" } }),
+    book("High B", { status: "wish", sort: 3, data: { priority: "high" } }),
+    book("Plain", { status: "wish", sort: 0 }),
+    book("High A", { status: "wish", sort: 2, data: { priority: "high" } }),
+    laskar,
+    homeA,
+  ];
+  const { next, someday } = wishSections(rows);
+  assert.deepEqual(titles(next), ["High A", "High B"]);
+  assert.deepEqual(titles(someday), ["Plain", "Low"]);
+  assert.deepEqual(wishSections([laskar]), { next: [], someday: [] });
 });
