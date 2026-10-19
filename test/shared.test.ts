@@ -172,7 +172,7 @@ test("registry is internally consistent", () => {
       if (v.doneOnStatus) assert.ok(v.status?.includes(v.doneOnStatus), `${label} doneOnStatus`);
     }
   }
-  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest"]);
+  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest", "book", "copy", "place"]);
   assert.deepEqual(Object.keys(tables.budget_entries.variants), ["planned", "payment"]);
 });
 
@@ -1023,8 +1023,9 @@ test("patch cannot clear required fields or change identity", () => {
 });
 
 const validRows: [string, Obj][] = [];
-for (const [kind, v] of Object.entries(tables.items.variants)) {
-  const row = items[kind as keyof typeof items] as Obj;
+for (const kind of Object.keys(items) as (keyof typeof items)[]) {
+  const v = tables.items.variants[kind];
+  const row = items[kind] as Obj;
   for (const status of v.status) validRows.push([`${kind} ${status}`, { ...row, status }]);
   if (v.columns.includes("who" as never)) {
     for (const who of ("who" in v ? v.who : tables.items.columns.who.type)) validRows.push([`${kind} who ${who}`, { ...row, who }]);

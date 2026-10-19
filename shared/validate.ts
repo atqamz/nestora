@@ -82,6 +82,9 @@ export const isPhoto = (v: unknown): v is string => {
   }
 };
 
+export const isIsbn13 = (v: unknown) =>
+  typeof v === "string" && /^\d{13}$/.test(v) && [...v].reduce((sum, digit, i) => sum + Number(digit) * (i % 2 === 0 ? 1 : 3), 0) % 10 === 0;
+
 const isZone = (v: unknown) => {
   if (typeof v !== "string" || !ZONE.test(v)) return false;
   try {
@@ -161,6 +164,7 @@ const expected: Record<string, string> = {
   zone: "an IANA time zone such as Asia/Jakarta",
   decimal: "a positive decimal number such as 1.5",
   dates: "a JSON array of YYYY-MM-DD dates",
+  isbn: "an ISBN-13 as 13 digits with no hyphens and a valid check digit",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
   stages: `a JSON array of 1 to ${STAGES_MAX} stages, each with a unique key, a unique name of up to ${STAGE_NAME_MAX} characters and a month range from ${MONTH_MIN} to ${MONTH_MAX} that starts after the stage before`,
 };
@@ -186,6 +190,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "dates" ? isDates(v)
     : type === "stages" ? isStages(v)
     : type === "photo" ? isPhoto(v)
+    : type === "isbn" ? isIsbn13(v)
     : isPlain(v);
   return ok ? null : `must be ${expected[type as string]}`;
 };
