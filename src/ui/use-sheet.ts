@@ -16,7 +16,8 @@ export const useSheet = (dialog: RefObject<HTMLDialogElement | null>, active: bo
       element.style.setProperty("--kb", `${keyboardInset(innerHeight, viewport)}px`);
       element.style.setProperty("--vv-h", `${viewport.scale > ZOOMED ? innerHeight : viewport.height}px`);
     };
-    document.documentElement.style.setProperty("--lock-gap", `${innerWidth - document.documentElement.clientWidth}px`);
+    const first = document.documentElement.style.getPropertyValue("--lock-gap") === "";
+    if (first) document.documentElement.style.setProperty("--lock-gap", `${innerWidth - document.documentElement.clientWidth}px`);
     place();
     viewport?.addEventListener("resize", place);
     viewport?.addEventListener("scroll", place);
@@ -25,7 +26,7 @@ export const useSheet = (dialog: RefObject<HTMLDialogElement | null>, active: bo
       viewport?.removeEventListener("resize", place);
       viewport?.removeEventListener("scroll", place);
       removeEventListener("hashchange", close);
-      document.documentElement.style.removeProperty("--lock-gap");
+      if (first) document.documentElement.style.removeProperty("--lock-gap");
       element.style.removeProperty("--kb");
       element.style.removeProperty("--vv-h");
     };

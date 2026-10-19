@@ -1,3 +1,4 @@
+import { toIsbn13 } from "../domain/isbn.ts";
 import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
@@ -131,8 +132,8 @@ export const turns = () => {
   return { begin: () => ++last, latest: (turn: number) => turn === last };
 };
 
-export const fillOutcome = (out: Outcome<Hit | null>, typed: { title: string; original: string }, latest: boolean): { hit: Hit | null; state: Fill | null } => {
-  if (out.kind === "stale") return { hit: null, state: latest ? "idle" : null };
+export const fillOutcome = (out: Outcome<Hit | null>, typed: { title: string; original: string; isbn: string }, code: string, latest: boolean): { hit: Hit | null; state: Fill | null } => {
+  if (out.kind === "stale" || toIsbn13(typed.isbn) !== code) return { hit: null, state: latest ? "idle" : null };
   if (out.kind !== "ok") return { hit: null, state: out.kind };
   if (out.value === null) return { hit: null, state: "empty" };
   return sameBook(typed, out.value.title) ? { hit: out.value, state: "done" } : { hit: null, state: "mismatch" };

@@ -1,6 +1,7 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { Type } from "../../shared/tables.ts";
+import { isbnNote } from "./isbn-note.ts";
 
 export type Control = {
   name: string;
@@ -37,15 +38,18 @@ export function Field({ control, error }: { control: Control; error?: string }) 
   const id = useId();
   const { name, label, type, value, required, options, choice, blank, blankIcon, suggestions, hint, words, onChange } = control;
   const shown = value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
-  const described = [hint ? `${id}-hint` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined;
+  const [typed, setTyped] = useState<string | null>(null);
+  const note = type === "isbn" ? isbnNote(onChange ? shown : (typed ?? shown)) : hint;
+  const described = [note ? `${id}-hint` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined;
   const common = { id, name, required, "aria-invalid": error ? true : undefined, "aria-describedby": described };
-  const state = onChange ? { value: shown, onChange: (event: { target: { value: string } }) => onChange(event.target.value) } : { defaultValue: shown };
+  const change = (event: { target: { value: string } }) => (setTyped(event.target.value), onChange?.(event.target.value));
+  const state = onChange ? { value: shown, onChange: change } : { defaultValue: shown, onChange: change };
   const maxLength = typeof type === "string" ? LIMITS[type] : undefined;
   const notes = (
     <>
-      {hint && (
+      {note && (
         <p className="hint" id={`${id}-hint`}>
-          {hint}
+          {note}
         </p>
       )}
       {error && (

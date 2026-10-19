@@ -3,11 +3,13 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { coverUrl, workPage } from "../domain/openlibrary.ts";
 import { lookup } from "../hooks/use-lookup.ts";
 import { actions } from "../hooks/use-store.ts";
+import { useCanScan } from "../hooks/use-scan.ts";
 import { fillBook } from "../store/lookup.ts";
 import type { Fill } from "../store/lookup.ts";
 import { Cover } from "./book-bits.tsx";
 import type { BookForm } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
+import { ScanIsbn } from "./scan.tsx";
 import { text } from "./text.ts";
 
 const WORDS = text.books.lookup;
@@ -78,11 +80,13 @@ export function FillDetails({ form }: { form: BookForm }) {
 export function FillBook({ book }: { book: ItemRow }) {
   const [state, setState] = useState<Fill | "nothing">("idle");
   const [failure, setFailure] = useState<string[]>([]);
+  const [kept, setKept] = useState(false);
+  const can = useCanScan();
   const latest = useRef(book);
   latest.current = book;
   const isbn = typeof book.data?.isbn === "string" ? book.data.isbn : null;
   const work = typeof book.data?.ol === "string" ? book.data.ol : null;
-  if (isbn === null && work === null) return null;
+  if (isbn === null && work === null && !can) return null;
 
   const run = async (code: string) => {
     setState("busy");
@@ -93,6 +97,13 @@ export function FillBook({ book }: { book: ItemRow }) {
     const result = await actions.update("items", book.id, { data: out.patch });
     setFailure(failureOf(result));
     setState(result.ok ? "done" : "idle");
+  };
+
+  const onScan = async (code: string) => {
+    setKept(true);
+    const result = await actions.update("items", book.id, { data: { isbn: code } });
+    setFailure(failureOf(result));
+    if (result.ok) await run(code);
   };
 
   const note = state === "busy" ? WORDS.filling : state === "done" ? WORDS.filled : state === "nothing" ? WORDS.nothingNew : notice(state);
@@ -108,6 +119,7 @@ export function FillBook({ book }: { book: ItemRow }) {
           </p>
         </>
       )}
+      {(isbn === null || kept) && <ScanIsbn onIsbn={(code) => void onScan(code)} />}
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
