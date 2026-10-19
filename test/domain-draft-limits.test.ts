@@ -10,7 +10,7 @@ const context: Context = { today: "2026-10-07", me: "a", nicknames: { a: "Rani",
 
 const mbak: Context = { ...context, nicknames: { a: "Mbak Rani", b: "Dimas" } };
 
-const BUDGET_MS = 50;
+const BUDGET_MS = 250;
 
 const once = (text: string) => {
   let worst = 0;

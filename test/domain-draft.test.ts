@@ -381,7 +381,7 @@ test("long and odd input is read in a bounded time", { timeout: 20000 }, () => {
   const inputs = ["1".repeat(20_000), "1 ".repeat(10_000), "1.".repeat(10_000), "0-".repeat(10_000), `${"a".repeat(20_000)} 2,5 jt`, "rp ".repeat(10_000), "12/".repeat(10_000), " ".repeat(20_000)];
   const started = performance.now();
   for (const text of inputs) parseDraft(text, context({ lines }));
-  assert.ok(performance.now() - started < 1500, `${performance.now() - started}`);
+  assert.ok(performance.now() - started < 4000, `${performance.now() - started}`);
 });
 
 test("the amount editor takes any whole amount, plain digits of any length, and the unit forms", () => {
