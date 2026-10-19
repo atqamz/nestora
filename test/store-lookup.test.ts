@@ -1,7 +1,7 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createLookup, fillBook, fillOutcome, follow, scanBook, searchOf, turns } from "../src/store/lookup.ts";
+import { createLookup, decide, dismisses, fillBook, fillOutcome, fillTitle, follow, landing, scanBook, searchOf, turns } from "../src/store/lookup.ts";
 import { parseSearch } from "../src/domain/openlibrary.ts";
 import type { Fetcher, Search } from "../src/store/lookup.ts";
 
@@ -601,7 +601,7 @@ test("the title is read when the answer arrives, so a rename during the lookup i
   assert.deepEqual(await scanning, { kind: "mismatch" });
 });
 
-test("a description lookup superseded while filling is stale, and a failed one still fills the rest", async () => {
+test("a description lookup superseded while filling is stale, and one that fails fails the fill instead of filling without it", async () => {
   let works = 0;
   const { fetcher } = server((url) => (url.includes("/works/") ? (works++, new Promise<Response>(() => {})) : reply(sample("laskar-pelangi-isbn"))));
   const lookup = createLookup({ fetcher });
@@ -610,9 +610,23 @@ test("a description lookup superseded while filling is stale, and a failed one s
   assert.equal(works, 1);
   void lookup.byIsbn("9780156012195");
   assert.deepEqual(await filling, { kind: "stale" });
-  const failing = server((url) => (url.includes("/works/") ? reply({}, 500) : reply(sample("laskar-pelangi-isbn"))));
-  const out = await fillBook(createLookup({ fetcher: failing.fetcher }), "9789793062792", () => bookOf("Laskar Pelangi"));
-  assert.deepEqual(out.kind === "patch" && Object.keys(out.patch).sort(), ["author", "cover", "language", "ol"]);
+  const filled = async (answer: (url: string) => Promise<Response> | Response, timeout?: number) =>
+    fillBook(createLookup({ fetcher: server((url) => (url.includes("/works/") ? answer(url) : reply(sample("laskar-pelangi-isbn")))).fetcher, timeout }), "9789793062792", () => bookOf("Laskar Pelangi"));
+  assert.deepEqual(await filled(() => reply({}, 500)), { kind: "failed", retry: 0 });
+  assert.deepEqual(await filled(() => new Response("{}", { status: 429, headers: { "retry-after": "7" } })), { kind: "failed", retry: 7000 });
+  assert.deepEqual(await filled(() => reply({}, 404)), { kind: "failed" });
+  assert.deepEqual(await filled(() => Promise.reject(new Error("down"))), { kind: "offline" });
+  assert.deepEqual(await filled(() => new Promise<Response>(() => {}), 20), { kind: "slow" });
+  const none = await filled(() => reply({}));
+  assert.deepEqual(none.kind === "patch" && Object.keys(none.patch).sort(), ["author", "cover", "language", "ol"]);
+});
+
+test("a title fill whose description request fails fails too, and a description the work does not have is not a failure", async () => {
+  const hit = { key: "/works/OL1W", title: "Placeholder Gamma", author_name: ["Writer One"] };
+  const find = (work: Response) => fillTitle(createLookup({ wait: 0, fetcher: server((url) => (url.includes("/works/") ? work : reply({ docs: [hit] }))).fetcher }), () => bookOf("Placeholder Gamma", { author: "Writer One" }));
+  assert.deepEqual(await find(reply({}, 503)), { kind: "failed", retry: 0 });
+  const bare = await find(reply({}));
+  assert.deepEqual(bare.kind === "patch" && Object.keys(bare.patch).sort(), ["ol"]);
 });
 
 test("a book that already has a description does not ask for one", async () => {
@@ -670,4 +684,64 @@ test("an old Fill details that was superseded leaves the state alone, and the ne
   assert.deepEqual(fillOutcome({ kind: "stale" }, typed, CODE, false), { hit: null, state: null });
   const [laskar] = parseSearch(sample("laskar-pelangi-search"));
   assert.equal(fillOutcome({ kind: "ok", value: laskar }, typed, CODE, false).state, "done");
+});
+
+const PENDING = { old: PRINCE, code: CODE, title: "Laskar Pelangi", original: "" };
+
+test("a scan that was superseded lands nowhere, whatever it found", () => {
+  for (const step of [{ kind: "write" }, { kind: "confirm", old: PRINCE }, { kind: "mismatch" }, { kind: "same" }, { kind: "stale" }] as const) {
+    assert.deepEqual(landing(false, step, CODE, bookOf("Laskar Pelangi")), { kind: "drop" });
+  }
+});
+
+test("the latest scan lands as a write, a prompt that remembers the book it was asked about, a mismatch note, or nothing", () => {
+  const book = bookOf("Laskar Pelangi", { isbn: PRINCE, original_title: "The Rainbow Troops" });
+  assert.deepEqual(landing(true, { kind: "write" }, CODE, book), { kind: "write" });
+  assert.deepEqual(landing(true, { kind: "confirm", old: PRINCE }, CODE, book), { kind: "show", state: "idle", pending: { old: PRINCE, code: CODE, title: "Laskar Pelangi", original: "The Rainbow Troops" } });
+  assert.deepEqual(landing(true, { kind: "confirm", old: PRINCE }, CODE, bookOf("Laskar Pelangi")), { kind: "show", state: "idle", pending: PENDING });
+  assert.deepEqual(landing(true, { kind: "mismatch" }, CODE, book), { kind: "show", state: "mismatch", pending: null });
+  assert.deepEqual(landing(true, { kind: "same" }, CODE, book), { kind: "show", state: "idle", pending: null });
+  assert.deepEqual(landing(true, { kind: "stale" }, CODE, book), { kind: "show", state: "idle", pending: null });
+});
+
+test("Keep never writes, whatever happened to the book", () => {
+  for (const book of [bookOf("Laskar Pelangi", { isbn: PRINCE }), bookOf("Laskar Pelangi", { isbn: CODE }), bookOf("Other", { isbn: PRINCE }), bookOf("Laskar Pelangi")]) {
+    assert.deepEqual(decide(PENDING, "keep", book), { write: null, changed: false });
+  }
+});
+
+test("Replace writes the scanned ISBN only while the book still has the ISBN the prompt showed and the title and original title it was asked about", () => {
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi", { isbn: PRINCE })), { write: CODE, changed: false });
+  const changed = { write: null, changed: true };
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi", { isbn: "9780156012196" })), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi", { isbn: CODE })), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi")), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi", { isbn: 5 })), changed);
+  assert.deepEqual(decide(PENDING, "replace", { title: "Laskar Pelangi", data: null }), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Pangeran Kecil", { isbn: PRINCE })), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi 2", { isbn: PRINCE })), changed);
+  assert.deepEqual(decide(PENDING, "replace", bookOf("Laskar Pelangi", { isbn: PRINCE, original_title: "The Rainbow Troops" })), changed);
+  assert.deepEqual(decide({ ...PENDING, original: "The Rainbow Troops" }, "replace", bookOf("Laskar Pelangi", { isbn: PRINCE })), changed);
+  assert.deepEqual(decide({ ...PENDING, original: "The Rainbow Troops" }, "replace", bookOf("Laskar Pelangi", { isbn: PRINCE, original_title: "The Rainbow Troops" })), { write: CODE, changed: false });
+});
+
+test("a synced edit to the ISBN or the title while the prompt is open drops the replacement; with no edit the same scan replaces", async () => {
+  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  const shown = bookOf("Laskar Pelangi", { isbn: PRINCE });
+  const step = await scanBook(lookup, CODE, () => shown);
+  const landed = landing(true, step, CODE, shown);
+  assert.equal(landed.kind, "show");
+  const pending = landed.kind === "show" ? landed.pending : null;
+  assert.notEqual(pending, null);
+  assert.deepEqual(decide(pending!, "replace", shown), { write: CODE, changed: false });
+  assert.deepEqual(decide(pending!, "replace", bookOf("Laskar Pelangi", { isbn: "9780000000002" })), { write: null, changed: true });
+  assert.deepEqual(decide(pending!, "replace", bookOf("Pangeran Kecil", { isbn: PRINCE })), { write: null, changed: true });
+});
+
+test("Escape closes the prompt only while it is open and only when it did not come from a dialog", () => {
+  assert.equal(dismisses("Escape", true, false), true);
+  assert.equal(dismisses("Escape", true, true), false);
+  assert.equal(dismisses("Escape", false, false), false);
+  assert.equal(dismisses("Enter", true, false), false);
+  assert.equal(dismisses("Tab", true, false), false);
 });

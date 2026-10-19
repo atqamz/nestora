@@ -126,12 +126,33 @@ const blank = (value: string) => value.trim() === "";
 export const sameBook = (book: { title: string; original: unknown }, found: string) =>
   blank(book.title) || sameTitle(book.title, found) || (typeof book.original === "string" && !blank(book.original) && sameTitle(book.original, found));
 
-const surnames = (names: string) => names.split(/[;&]/).map((name) => fold(name.split(",")[0]).split(" ").at(-1) ?? "");
+const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
 
-export const sameAuthor = (typed: unknown, found: string) => {
-  const have = surnames(found);
-  return typeof typed === "string" && surnames(typed).some((name) => name.length >= 2 && have.includes(name));
+const words = (part: string) => fold(part).split(" ").filter(Boolean);
+
+const person = (name: string) => {
+  const [head, ...rest] = name.split(",");
+  const first = words(head);
+  while (first.length > 1 && SUFFIXES.has(first.at(-1) as string)) first.pop();
+  const after = rest.flatMap(words).filter((word) => !SUFFIXES.has(word));
+  return { surname: first.at(-1) ?? "", given: after.length > 0 ? after[0] : first.length > 1 ? first[0] : undefined };
 };
+
+const people = (names: string) => names.split(/[;&]/).map(person);
+
+const initial = (short: string, long: string) => short.length === 1 && long.startsWith(short);
+
+const sameGiven = (typed: string | undefined, found: string | undefined) =>
+  typed === undefined || found === undefined || typed === found || initial(typed, found) || initial(found, typed);
+
+const matches = (typed: unknown, found: string, given: boolean) => {
+  const have = people(found);
+  return typeof typed === "string" && people(typed).some((name) => name.surname.length >= 2 && have.some((other) => other.surname === name.surname && (!given || sameGiven(name.given, other.given))));
+};
+
+export const sameAuthor = (typed: unknown, found: string) => matches(typed, found, true);
+
+export const sharesSurname = (typed: unknown, found: string) => matches(typed, found, false);
 
 export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
 

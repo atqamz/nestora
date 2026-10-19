@@ -401,3 +401,43 @@ test("an author matches only on the surname, so a shared first name, an initial 
   assert.equal(sameAuthor("Someone", ""), false);
   assert.equal(sameAuthor("  ", ""), false);
 });
+
+test("two authors who share a surname are told apart by the first name, an initial counts for a name that starts with it, and a generational suffix is not a surname", () => {
+  assert.equal(sameAuthor("John Smith", "Adam Smith"), false);
+  assert.equal(sameAuthor("Jane Smith", "John Smith"), false);
+  assert.equal(sameAuthor("John Smith", "Smith, Adam"), false);
+  assert.equal(sameAuthor("Smith, John", "Adam Smith"), false);
+  assert.equal(sameAuthor("John Smith", "A. Smith"), false);
+  assert.equal(sameAuthor("A. Smith", "John Smith"), false);
+  assert.equal(sameAuthor("Wang Wei", "Li Wei"), false);
+  assert.equal(sameAuthor("John Smith", "J. Smith"), true);
+  assert.equal(sameAuthor("J. Smith", "John Smith"), true);
+  assert.equal(sameAuthor("J. Smith", "Smith, John"), true);
+  assert.equal(sameAuthor("John Smith", "Smith, John"), true);
+  assert.equal(sameAuthor("John Ronald Smith", "Smith, John R."), true);
+  assert.equal(sameAuthor("John Smith", "Adam Smith; John Smith"), true);
+  assert.equal(sameAuthor("Adam Smith & John Smith", "John Smith"), true);
+  assert.equal(sameAuthor("Smith", "Adam Smith"), true);
+  assert.equal(sameAuthor("Adam Smith", "Smith"), true);
+  assert.equal(sameAuthor("Adam Smith", "Smith, Jr."), true);
+  assert.equal(sameAuthor("Adam Smith", "Barry Smith"), false);
+  assert.equal(sameAuthor("Adam Smith", "Barry Jones"), false);
+  assert.equal(sameAuthor("Adam Smith", "Adam Jones"), false);
+  assert.equal(sameAuthor("Jo Smith", "John Smith"), false);
+  assert.equal(sameAuthor("John Smith", "Jo Smith"), false);
+  assert.equal(sameAuthor("Joh Smith", "John Smith"), false);
+});
+
+test("a generational suffix is dropped before the names are compared, in either order of writing", () => {
+  assert.equal(sameAuthor("Ed Ford Jr.", "Ed Ford"), true);
+  assert.equal(sameAuthor("Ed Ford", "Ford, Ed, Jr."), true);
+  assert.equal(sameAuthor("Ford, Ed Jr.", "Ed Ford Sr."), true);
+  assert.equal(sameAuthor("Ed Ford III", "Ed Ford II"), true);
+  assert.equal(sameAuthor("Ed Ford IV", "E. Ford"), true);
+  assert.equal(sameAuthor("Ed Ford Jr.", "Ned Ford Jr."), false);
+  assert.equal(sameAuthor("Ed Ford Jr.", "Al Gates Jr."), false);
+  assert.equal(sameAuthor("Ed Ford II", "Al Gates II"), false);
+  assert.equal(sameAuthor("Ed Ford III", "Al Gates Jr."), false);
+  assert.equal(sameAuthor("Jr.", "Al Gates Jr."), false);
+  assert.equal(sameAuthor("Ed Jr", "Al Jr"), false);
+});
