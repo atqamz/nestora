@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { parseField } from "../domain/field.ts";
-import { adopt, arrive, release } from "../domain/openlibrary.ts";
+import { adopt, arrive, held, release } from "../domain/openlibrary.ts";
 import type { Found, Hit, Patch } from "../domain/openlibrary.ts";
 import { placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -63,7 +63,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
   const checked = parseField("isbn", isbn);
   const digits = isbn.replace(/[\s\p{Pd}]/gu, "").length;
   const isbnError = !checked.ok && (digits >= MIN_DIGITS || (attempt && isbn.trim() !== "")) ? text.invalid.isbn : undefined;
-  const settled = found !== null && found.title === title.trim() ? found : null;
+  const settled = held(found, title);
   const search = useSearch({ title, author, original }, live && settled === null);
   const pristine = [title, author, original, isbn, language, blurb].every((value) => value === "") && found === null && ownerPick === null && placePick === null;
 
@@ -80,7 +80,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
   };
 
   useEffect(() => {
-    if (!live || found === null || found.title === title.trim()) return;
+    if (!live || found === null || held(found, title) !== null) return;
     put(release(typed.current));
     setFound(null);
   }, [live, found, title]);
@@ -103,7 +103,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
     if (!checked.ok || checked.value === null) return;
     const mine = turn.begin();
     setFill({ isbn, state: "busy" });
-    const { hit, state } = fillOutcome(await lookup.byIsbn(String(checked.value)), typed.current, turn.latest(mine));
+    const { hit, state } = fillOutcome(await lookup.byIsbn(String(checked.value)), typed.current, String(checked.value), turn.latest(mine));
     if (hit !== null) accept(hit);
     if (state !== null) setFill({ isbn, state });
   };

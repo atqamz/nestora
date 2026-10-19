@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { adopt, arrive, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { draftFor } from "../src/domain/draft.ts";
+import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import type { Hit, Typed } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -175,6 +176,22 @@ test("a translated book matches the hit by its original title, and then takes no
   assert.equal(fillPatch({ title: "Pangeran Kecil", data: { original_title: 5 } }, prince, null), null);
 });
 
+test("a pick whose title the draft parser rewrites still settles, so the fields it filled are kept", () => {
+  const context = { today: "2026-10-07", me: "a" as const, nicknames: { a: "Partner A", b: "Partner B" }, lines: [] };
+  for (const odd of ["Bumi  Manusia", "Bumi\u00a0Manusia", "Bumi\tManusia", "Bumi Manusia,"]) {
+    const next = adopt(form({ title: "bumi" }), { ...bumi(), title: odd });
+    const shown = draftFor(next.title, context, new Set(), "book").draft.title;
+    assert.notEqual(shown, next.found.title, odd);
+    assert.equal(held(next.found, shown), next.found, odd);
+  }
+  const next = adopt(form({ title: "bumi" }), bumi());
+  assert.equal(held(next.found, "Bumi Manusia!"), next.found);
+  assert.equal(held(next.found, "Laskar Pelangi"), null);
+  assert.equal(held(next.found, "Bumi Manusia 2"), null);
+  assert.equal(held(next.found, ""), null);
+  assert.equal(held(null, "Bumi Manusia"), null);
+});
+
 const form = (over: Partial<Typed> = {}): Typed => ({ title: "", author: "", original: "", isbn: "", language: "", blurb: "", found: null, ...over });
 
 const take = (typed: Typed, hit: Hit): Typed => {
@@ -268,11 +285,11 @@ const SAME: [string, string][] = [
   ["Laskar Pelangi", "Laskar Pelangi"],
   ["laskar pelangi", "  Laskar   Pelangi! "],
   ["Pangéran Kécil", "pangeran kecil"],
-  ["Bumi Manusia", "Bumi Manusia: Sebuah Novel"],
   ["Bumi Manusia: Sebuah Novel", "Bumi Manusia"],
-  ["Laskar Pelangi", "Laskar Pelangi – Sebuah Novel"],
+  ["Bumi Manusia: Sebuah Novel", "Bumi Manusia: Sebuah Novel (Seri 1)"],
+  ["Laskar Pelangi – Sebuah Novel", "Laskar Pelangi"],
   ["Laskar Pelangi — Novel", "Laskar Pelangi"],
-  ["Bumi Manusia", "Bumi Manusia - Novel"],
+  ["Bumi Manusia - Novel", "Bumi Manusia"],
   ["Bumi Manusia (Series 1)", "Bumi Manusia"],
   ["Laskar Pelangi", "Laskar Pelangi Vol. 3"],
   ["Laskar Pelangi, Book 2", "Laskar Pelangi"],
@@ -295,6 +312,14 @@ const OTHER: [string, string][] = [
   ["Laskar Pelangi", ""],
 ];
 
+const BARE: [string, string][] = [
+  ["Bumi Manusia", "Bumi Manusia: Sebuah Novel"],
+  ["Laskar Pelangi", "Laskar Pelangi – Sebuah Novel"],
+  ["Laskar Pelangi", "Laskar Pelangi — Novel"],
+  ["Pangeran Kecil", "Pangeran Kecil - Edisi Anak"],
+  ["Laskar Pelangi", "Laskar Pelangi: Sekuel (Seri 2)"],
+];
+
 test("the same title: equal after folding, or one is the other plus a subtitle, a bracketed series note or a volume number", () => {
   for (const [typed, found] of SAME) assert.equal(sameTitle(typed, found), true, `${typed} / ${found}`);
 });
@@ -306,11 +331,19 @@ test("a sibling, a prefix, another volume or subtitle and a translation are not 
   }
 });
 
+test("a bare series title is not the title of a sibling that has a subtitle the user did not type, though the typed full title still matches the bare one", () => {
+  for (const [typed, found] of BARE) {
+    assert.equal(sameTitle(typed, found), false, `${typed} / ${found}`);
+    assert.equal(sameTitle(found, typed), true, `${found} / ${typed}`);
+  }
+});
+
 test("one rule says whether a hit is the book: its title, its original title when there is one, or any hit while the title is still blank", () => {
   const book = (title: string, original: unknown = "") => sameBook({ title, original }, "Le petit prince");
   assert.equal(book("Le petit prince"), true);
   assert.equal(book("Pangeran Kecil", "Le petit prince"), true);
   assert.equal(book("Pangeran Kecil", "Le Petit Prince: Novel"), true);
+  assert.equal(sameBook({ title: "Laskar Pelangi", original: "" }, "Laskar Pelangi: Sekuel"), false);
   assert.equal(book("Pangeran Kecil"), false);
   assert.equal(book("Pangeran Kecil", " "), false);
   assert.equal(book("Pangeran Kecil", 5), false);

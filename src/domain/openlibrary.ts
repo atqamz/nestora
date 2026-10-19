@@ -112,9 +112,11 @@ const heads = (title: string) =>
     .map(fold)
     .filter(Boolean);
 
+const subtitled = (title: string) => SUBTITLE.test(title);
+
 export const sameTitle = (typed: string, found: string) => {
   const [left, right] = [fold(typed), fold(found)];
-  return left === right || heads(typed).includes(right) || heads(found).includes(left);
+  return left === right || heads(typed).includes(right) || ((subtitled(typed) || !subtitled(found)) && heads(found).includes(left));
 };
 
 const blank = (value: string) => value.trim() === "";
@@ -153,6 +155,8 @@ export const adopt = (typed: Typed, hit: Hit) => {
   const found: Found = { title: next.title.trim(), cover: hit.coverId === null ? null : coverUrl(hit.coverId), ol: hit.work, auto };
   return { title: next.title, patch, wantsBlurb: patch.blurb !== null, found };
 };
+
+export const held = (found: Found | null, title: string) => (found !== null && fold(found.title) === fold(title) ? found : null);
 
 export const release = (typed: Typed): Patch => patchOf((field) => (typed.found?.auto[field] !== undefined && typed[field] === typed.found.auto[field] ? "" : null));
 

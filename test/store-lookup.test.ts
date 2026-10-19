@@ -15,6 +15,8 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
+const CODE = "9789793062792";
+
 const tick = (ms = 5) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type Call = { url: string; init: RequestInit };
@@ -558,19 +560,30 @@ test("each turn is a new number and only the last one is the latest", () => {
 
 test("the answer to Fill details becomes a state, and a hit only when it is this book's", () => {
   const [laskar] = parseSearch(sample("laskar-pelangi-search"));
-  const typed = { title: "Laskar Pelangi", original: "" };
-  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, typed, true), { hit: laskar, state: "done" });
-  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "Pangeran Kecil", original: "" }, true), { hit: null, state: "mismatch" });
-  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "Pangeran Kecil", original: "Laskar Pelangi" }, true), { hit: laskar, state: "done" });
-  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "", original: "" }, true), { hit: laskar, state: "done" });
-  assert.deepEqual(fillOutcome({ kind: "ok", value: null }, typed, true), { hit: null, state: "empty" });
-  for (const kind of ["offline", "failed", "slow"] as const) assert.deepEqual(fillOutcome({ kind }, typed, true), { hit: null, state: kind });
+  const typed = { title: "Laskar Pelangi", original: "", isbn: CODE };
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, typed, CODE, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, title: "Pangeran Kecil" }, CODE, true), { hit: null, state: "mismatch" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, title: "Pangeran Kecil", original: "Laskar Pelangi" }, CODE, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, title: "" }, CODE, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: null }, typed, CODE, true), { hit: null, state: "empty" });
+  for (const kind of ["offline", "failed", "slow"] as const) assert.deepEqual(fillOutcome({ kind }, typed, CODE, true), { hit: null, state: kind });
+});
+
+test("an answer for an ISBN the user has since replaced or cleared is dropped, not applied, and the newest lookup goes back to idle", () => {
+  const [laskar] = parseSearch(sample("laskar-pelangi-search"));
+  const typed = { title: "Laskar Pelangi", original: "", isbn: "9780156012195" };
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, typed, CODE, true), { hit: null, state: "idle" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, typed, CODE, false), { hit: null, state: null });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, isbn: "" }, CODE, true), { hit: null, state: "idle" });
+  assert.deepEqual(fillOutcome({ kind: "failed" }, typed, CODE, true), { hit: null, state: "idle" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, isbn: "978-979-3062-79-2" }, CODE, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { ...typed, isbn: "ISBN 9789793062792" }, CODE, true), { hit: laskar, state: "done" });
 });
 
 test("an old Fill details that was superseded leaves the state alone, and the newest one goes back to idle", () => {
-  const typed = { title: "Laskar Pelangi", original: "" };
-  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, true), { hit: null, state: "idle" });
-  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, false), { hit: null, state: null });
+  const typed = { title: "Laskar Pelangi", original: "", isbn: CODE };
+  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, CODE, true), { hit: null, state: "idle" });
+  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, CODE, false), { hit: null, state: null });
   const [laskar] = parseSearch(sample("laskar-pelangi-search"));
-  assert.equal(fillOutcome({ kind: "ok", value: laskar }, typed, false).state, "done");
+  assert.equal(fillOutcome({ kind: "ok", value: laskar }, typed, CODE, false).state, "done");
 });
