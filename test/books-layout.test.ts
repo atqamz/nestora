@@ -103,6 +103,7 @@ test("the book dialogs are native modals that lock the page, ride above the keyb
   assert.doesNotMatch(modal + read("ui/add-sheet.tsx"), /--lock-gap|keyboardInset/);
   assert.match(modal, /onClose=\{\(event\) => event\.target === event\.currentTarget && onClose\(\)\}/);
   assert.match(hook, /const first = document\.documentElement\.style\.getPropertyValue\("--lock-gap"\) === "";/);
+  assert.match(hook, /if \(first\) document\.documentElement\.style\.setProperty\("--lock-gap"/);
   assert.match(hook, /if \(first\) document\.documentElement\.style\.removeProperty\("--lock-gap"\);/);
   assert.match(modal, /aria-labelledby=\{heading\}/);
   assert.match(modal, /aria-label=\{text\.sheet\.close\}/);

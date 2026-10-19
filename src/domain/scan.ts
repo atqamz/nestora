@@ -92,3 +92,28 @@ export const scan = ({ secure, camera, getStream, detector, view, timer, interva
     );
   return { result, stop: () => finish({ kind: "closed" }) };
 };
+
+const HAVE_CURRENT_DATA = 2;
+
+export const frameOf = <T extends { readyState: number; videoWidth: number }>(video: T): T | null => (video.readyState >= HAVE_CURRENT_DATA && video.videoWidth > 0 ? video : null);
+
+type Target = { addEventListener(type: string, run: () => void): void; removeEventListener(type: string, run: () => void): void };
+
+export const camera = (deps: Deps, page: Target, doc: Target & { hidden: boolean }, done: (outcome: Scanned) => void) => {
+  let live = true;
+  const session = scan(deps);
+  void session.result.then((outcome) => live && done(outcome));
+  const hide = () => {
+    session.stop();
+    done({ kind: "closed" });
+  };
+  const hidden = () => doc.hidden && hide();
+  page.addEventListener("pagehide", hide);
+  doc.addEventListener("visibilitychange", hidden);
+  return () => {
+    live = false;
+    session.stop();
+    page.removeEventListener("pagehide", hide);
+    doc.removeEventListener("visibilitychange", hidden);
+  };
+};

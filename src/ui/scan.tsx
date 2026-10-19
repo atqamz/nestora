@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { scan, timer } from "../domain/scan.ts";
+import { camera, frameOf, timer } from "../domain/scan.ts";
 import type { Scanned } from "../domain/scan.ts";
 import { newDetector, useCanScan } from "../hooks/use-scan.ts";
 import { Icon } from "./icons.tsx";
@@ -15,35 +15,25 @@ function Camera({ onDone }: { onDone: (outcome: Scanned) => void }) {
 
   useEffect(() => {
     const element = video.current!;
-    let live = true;
-    const session = scan({
-      secure: isSecureContext,
-      camera: navigator.mediaDevices?.getUserMedia !== undefined,
-      getStream: () => navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }),
-      detector: newDetector(),
-      view: {
-        show: (stream) => {
-          element.srcObject = stream as MediaStream;
-          void element.play().catch(() => {});
+    return camera(
+      {
+        secure: isSecureContext,
+        camera: navigator.mediaDevices?.getUserMedia !== undefined,
+        getStream: () => navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }),
+        detector: newDetector(),
+        view: {
+          show: (stream) => {
+            element.srcObject = stream as MediaStream;
+            void element.play().catch(() => {});
+          },
+          frame: () => frameOf(element),
         },
-        frame: () => (element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && element.videoWidth > 0 ? element : null),
+        timer,
       },
-      timer,
-    });
-    void session.result.then((outcome) => live && done.current(outcome));
-    const hide = () => {
-      session.stop();
-      done.current({ kind: "closed" });
-    };
-    const hidden = () => document.hidden && hide();
-    addEventListener("pagehide", hide);
-    document.addEventListener("visibilitychange", hidden);
-    return () => {
-      live = false;
-      session.stop();
-      removeEventListener("pagehide", hide);
-      document.removeEventListener("visibilitychange", hidden);
-    };
+      window,
+      document,
+      (outcome) => done.current(outcome),
+    );
   }, []);
 
   const cancel = () => done.current({ kind: "closed" });
