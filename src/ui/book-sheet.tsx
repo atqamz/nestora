@@ -5,6 +5,7 @@ import { parseField } from "../domain/field.ts";
 import { adopt, arrive, held, release } from "../domain/openlibrary.ts";
 import type { Found, Hit, Patch } from "../domain/openlibrary.ts";
 import { placesOf } from "../domain/places.ts";
+import { fresh } from "../domain/scan.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { lookup, useSearch } from "../hooks/use-lookup.ts";
@@ -20,10 +21,9 @@ import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { ScanIsbn } from "./scan.tsx";
 import { overlay } from "./overlay.ts";
 import { text } from "./text.ts";
-
-const MIN_DIGITS = 10;
 
 export const ownerOptions = (label: (side: string | null) => string) => [
   { value: "a", label: label("a"), icon: <Avatar side="a" /> },
@@ -61,8 +61,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
 
   const { owner, placeId } = bookDefaults({ kind, ownerPick, placePick }, items, me);
   const checked = parseField("isbn", isbn);
-  const digits = isbn.replace(/[\s\p{Pd}]/gu, "").length;
-  const isbnError = !checked.ok && (digits >= MIN_DIGITS || (attempt && isbn.trim() !== "")) ? text.invalid.isbn : undefined;
+  const isbnError = !checked.ok && attempt && isbn.trim() !== "" ? text.invalid.isbn : undefined;
   const settled = held(found, title);
   const search = useSearch({ title, author, original }, live && settled === null);
   const pristine = [title, author, original, isbn, language, blurb].every((value) => value === "") && found === null && ownerPick === null && placePick === null;
@@ -99,13 +98,21 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
     });
   };
 
-  const fillIn = async () => {
-    if (!checked.ok || checked.value === null) return;
+  const lookUp = async (raw: string, code: string) => {
     const mine = turn.begin();
-    setFill({ isbn, state: "busy" });
-    const { hit, state } = fillOutcome(await lookup.byIsbn(String(checked.value)), typed.current, String(checked.value), turn.latest(mine));
+    setFill({ isbn: raw, state: "busy" });
+    const { hit, state } = fillOutcome(await lookup.byIsbn(code), typed.current, code, turn.latest(mine));
     if (hit !== null) accept(hit);
-    if (state !== null) setFill({ isbn, state });
+    if (state !== null) setFill({ isbn: raw, state });
+  };
+
+  const fillIn = () => (checked.ok && checked.value !== null ? lookUp(isbn, String(checked.value)) : undefined);
+
+  const scanned = (code: string) => {
+    if (!fresh(typed.current.isbn, code)) return;
+    typed.current = { ...typed.current, isbn: code };
+    setIsbn(code);
+    void lookUp(code, code);
   };
 
   const save = (): Promise<Written> =>
@@ -136,6 +143,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
       accept,
       fill: fill?.isbn === isbn ? fill.state : ("idle" as const),
       fillIn,
+      scanned,
       owner,
       setOwnerPick,
       placeId,
@@ -150,7 +158,7 @@ export type BookForm = ReturnType<typeof useBookForm>;
 
 export function BookFields({ form, children }: { form: BookForm; children?: ReactNode }) {
   const { kind, setKind } = form;
-  const { author, setAuthor, original, setOriginal, isbn, setIsbn, isbnError, checked, language, setLanguage, blurb, setBlurb, owner, setOwnerPick, placeId, setPlacePick, places, label } = form.fields;
+  const { author, setAuthor, original, setOriginal, isbn, setIsbn, isbnError, scanned, language, setLanguage, blurb, setBlurb, owner, setOwnerPick, placeId, setPlacePick, places, label } = form.fields;
   return (
     <>
       <div role="group" aria-label={text.books.sheet.kind} className="kinds">
@@ -171,12 +179,12 @@ export function BookFields({ form, children }: { form: BookForm; children?: Reac
             name: "isbn",
             label: text.books.sheet.isbn,
             type: "isbn",
-            hint: checked.ok && checked.value !== null ? text.books.sheet.isbnOk(String(checked.value)) : text.books.sheet.isbnHint,
             value: isbn,
             onChange: setIsbn,
           }}
           error={isbnError}
         />
+        <ScanIsbn onIsbn={scanned} tip />
         <FillDetails form={form} />
         <Field control={{ name: "language", label: text.books.sheet.language, type: "text", value: language, blank: text.books.sheet.languageNone, options: LANGUAGES, onChange: setLanguage }} />
         <Field control={{ name: "blurb", label: text.books.sheet.blurb, type: "note", value: blurb, onChange: setBlurb }} />

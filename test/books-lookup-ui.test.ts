@@ -92,7 +92,7 @@ test("the search hook follows the pure state machine, and the screens fill throu
   const sheet = read("ui/book-sheet.tsx");
   assert.match(sheet, /const next = adopt\(typed\.current, hit\);/);
   assert.match(sheet, /typed\.current = \{ title, author, original, isbn, language, blurb, found \};/);
-  assert.match(sheet, /const \{ hit, state \} = fillOutcome\(await lookup\.byIsbn\(String\(checked\.value\)\), typed\.current, String\(checked\.value\), turn\.latest\(mine\)\);/);
+  assert.match(sheet, /const \{ hit, state \} = fillOutcome\(await lookup\.byIsbn\(code\), typed\.current, code, turn\.latest\(mine\)\);/);
   assert.match(sheet, /put\(release\(typed\.current\)\);\s*setFound\(null\);/);
   assert.match(sheet, /if \(!next\.wantsBlurb\) return;/);
   assert.match(sheet, /const got = arrive\(typed\.current, hit\.work,/);

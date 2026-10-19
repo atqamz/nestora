@@ -45,7 +45,7 @@ export function Modal({ title, onClose, onSubmit, foot, dismissible, children }:
       ref={dialog}
       className="add-sheet"
       aria-labelledby={heading}
-      onClose={onClose}
+      onClose={(event) => event.target === event.currentTarget && onClose()}
       onClick={(event) => {
         if (dismissible && event.target === event.currentTarget) onClose();
       }}

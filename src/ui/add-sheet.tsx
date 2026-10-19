@@ -379,7 +379,8 @@ export function AddSheet() {
       ref={dialog}
       className="add-sheet"
       aria-labelledby="sheet-title"
-      onClose={() => {
+      onClose={(event) => {
+        if (event.target !== event.currentTarget) return;
         overlay.closeAdd();
         overlay.returnFocus();
       }}

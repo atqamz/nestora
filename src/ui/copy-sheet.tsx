@@ -105,7 +105,7 @@ export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemR
           <Field control={{ name: "place", label: text.books.place, type: "text", value: placeId, blank: text.books.noPlace, options: placeOptions(places), onChange: setPlaceId }} />
         )}
         <Field
-          control={{ name: "isbn", label: text.books.sheet.isbn, type: "isbn", hint: text.books.sheet.isbnHint, value: isbn, onChange: setIsbn }}
+          control={{ name: "isbn", label: text.books.sheet.isbn, type: "isbn", value: isbn, onChange: setIsbn }}
           error={attempt && !checked.ok ? text.invalid.isbn : undefined}
         />
       </div>

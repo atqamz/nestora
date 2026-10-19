@@ -476,3 +476,17 @@ button.where {
   flex-basis: 100%;
   overflow-wrap: anywhere;
 }
+
+.fill button svg {
+  flex: none;
+}
+
+.scan-view {
+  display: block;
+  width: 100%;
+  max-height: 55dvh;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-group);
+  background: var(--surface-2);
+  object-fit: cover;
+}
