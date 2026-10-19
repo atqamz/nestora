@@ -82,20 +82,24 @@ const piecesOf = (text: string): Piece[] => {
     if (trusted[at]) ahead = Number(marks[at][1]);
   }
   const chosen: { start: number; end: number; number: number; joined: boolean; stop?: number }[] = [];
+  let skipped: number | null = null;
   marks.forEach((mark, at) => {
     const number = Number(mark[1]);
     const start = mark.index;
     const last = chosen.at(-1);
     const lineStart = start === 0 || text[start - 1] === "\n";
-    const continues = last === undefined ? number === 1 || lineStart : number === last.number + 1;
+    const continues = last === undefined ? number === 1 || lineStart : number === (skipped ?? last.number) + 1;
     const plausible = continues || (last !== undefined && number === 1);
     if (!plausible && !(labels.length > 0 && trusted[at])) return;
     const rest = text.slice(ends[at], upTo(at)).trim();
     if (!trusted[at] && !(continues && (following[at] === number + 1 || (lineStart && rest !== "")))) {
-      if (last && rest === "") last.stop ??= start;
-      else if (last) last.joined = true;
+      if (last && rest === "") {
+        last.stop ??= start;
+        skipped = number;
+      } else if (last) last.joined = true;
       return;
     }
+    skipped = null;
     chosen.push({ start, end: ends[at], number, joined: false });
   });
   if (chosen.length === 0) return text.split("\n").filter((row) => row !== "").map((body) => ({ body, joined: false }));
@@ -126,6 +130,7 @@ const candidateOf = ({ body, joined }: Piece): Candidate | null => {
   const heading = line(body.slice(0, found[0]?.at));
   if (heading === "") return null;
   const { title, original } = splitTitle(heading);
+  if (seen(title) === "") return null;
   const author = read("author")?.text ?? "";
   if (author === "") warnings.push("missing_author");
   const rating = read("rating");

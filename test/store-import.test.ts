@@ -394,6 +394,18 @@ test("a failed hide says nothing about success and remembers nothing, and an unk
   assert.equal(rowsOf(store).length, 2);
 });
 
+test("an undone import is dated by its earliest book, whatever the order of the rows", async () => {
+  const server = createServer();
+  const { store } = await started(server);
+  await createAll(stepsFor(store, [row("A"), row("B"), row("C")]), store.many);
+  const stamps = ["2026-10-03T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-02T00:00:00Z"];
+  const real = rowsOf(store);
+  const books = real.filter((item) => item.kind === "book");
+  const dated = real.map((item) => (item.kind === "book" ? { ...item, created_at: stamps[books.indexOf(item)] } : item));
+  await undoImport("batch-1", () => dated, store.many);
+  assert.equal(undoneImports.get()[0].at, "2026-10-01T00:00:00Z");
+});
+
 test("a hidden import stays on offer for the session, and restoring it clears the offer", async () => {
   const server = createServer();
   const { store } = await started(server);
@@ -464,6 +476,25 @@ test("a failure with no row to blame passes through untouched, and the first ste
   assert.deepEqual(await createAll(stepsFor(store, [row("A")]), async () => ({ ok: false, errors: ["x"] })), { ok: false, errors: ["x"] });
   assert.deepEqual(await store.many([{ op: "delete", table: "items", id: crypto.randomUUID() }]), { ok: false, errors: ["row: not found"], step: 0 });
   assert.equal(store.getSnapshot().pending, 0);
+});
+
+test("a sweep that cannot hide a late copy forgets it again, so the next sweep tries once more and a restore does not touch it", async () => {
+  const server = createServer();
+  const { store } = await started(server);
+  await createAll(stepsFor(store, [row("A")]), store.many);
+  await undoImport("batch-1", read(store), store.many);
+  const book = undoneImports.get()[0].books[0];
+  const late = idOf(await store.create("items", { kind: "copy", parent_id: book, title: "late", status: "lent", who: "a" as const, data: { format: "print" } }));
+  const refuse: typeof store.many = async () => ({ ok: false, errors: ["nope"] });
+  sweepUndone(rowsOf(store), refuse);
+  await settled();
+  assert.deepEqual(undoneImports.get()[0].ids.length, 2);
+  assert.equal(undoneImports.get()[0].ids.includes(late), false);
+  const calls: string[][] = [];
+  sweepUndone(rowsOf(store), async (steps) => (calls.push(steps.map((step) => step.id)), store.many(steps)));
+  await settled();
+  assert.deepEqual(calls, [[late]]);
+  assert.equal(undoneImports.get()[0].ids.includes(late), true);
 });
 
 test("two hidden imports are both remembered, and the sweep touches only copies of hidden books that are not already hidden", async () => {

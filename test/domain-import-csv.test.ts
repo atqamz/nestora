@@ -197,3 +197,12 @@ test("only the first 4000 characters are looked at for the title column", () => 
   assert.equal(looksLikeCsv(`${",".repeat(3995)}Title`), true);
   assert.equal(looksLikeCsv(`${",".repeat(3996)}Title`), false);
 });
+
+test("a last record that ends in an empty cell with no final newline is kept", () => {
+  assert.deepEqual(readCsv("title,author\nA,"), [["title", "author"], ["A", ""]]);
+  assert.deepEqual(readCsv("A,"), [["A", ""]]);
+  assert.deepEqual(readCsv("A"), [["A"]]);
+  assert.deepEqual(readCsv("A,\n"), [["A", ""]]);
+  assert.deepEqual(readCsv(","), []);
+  assert.equal(parseBookCsv("title,author\nA,").rows.map((entry) => entry.title).join(), "A");
+});

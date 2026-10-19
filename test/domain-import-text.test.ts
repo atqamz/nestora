@@ -364,3 +364,30 @@ test("a label with only spaces after it is just empty, with no hidden-characters
 test("a first entry that follows words on its line and has only a title is kept when a labelled entry comes next", () => {
   assert.deepEqual(parseList("Words 1. Only Title\n2. B  Penulis: Y").map((entry) => [entry.title, entry.author]), [["Only Title", ""], ["B", "Y"]]);
 });
+
+test("an entry whose title is invisible once the original title is split off is left out, and the rest of the list is read", () => {
+  const titles = (text: string) => parseList(text).map((entry) => [entry.title, entry.original_title]);
+  assert.deepEqual(titles("1. ⠀ (Bumi)\n2. B"), [["B", ""]]);
+  assert.deepEqual(titles("1. ㅤ (Bumi)  Penulis: X\n2. B  Penulis: Y"), [["B", ""]]);
+  assert.deepEqual(titles("1. ️ (Bumi)"), []);
+  assert.deepEqual(titles("1. Laskar (Bumi)"), [["Laskar", "Bumi"]]);
+});
+
+test("an empty numbered line is skipped, and the entry after it is still read", () => {
+  const read = (text: string) => parseList(text).map((entry) => [entry.title, entry.author, entry.blurb]);
+  assert.deepEqual(read("1. A  Penulis: X\n2.\n3. C"), [["A", "X", ""], ["C", "", ""]]);
+  assert.deepEqual(read("1. A  Penulis: X\n2.\n3.\n4. D\n5. E"), [["A", "X", ""], ["D", "", ""], ["E", "", ""]]);
+  assert.deepEqual(read("1. A  Penulis: X  Sinopsis: One.\n2.\n3. C  Sinopsis: Two.\n4. D"), [["A", "X", "One."], ["C", "", "Two."], ["D", "", ""]]);
+  assert.deepEqual(read("1. A  Sinopsis: One.\n2."), [["A", "", "One."]]);
+});
+
+test("numbers that follow text on the first line, with no author label near them, do not start entries", () => {
+  assert.deepEqual(parseList("x 1. A 2. B 3. C  Penulis: X").map((entry) => [entry.title, entry.author]), [["C", "X"]]);
+  assert.deepEqual(parseList("x 1. A 5. B  Penulis: X").map((entry) => [entry.title, entry.author]), [["B", "X"]]);
+});
+
+test("a label that repeats inside an entry stays in the text of the first one", () => {
+  assert.deepEqual(parseList("1. T  Penulis: A  Penulis: B").map((entry) => [entry.title, entry.author]), [["T", "A Penulis: B"]]);
+  assert.deepEqual(parseList("1. T  Sinopsis: A  Sinopsis: B  Penulis: C").map((entry) => [entry.blurb, entry.author]), [["A Sinopsis: B", "C"]]);
+  assert.deepEqual(parseList("1. T  Penulis: A  Rating: 4  Rating: 5").map((entry) => [entry.author, entry.rated_elsewhere]), [["A", "4"]]);
+});
