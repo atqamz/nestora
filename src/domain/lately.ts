@@ -41,8 +41,8 @@ export const lately = (items: readonly ItemRow[], entries: readonly BudgetEntryR
   return [...items, ...entries]
     .flatMap((row): Activity[] => {
       if (row.updated_by !== "a" && row.updated_by !== "b") return [];
-      if (row.data !== null && "import_batch" in row.data) return [];
       const verb = verbOf(row);
+      if (verb === "added" && row.data !== null && "import_batch" in row.data) return [];
       if ("kind" in row && (row.kind === "place" || (row.kind === "copy" && verb !== "moved" && together(row)))) return [];
       if (verb !== "moved") return [{ id: row.id, by: row.updated_by, verb, title: row.title, to: null, at: row.updated_at }];
       const copy = row as ItemRow;

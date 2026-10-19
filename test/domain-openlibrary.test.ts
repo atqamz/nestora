@@ -377,14 +377,27 @@ test("one rule says whether a hit is the book: its title, its original title whe
   assert.equal(book("", "Laskar Pelangi"), true);
 });
 
-test("an author matches when any name of three letters or more is shared, and a blank side never blocks", () => {
+test("an author matches only on the surname, so a shared first name, an initial or a blank side never passes", () => {
   assert.equal(sameAuthor("Andrea Hirata", "Hirata, Andrea"), true);
-  assert.equal(sameAuthor("Pramoedya Ananta Toer", "Song, Poo Yong"), false);
-  assert.equal(sameAuthor("", "Anyone"), true);
-  assert.equal(sameAuthor(undefined, "Anyone"), true);
-  assert.equal(sameAuthor("Someone", ""), true);
-  assert.equal(sameAuthor("Al Bo", "Al Bo"), true);
-  assert.equal(sameAuthor("Tan Zzzzz", "Tan Yyyy"), true);
+  assert.equal(sameAuthor("Andrea Hirata", "Andrea Hirata"), true);
+  assert.equal(sameAuthor("Hirata, Andrea", "Andrea Hirata"), true);
   assert.equal(sameAuthor("Andrea Hirata", "Hirata, A."), true);
+  assert.equal(sameAuthor("A. Hirata", "Andrea Hirata"), true);
+  assert.equal(sameAuthor("Hirata", "Andrea Hirata"), true);
   assert.equal(sameAuthor("Antoine de Saint-Exupéry", "Antoine de Saint Exupery"), true);
+  assert.equal(sameAuthor("Writer One", "Someone Else; Writer One"), true);
+  assert.equal(sameAuthor("Writer One & Writer Two", "Writer Two"), true);
+  assert.equal(sameAuthor("Pramoedya Ananta Toer", "Song, Poo Yong"), false);
+  assert.equal(sameAuthor("John Smith", "John Green"), false);
+  assert.equal(sameAuthor("Pramoedya", "Pramoedya Ananta Toer"), false);
+  assert.equal(sameAuthor("Pramudya Ananta Tur", "Pramoedya Ananta Toer"), false);
+  assert.equal(sameAuthor("Andrea H.", "Andrea Hirata"), false);
+  assert.equal(sameAuthor("Tan Zzzzz", "Tan Yyyy"), false);
+  assert.equal(sameAuthor("Al Bo", "Al Bo"), true);
+  assert.equal(sameAuthor("X", "X"), false);
+  assert.equal(sameAuthor("", "Anyone"), false);
+  assert.equal(sameAuthor(undefined, "Anyone"), false);
+  assert.equal(sameAuthor(5, "5"), false);
+  assert.equal(sameAuthor("Someone", ""), false);
+  assert.equal(sameAuthor("  ", ""), false);
 });

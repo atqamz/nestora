@@ -21,7 +21,7 @@ export type Snapshot = {
   notice: { discarded: number } | null;
 };
 
-export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true };
+export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; step?: number };
 
 export type Draft<T extends TableName> = Partial<
   Omit<Row<T>, "id" | "rev" | "updated_by" | "deleted_at" | "created_at" | "updated_at">
@@ -336,13 +336,13 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     const prepared = steps.map((step) =>
       step.op === "create" ? preparedCreate(step.table, step.draft, step.id) : step.op === "update" ? preparedUpdate(step.table, step.id, step.change) : preparedRemove(step.table, step.id),
     );
-    const failed = prepared.find((entry): entry is Extract<Written, { ok: false }> => !isMutation(entry) && !entry.ok);
-    if (failed) return failed;
-    const mutations = prepared.filter(isMutation);
-    for (const mutation of mutations) {
-      const errors = validateMutation(wire(mutation));
-      if (errors.length > 0) return { ok: false, errors };
+    const failed = prepared.findIndex((entry) => !isMutation(entry) && !entry.ok);
+    if (failed >= 0) return { ...(prepared[failed] as Extract<Written, { ok: false }>), step: failed };
+    for (const [step, entry] of prepared.entries()) {
+      const errors = isMutation(entry) ? validateMutation(wire(entry)) : [];
+      if (errors.length > 0) return { ok: false, errors, step };
     }
+    const mutations = prepared.filter(isMutation);
     return mutations.length === 0 ? { ok: true, id: "" } : append(mutations);
   };
 

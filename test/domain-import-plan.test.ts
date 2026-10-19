@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateMutation } from "../shared/validate.ts";
-import { IMPORT_LIMIT, batchRows, batchesOf, detectFormat, previewOf, readInput, stepsOf } from "../src/domain/import-plan.ts";
+import { IMPORT_LIMIT, batchRows, batchesOf, changedBooks, detectFormat, previewOf, readInput, stepsOf } from "../src/domain/import-plan.ts";
 import type { Choices, Entry } from "../src/domain/import-plan.ts";
 import type { Row } from "../src/domain/import-csv.ts";
 import { item } from "./domain-rows.ts";
@@ -90,7 +90,7 @@ test("a title like \"true\" is not a duplicate of a book with no original title,
 });
 
 test("a repeated title inside one paste is kept ticked and flagged, by title or original title", () => {
-  const found = previewOf([row("Trisurya", { original_title: "The Three-Body Problem" }), row("Other"), row("The Three-Body Problem"), row("trisurya")], []);
+  const found = previewOf([row("Judul Dua", { original_title: "The Two Parts" }), row("Other"), row("The Two Parts"), row("judul dua")], []);
   assert.deepEqual(found.map((entry) => [entry.checked, entry.warnings]), [[true, []], [true, []], [true, ["twice"]], [true, ["twice"]]]);
 });
 
@@ -226,4 +226,52 @@ test("batches are listed newest first with their live books, and a batch's rows 
   assert.deepEqual(batches.map((batch) => [batch.id, batch.books.length, batch.at]), [["new", 2, "2026-10-02T00:00:00Z"], ["old", 1, "2026-10-01T00:00:00Z"]]);
   assert.deepEqual(batchRows(items, "new").map((item) => item.id), [items[1].id, items[2].id, items[4].id]);
   assert.deepEqual(batchRows(items, "none"), []);
+});
+
+const touched = { updated_at: "2026-10-02T00:00:00Z" };
+
+const imported = (batch = "new") => [
+  book(1, { title: "A", data: { import_batch: batch } }),
+  copy(2, 1, { data: { import_batch: batch } }),
+  book(3, { title: "B", data: { import_batch: batch } }),
+  copy(4, 3, { data: { import_batch: batch } }),
+];
+
+test("a batch's rows are its books first, then every copy under them, whether the copy came with the import or was added later", () => {
+  const items = [...imported(), copy(5, 1, { status: "lent" }), copy(6, 3, { status: "here", data: { format: "ebook" } }), book(7, { title: "Other", data: { import_batch: "x" } }), copy(8, 7, { data: { import_batch: "x" } }), copy(9, 99, {})];
+  assert.deepEqual(batchRows(items, "new").map((row) => row.id), [uuid(1), uuid(3), uuid(2), uuid(4), uuid(5), uuid(6)]);
+  assert.deepEqual(batchRows(items, "x").map((row) => row.id), [uuid(7), uuid(8)]);
+});
+
+test("a copy that carries the batch but whose book is no longer there is still part of it, so it cannot stay live alone", () => {
+  const items = [book(1, { title: "A", data: { import_batch: "new" } }), copy(2, 1, { data: { import_batch: "new" } }), copy(3, 50, { data: { import_batch: "new" } })];
+  assert.deepEqual(batchRows(items, "new").map((row) => row.id), [uuid(1), uuid(2), uuid(3)]);
+});
+
+test("books changed since the import are counted once each: edits, reading state, copies added, copies moved or lent", () => {
+  assert.equal(changedBooks(imported(), "new"), 0);
+  assert.equal(changedBooks([...imported(), copy(5, 1, {})], "new"), 1);
+  const edited = imported();
+  edited[0] = { ...edited[0], ...touched };
+  assert.equal(changedBooks(edited, "new"), 1);
+  const reading = imported();
+  reading[2] = { ...reading[2], ...touched, data: { import_batch: "new", reading_a: "read", rating_a: "5" } };
+  assert.equal(changedBooks(reading, "new"), 1);
+  const moved = imported();
+  moved[1] = { ...moved[1], ...touched, status: "lent" };
+  assert.equal(changedBooks(moved, "new"), 1);
+  const everything = [...imported(), copy(5, 1, {}), copy(6, 1, {})];
+  everything[0] = { ...everything[0], ...touched };
+  everything[1] = { ...everything[1], ...touched };
+  everything[2] = { ...everything[2], ...touched };
+  assert.equal(changedBooks(everything, "new"), 2);
+  assert.equal(changedBooks(edited, "other"), 0);
+  assert.equal(changedBooks([book(1, { title: "A", data: { import_batch: "new" } }), copy(2, 50, { data: { import_batch: "new" }, ...touched })], "new"), 1);
+  assert.equal(changedBooks([], "new"), 0);
+});
+
+test("only books count as already there: a place, a task or a copy with the same title does not untick a row", () => {
+  const items = [place(1, { title: "Laskar Pelangi" }), item({ id: uuid(2), kind: "task", title: "Bumi Manusia" }), book(3, { title: "Typed" }), copy(4, 3, { title: "The Little Prince" })];
+  const found = previewOf([row("Laskar Pelangi"), row("Bumi Manusia"), row("The Little Prince"), row("Typed")], items);
+  assert.deepEqual(found.map((entry) => [entry.checked, entry.warnings]), [[true, []], [true, []], [true, []], [false, ["exists"]]]);
 });

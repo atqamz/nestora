@@ -1,6 +1,6 @@
-import { LONGTEXT_MAX, TEXT_MAX } from "../../shared/validate.ts";
+import { LONGTEXT_MAX, TEXT_MAX, VISIBLE } from "../../shared/validate.ts";
 
-export type Warning = "missing_author" | "cut" | "joined" | "bad_isbn" | "place_unknown" | "exists" | "twice";
+export type Warning = "missing_author" | "cut" | "joined" | "bad_isbn" | "place_unknown" | "exists" | "twice" | "hidden";
 
 export type Candidate = {
   title: string;
@@ -26,15 +26,25 @@ const LABEL = new RegExp(
 
 const MARK = /(?<![\p{L}\p{N}])(?<!\/ ?)(\d{1,3})\.(?!\d)/gu;
 
+const seen = (value: string) => (VISIBLE.test(value) ? value : "");
+
 export const tidy = (input: string) =>
-  input
-    .replace(/\r\n?|[\u2028\u2029\u0085]/g, "\n")
-    .replace(/[^\S\n]+/g, " ")
-    .replace(/(?!\u200d|\n)[\p{Cc}\p{Cf}\p{Cs}]/gu, "")
-    .replace(/ ?\n ?/g, "\n")
-    .trim();
+  seen(
+    input
+      .replace(/\r\n?|[\u2028\u2029\u0085]/g, "\n")
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/(?!\u200d|\n)[\p{Cc}\p{Cf}\p{Cs}]/gu, "")
+      .replace(/ ?\n ?/g, "\n")
+      .trim(),
+  );
 
 export const line = (input: string) => tidy(input).replace(/\n+/g, " ");
+
+export const readLine = (input: string, warnings: Warning[]) => {
+  const out = line(input);
+  if (out === "" && input.trim() !== "") warnings.push("hidden");
+  return out;
+};
 
 export const fit = (input: string, max: number, warnings: Warning[]) => {
   if (input.length <= max) return input;
@@ -80,8 +90,9 @@ const piecesOf = (text: string): Piece[] => {
     const continues = last === undefined ? number === 1 || lineStart : number === last.number + 1;
     const plausible = continues || (last !== undefined && number === 1);
     if (!plausible && !(labels.length > 0 && trusted[at])) return;
-    if (!trusted[at] && !(continues && following[at] === number + 1)) {
-      if (last && text.slice(ends[at], upTo(at)).trim() === "") last.stop ??= start;
+    const rest = text.slice(ends[at], upTo(at)).trim();
+    if (!trusted[at] && !(continues && (following[at] === number + 1 || (lineStart && rest !== "")))) {
+      if (last && rest === "") last.stop ??= start;
       else if (last) last.joined = true;
       return;
     }
@@ -107,13 +118,13 @@ const candidateOf = ({ body, joined }: Piece): Candidate | null => {
     const kind = label[1] ? "author" : label[3] ? "synopsis" : "rating";
     if (!found.some((known) => known.kind === kind)) found.push({ kind, at: label.index, end: label.index + label[0].length, source: label[2] ?? "" });
   }
+  const warnings: Warning[] = joined ? ["joined"] : [];
   const read = (kind: Found["kind"]) => {
     const at = found.findIndex((known) => known.kind === kind);
-    return at < 0 ? null : { text: line(body.slice(found[at].end, found[at + 1]?.at)), source: found[at].source };
+    return at < 0 ? null : { text: readLine(body.slice(found[at].end, found[at + 1]?.at), warnings), source: found[at].source };
   };
   const heading = line(body.slice(0, found[0]?.at));
   if (heading === "") return null;
-  const warnings: Warning[] = joined ? ["joined"] : [];
   const { title, original } = splitTitle(heading);
   const author = read("author")?.text ?? "";
   if (author === "") warnings.push("missing_author");

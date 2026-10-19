@@ -3,7 +3,7 @@ import { fresh } from "../domain/scan.ts";
 import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameAuthor, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
-export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale" };
+export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale"; retry?: number };
 
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -13,6 +13,12 @@ export type Lookup = {
   blurb(work: string): Promise<Outcome<string | null>>;
   cancel(): void;
   stop(): void;
+};
+
+const delayOf = (header: string | null) => {
+  const seconds = header === null || header.trim() === "" ? NaN : Number(header);
+  const ms = Number.isNaN(seconds) ? Date.parse(header ?? "") - Date.now() : seconds * 1000;
+  return Number.isFinite(ms) ? Math.max(0, ms) : 0;
 };
 
 type Options = { fetcher?: Fetcher; online?: () => boolean; wait?: number; timeout?: number; remember?: number };
@@ -48,7 +54,8 @@ export const createLookup = ({
     let late = false;
     const timer = setTimeout(() => ((late = true), limit.abort()), timeout);
     signal.addEventListener("abort", () => limit.abort(), { once: true });
-    const lost = (kind: "offline" | "failed"): Outcome<T> => ({ kind: signal.aborted ? "stale" : late ? "slow" : kind });
+    const lost = (kind: "offline" | "failed", retry?: number): Outcome<T> =>
+      signal.aborted ? { kind: "stale" } : late ? { kind: "slow" } : retry === undefined ? { kind } : { kind, retry };
     let value: T;
     try {
       let res: Response;
@@ -58,7 +65,7 @@ export const createLookup = ({
         return lost("offline");
       }
       try {
-        if (res.status !== 200) return lost("failed");
+        if (res.status !== 200) return lost("failed", res.status === 429 || res.status >= 500 ? delayOf(res.headers.get("retry-after")) : undefined);
         value = parse(await res.json());
       } catch {
         return lost("failed");
@@ -113,7 +120,7 @@ export const follow = (lookup: Lookup, ready: boolean, input: { title: string; a
   };
 };
 
-export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale" };
+export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale"; retry?: number };
 
 type Typed = () => { title: string; data: Record<string, unknown> | null };
 
@@ -134,12 +141,15 @@ export const fillBook = async (lookup: Lookup, code: string, read: Typed): Promi
 
 const word = (value: unknown) => (typeof value === "string" ? value : "");
 
-export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled> => {
+export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled | { kind: "unsure" }> => {
   const { title, data } = read();
   const found = await lookup.search({ title, author: word(data?.author), original: word(data?.original_title) });
   if (found.kind !== "ok") return found;
-  const hit = found.value.find((candidate) => fillPatch(read(), candidate, null) !== null && sameAuthor(data?.author, candidate.author));
-  return hit === undefined ? { kind: "empty" } : complete(lookup, hit, read);
+  const titled = found.value.filter((candidate) => fillPatch(read(), candidate, null) !== null);
+  if (titled.length > 0 && word(data?.author).trim() === "") return { kind: "unsure" };
+  const confirmed = titled.filter((candidate) => sameAuthor(data?.author, candidate.author));
+  if (new Set(confirmed.map((candidate) => candidate.work)).size > 1) return { kind: "unsure" };
+  return confirmed.length === 0 ? { kind: "empty" } : complete(lookup, confirmed[0], read);
 };
 
 export type Fill = "idle" | "busy" | "empty" | "mismatch" | "offline" | "failed" | "slow" | "done";

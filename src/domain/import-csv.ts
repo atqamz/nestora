@@ -1,5 +1,5 @@
 import { LONGTEXT_MAX, NOTE_MAX, TEXT_MAX } from "../../shared/validate.ts";
-import { fit, line, tidy } from "./import-text.ts";
+import { fit, line, readLine, tidy } from "./import-text.ts";
 import type { Candidate, Warning } from "./import-text.ts";
 import { toIsbn13 } from "./isbn.ts";
 
@@ -103,29 +103,30 @@ export const parseBookCsv = (input: string, delimiter = delimiterOf(input)): Par
   for (const cells of records) {
     const get = (field: keyof typeof HEADERS) => at[field].map((index) => unescape(cells[index] ?? "")).find((cell) => cell.trim() !== "") ?? "";
     const warnings: Warning[] = [];
+    const read = (field: keyof typeof HEADERS) => readLine(get(field), warnings);
     const title = line(get("title"));
     if (title === "") {
       skipped++;
       continue;
     }
-    const typed = line(get("isbn"));
+    const typed = read("isbn");
     const isbn = typed === "" ? "" : (toIsbn13(typed) ?? "");
     if (typed !== "" && isbn === "") warnings.push("bad_isbn");
-    const author = fit(line(get("author")), TEXT_MAX, warnings);
+    const author = fit(read("author"), TEXT_MAX, warnings);
     if (author === "") warnings.push("missing_author");
     rows.push({
       title: fit(title, TEXT_MAX, warnings),
-      original_title: fit(line(get("original_title")), TEXT_MAX, warnings),
+      original_title: fit(read("original_title"), TEXT_MAX, warnings),
       author,
-      rated_elsewhere: fit(line(get("rated_elsewhere")), TEXT_MAX, warnings),
-      blurb: fit(line(get("blurb")), LONGTEXT_MAX, warnings),
+      rated_elsewhere: fit(read("rated_elsewhere"), TEXT_MAX, warnings),
+      blurb: fit(read("blurb"), LONGTEXT_MAX, warnings),
       isbn,
       language: languageOf(get("language")),
       status: statusOf(get("status")),
-      place: line(get("place")),
-      owner: line(get("owner")),
+      place: read("place"),
+      owner: read("owner"),
       note: fit(tidy(get("note")), NOTE_MAX, warnings),
-      genre: fit(line(get("genre")), TEXT_MAX, warnings),
+      genre: fit(read("genre"), TEXT_MAX, warnings),
       warnings: [...new Set(warnings)],
     });
   }

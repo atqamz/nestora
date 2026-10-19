@@ -36,9 +36,23 @@ test("every row, button and the file picker keep a 44 px target, and only existi
 
 test("the batch undo and the toast undo are one action, and the page says what it will do before it does it", () => {
   const view = read("views/import.tsx");
-  assert.match(view, /undoImport\(ids, batch\.books\.length, actions\.many\)/);
+  assert.match(view, /undoImport\(batch\.id, readItems, actions\.many\)/);
+  assert.match(view, /changed > 0 \? setConfirming\(true\) : once\(undo\)/);
+  assert.match(view, /WORDS\.changed\(changed\)/);
   assert.match(read("ui/book-import.ts"), /announce\(text\.books\.import\.done\(books\)/);
   assert.ok(text.books.import.intro.includes("Nothing is saved before you press Import"));
+});
+
+test("the check before a late undo is a labelled group whose buttons keep the 44 px target and wrap, with Keep taking focus", () => {
+  const view = read("views/import.tsx");
+  assert.match(view, /role="group" aria-labelledby=\{noted\}/);
+  assert.match(view, /keep\.current\?\.focus\(\)/);
+  assert.match(view, /ask\.current\?\.focus\(\)/);
+  assert.equal(text.books.import.changed(3), "3 books were changed since the import. Undo anyway?");
+  assert.equal(text.books.import.changed(1), "1 book was changed since the import. Undo anyway?");
+  assert.deepEqual([text.books.import.keep, text.books.import.undoAnyway], ["Keep", "Undo"]);
+  assert.match(css, /\.imp-acts > \*\s*\{[^}]*min-width:\s*0/);
+  assert.match(css, /\.imp-confirm\s*\{[^}]*min-width:\s*0/);
 });
 
 test("the rated-elsewhere note is a plain text node and the key can be edited with the other book fields", () => {

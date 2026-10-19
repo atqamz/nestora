@@ -135,11 +135,27 @@ test("a move to a place that is gone or unset reads without a destination", () =
   assert.deepEqual(summary([copy]), [["moved", "Laskar Pelangi", null]]);
 });
 
-test("rows that carry an import batch are left out, whatever their kind", () => {
+test("the burst of an import is left out, books and copies alike, while nothing has touched the rows", () => {
   const book = shelf("Imported", "2026-10-05T10:00:00Z", { data: { import_batch: "b1" } });
   const copy = copyOf(book, { created_at: "2026-10-09T10:00:00Z", updated_at: "2026-10-09T10:00:00Z", data: { import_batch: "b1" } });
   const task = item({ title: "kept", updated_by: "a", updated_at: "2026-10-04T10:00:00Z", data: { note: "x" } });
   assert.deepEqual(summary([book, copy, task]), [["changed", "kept", null]]);
+});
+
+test("what happens to imported rows afterwards shows as it does for typed ones: a move by the other partner, an edit, a rating, a copy added later", () => {
+  const home = place("Home B");
+  const book = shelf("Imported", "2026-10-05T10:00:00Z", { data: { import_batch: "b1" } });
+  const copy = copyOf(book, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-05T20:00:00Z", updated_by: "b", rev: 2, group_key: home.id, data: { import_batch: "b1", moved_on: "2026-10-05", moved_by: "b" } });
+  assert.deepEqual(lately([home, book, copy], []).map((activity) => [activity.verb, activity.by, activity.title, activity.to]), [["moved", "b", "Imported", "Home B"]]);
+  const plain = copyOf(book, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-06T10:00:00Z", updated_by: "b", rev: 2, status: "lent", data: { import_batch: "b1" } });
+  const typed = shelf("Typed", "2026-10-05T10:00:00Z");
+  const typedCopy = copyOf(typed, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-06T10:00:00Z", updated_by: "b", rev: 2, status: "lent" });
+  assert.deepEqual(summary([book, plain]), []);
+  assert.deepEqual(summary([typed, typedCopy]), [["added", "Typed", null]]);
+  const rated = shelf("Imported", "2026-10-05T10:00:00Z", { updated_at: "2026-10-07T10:00:00Z", updated_by: "b", rev: 3, data: { import_batch: "b1", rating_b: "5" } });
+  assert.deepEqual(summary([rated]), [["changed", "Imported", null]]);
+  const sibling = copyOf(rated, { created_at: "2026-10-08T10:00:00Z", updated_at: "2026-10-08T10:00:00Z", status: "lent" });
+  assert.deepEqual(summary([rated, sibling]).map(([verb]) => verb), ["added", "changed"]);
 });
 
 test("books do not push the wedding work off Home: 5 slots hold the latest wedding changes when books are old", () => {

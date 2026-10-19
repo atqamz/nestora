@@ -8,7 +8,7 @@ export type Details = { phase: "idle" | "running" | "stopping" | Finish; done: n
 
 const tried = new Map<string, Set<string>>();
 
-const NONE: Tally = { filled: 0, empty: 0, failed: 0 };
+const NONE: Tally = { filled: 0, empty: 0, failed: 0, unsure: 0 };
 
 export const useDetails = (batch: string, books: readonly ItemRow[]) => {
   const [state, setState] = useState<Details>({ phase: "idle", done: 0, total: 0, tally: NONE });

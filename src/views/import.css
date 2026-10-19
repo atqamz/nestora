@@ -107,6 +107,12 @@ input[type="file"] {
   padding: var(--s3);
 }
 
+.imp-confirm {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
 .imp-line {
   margin: 0;
   font-weight: 650;

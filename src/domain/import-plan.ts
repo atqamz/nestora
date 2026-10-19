@@ -121,5 +121,17 @@ export const batchesOf = (items: readonly ItemRow[]): Batch[] => {
     .sort((a, b) => compare(b.at, a.at));
 };
 
-export const batchRows = (items: readonly ItemRow[], batch: string): ItemRow[] =>
-  items.filter((item) => (item.kind === "book" || item.kind === "copy") && item.data?.import_batch === batch);
+export const batchRows = (items: readonly ItemRow[], batch: string): ItemRow[] => {
+  const books = items.filter((item) => item.kind === "book" && item.data?.import_batch === batch);
+  const ids = new Set(books.map((book) => book.id));
+  return [...books, ...items.filter((item) => item.kind === "copy" && (item.data?.import_batch === batch || ids.has(item.parent_id ?? "")))];
+};
+
+export const changedBooks = (items: readonly ItemRow[], batch: string): number => {
+  const touched = new Set<string>();
+  for (const row of batchRows(items, batch)) {
+    const added = row.kind === "copy" && row.data?.import_batch !== batch;
+    if (added || row.updated_at !== row.created_at) touched.add(row.kind === "book" ? row.id : (row.parent_id ?? row.id));
+  }
+  return touched.size;
+};

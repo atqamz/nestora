@@ -25,7 +25,7 @@ const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
 const COVER_SHAPE = /^https:\/\/covers\.openlibrary\.org\/[\x21-\x7e]{1,200}$/;
 const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
 const UNWANTED = /(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}]/u;
-const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
+export const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
 
 export type Stage = { key: string; name: string; from: number; to: number };
 

@@ -1,14 +1,15 @@
-import { useDeferredValue, useId, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ChangeEvent } from "react";
-import { batchRows, batchesOf, detectFormat, previewOf, readInput, stepsOf } from "../domain/import-plan.ts";
+import { batchesOf, changedBooks, detectFormat, previewOf, readInput, stepsOf } from "../domain/import-plan.ts";
 import type { Batch, Entry, Format } from "../domain/import-plan.ts";
 import { placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { useDetails } from "../hooks/use-details.ts";
 import { usePartner, useSettings } from "../hooks/use-plan.ts";
-import { actions } from "../hooks/use-store.ts";
-import { announceImport, createAll, undoImport } from "../ui/book-import.ts";
+import { actions, readItems } from "../hooks/use-store.ts";
+import { announceImport, createAll, restoreImport, undoImport, undoneImports } from "../ui/book-import.ts";
+import type { Undone } from "../ui/book-import.ts";
 import { bookDefaults } from "../ui/book-save.ts";
 import type { BookKind, BookOwner } from "../ui/book-save.ts";
 import { ownerOptions, placeOptions } from "../ui/book-sheet.tsx";
@@ -119,25 +120,46 @@ function Row({ entry, on, onToggle }: { entry: Entry; on: boolean; onToggle: () 
   );
 }
 
-function Earlier({ batch, ids }: { batch: Batch; ids: string[] }) {
+function Earlier({ batch, changed }: { batch: Batch; changed: number }) {
   const { busy, once } = useBusy();
+  const [confirming, setConfirming] = useState(false);
+  const ask = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const asked = useRef(false);
+  const noted = useId();
+  useEffect(() => {
+    if (confirming) {
+      asked.current = true;
+      keep.current?.focus();
+    } else if (asked.current) {
+      asked.current = false;
+      ask.current?.focus();
+    }
+  }, [confirming]);
   const { state, remaining, tried, start, stop } = useDetails(batch.id, batch.books);
   const [failure, setFailure] = useState<string[]>([]);
   const day = formatDate(batch.at.slice(0, 10));
-  const again = tried > 0 || state.phase === "stopped" || state.phase === "offline";
+  const undo = async () => {
+    const result = await undoImport(batch.id, readItems, actions.many);
+    setFailure(failureOf(result));
+    if (result.ok) setConfirming(false);
+  };
+  const again = tried > 0 || state.phase === "stopped" || state.phase === "offline" || state.phase === "busy";
   const going = state.phase === "running" || state.phase === "stopping";
   const progress =
     state.phase === "running"
-      ? WORDS.progress(state.done, state.total)
+      ? WORDS.progress(state.done, state.total, state.tally.unsure)
       : state.phase === "stopping"
         ? WORDS.stopping
         : state.phase === "stopped"
-          ? `${WORDS.stopped} ${WORDS.progress(state.done, state.total)}`
+          ? `${WORDS.stopped} ${WORDS.progress(state.done, state.total, state.tally.unsure)}`
           : state.phase === "offline"
             ? WORDS.offline
-            : state.phase === "finished"
-              ? WORDS.finished(state.tally.filled, state.tally.empty + state.tally.failed)
-              : remaining === 0
+            : state.phase === "busy"
+              ? WORDS.busy
+              : state.phase === "finished"
+                ? WORDS.finished(state.tally.filled, state.tally.empty + state.tally.failed, state.tally.unsure)
+                : remaining === 0
                 ? WORDS.nothingToFind
                 : "";
   return (
@@ -155,19 +177,58 @@ function Earlier({ batch, ids }: { batch: Batch; ids: string[] }) {
             </button>
           )
         )}
-        <button
-          type="button"
-          className="secondary"
-          disabled={busy || going}
-          aria-label={WORDS.undoNamed(day)}
-          onClick={() => once(async () => setFailure(failureOf(await undoImport(ids, batch.books.length, actions.many))))}
-        >
-          {WORDS.undo}
-        </button>
+        {!confirming && (
+          <button
+            ref={ask}
+            type="button"
+            className="secondary"
+            disabled={busy || going}
+            aria-label={WORDS.undoNamed(day)}
+            onClick={() => (changed > 0 ? setConfirming(true) : once(undo))}
+          >
+            {WORDS.undo}
+          </button>
+        )}
       </div>
+      {confirming && (
+        <div className="imp-confirm" role="group" aria-labelledby={noted}>
+          <p id={noted} className="imp-line">
+            {WORDS.changed(changed)}
+          </p>
+          <div className="imp-acts">
+            <button ref={keep} type="button" className="secondary" aria-label={WORDS.keepNamed(day)} onClick={() => setConfirming(false)}>
+              {WORDS.keep}
+            </button>
+            <button type="button" className="secondary" disabled={busy} aria-label={WORDS.undoAnywayNamed(day)} onClick={() => once(undo)}>
+              {WORDS.undoAnyway}
+            </button>
+          </div>
+        </div>
+      )}
       <p className="hint imp-progress" role="status">
         {progress}
       </p>
+      {failure.length > 0 && (
+        <p className="error" role="alert">
+          {failure.join(" ")}
+        </p>
+      )}
+    </li>
+  );
+}
+
+function Hidden({ entry }: { entry: Undone }) {
+  const { busy, once } = useBusy();
+  const [failure, setFailure] = useState<string[]>([]);
+  const day = formatDate(entry.at.slice(0, 10));
+  return (
+    <li className="imp-batch">
+      <p className="imp-line">{WORDS.undoneLine(entry.books.length, day)}</p>
+      <div className="imp-acts">
+        <button type="button" className="secondary" disabled={busy} aria-label={WORDS.restoreNamed(day)} onClick={() => once(async () => setFailure(failureOf(await restoreImport(entry.batch, actions.many))))}>
+          {WORDS.restore}
+        </button>
+      </div>
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
@@ -195,6 +256,8 @@ export function ImportBooks() {
   const read = useMemo(() => readInput(heard, format), [heard, format]);
   const entries = useMemo(() => previewOf(read.rows, items), [read, items]);
   const batches = useMemo(() => batchesOf(items), [items]);
+  const gone = useSyncExternalStore(undoneImports.subscribe, undoneImports.get);
+  const hidden = useMemo(() => gone.filter((entry) => !batches.some((batch) => batch.id === entry.batch)), [gone, batches]);
   const places = useMemo(() => placesOf(items), [items]);
   const { owner, placeId } = bookDefaults({ kind, ownerPick, placePick }, items, me);
   const ticked = entries.filter((entry) => toggles.get(entry.key) ?? entry.checked);
@@ -215,7 +278,7 @@ export function ImportBooks() {
       const result = await createAll(steps, actions.many);
       setFailure(failureOf(result));
       if (!result.ok) return;
-      announceImport(steps.flat().map((created) => created.id), ticked.length, actions.many);
+      announceImport(batch, ticked.length, readItems, actions.many);
       setInput("");
       setToggles(new Map());
       setImported(ticked.length);
@@ -291,13 +354,16 @@ export function ImportBooks() {
           {text.books.import.done(imported)}. {WORDS.imported}
         </p>
       )}
-      {batches.length > 0 && (
+      {(batches.length > 0 || hidden.length > 0) && (
         <section aria-labelledby="imp-earlier">
           <h2 id="imp-earlier">{WORDS.earlier}</h2>
           <p className="hint">{WORDS.findHint}</p>
           <ul className="imp-batches">
             {batches.map((batch) => (
-              <Earlier key={batch.id} batch={batch} ids={batchRows(items, batch.id).map((row) => row.id)} />
+              <Earlier key={batch.id} batch={batch} changed={changedBooks(items, batch.id)} />
+            ))}
+            {hidden.map((entry) => (
+              <Hidden key={entry.batch} entry={entry} />
             ))}
           </ul>
         </section>

@@ -162,3 +162,38 @@ test("the CSV the app exports from Settings reads back, including the awkward ce
   const semicolons = parseBookCsv(readCsv(csv).map((cells) => cells.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(";")).join("\r\n"));
   assert.deepEqual(semicolons.rows, rows);
 });
+
+test("every capped CSV field is cut at its cap with an ellipsis and one warning", () => {
+  const long = (cap: number) => `${"word ".repeat(Math.ceil(cap / 5) + 3)}`.trim();
+  const caps: Record<string, [string, number]> = { title: ["title", 500], original_title: ["original title", 500], author: ["author", 500], rated_elsewhere: ["rating", 500], genre: ["genre", 500], blurb: ["synopsis", 2000], note: ["notes", 10000] };
+  for (const [field, [header, cap]] of Object.entries(caps)) {
+    const { rows } = parseBookCsv(`title,${header === "title" ? "author" : header}\n${header === "title" ? `${long(cap)},A` : `T,${long(cap)}`}`);
+    const value = rows[0][field as keyof (typeof rows)[0]] as string;
+    assert.ok(value.length <= cap && value.endsWith("…") && value.length > cap - 10, `${field} ${value.length}`);
+    assert.deepEqual(rows[0].warnings.filter((warning) => warning === "cut"), ["cut"], field);
+  }
+});
+
+test("padded language and status words are read, and the short and long forms of each are accepted", () => {
+  const read = (language: string, status: string) => {
+    const [row] = parseBookCsv(`title,language,status\nT,"${language}","${status}"`).rows;
+    return [row.language, row.status];
+  };
+  assert.deepEqual(read(" English ", " Wishlist "), ["en", "wish"]);
+  assert.deepEqual(read("ind", "owned"), ["id", "shelf"]);
+  assert.deepEqual(read("INDONESIAN", "OWN"), ["id", "shelf"]);
+  assert.deepEqual(read("eng", "wish"), ["en", "wish"]);
+  assert.deepEqual(read("id", "shelf"), ["id", "shelf"]);
+  assert.deepEqual(read("French", "lent"), ["other", ""]);
+  assert.deepEqual(read("  ", "  "), ["", ""]);
+});
+
+test("when two columns hold the same field, a blank or space-only first one gives way to the next", () => {
+  const { rows } = parseBookCsv("title,author,authors\nA,   ,Real Name\nB,,\nC,First,Second");
+  assert.deepEqual(rows.map((row) => row.author), ["Real Name", "", "First"]);
+});
+
+test("only the first 4000 characters are looked at for the title column", () => {
+  assert.equal(looksLikeCsv(`${",".repeat(3995)}Title`), true);
+  assert.equal(looksLikeCsv(`${",".repeat(3996)}Title`), false);
+});

@@ -229,7 +229,7 @@ test("a cut never splits a surrogate pair", () => {
 
 test("original titles come from a trailing parenthesis that reads like a title, and not from years, volumes or editions", () => {
   const split = (heading: string) => Object.values(splitTitle(heading));
-  assert.deepEqual(split("Trisurya (The Three-Body Problem)"), ["Trisurya", "The Three-Body Problem"]);
+  assert.deepEqual(split("Judul Dua (The Two Parts)"), ["Judul Dua", "The Two Parts"]);
   assert.deepEqual(split("Pangeran Kecil (Le Petit Prince)"), ["Pangeran Kecil", "Le Petit Prince"]);
   assert.deepEqual(split("A (B) (Original Name)"), ["A (B)", "Original Name"]);
   assert.deepEqual(split("Judul (Ab)"), ["Judul", "Ab"]);
@@ -237,7 +237,7 @@ test("original titles come from a trailing parenthesis that reads like a title, 
   for (const heading of ["Laskar Pelangi (2005)", "Judul (Vol. 2)", "Judul (Book 3)", "Judul (Edisi Revisi)", "(Novel)", "Judul (A", "Judul (Original) tail", "Judul (X)", "Judul ()", "Judul"]) {
     assert.deepEqual(split(heading), [heading, ""], heading);
   }
-  assert.deepEqual(split("Judul (Book Thief)"), ["Judul", "Book Thief"]);
+  assert.deepEqual(split("Judul (Book Of Keys)"), ["Judul", "Book Of Keys"]);
 });
 
 test("tidy turns every newline style into one and drops the byte order mark", () => {
@@ -269,4 +269,98 @@ test("hostile input does not make the parser slow", () => {
   parseList("1. ".repeat(60_000));
   parseList("Penulis:".repeat(30_000));
   assert.ok(performance.now() - start < 2000);
+});
+
+test("a title-only entry on its own line at the end of a list is an entry, not the tail of the one before", () => {
+  const blurb = parseList("1. Laskar Pelangi  Penulis: Andrea Hirata  Sinopsis: Y\n2. Bumi Manusia");
+  assert.deepEqual(blurb.map((entry) => [entry.title, entry.author, entry.blurb, entry.warnings]), [
+    ["Laskar Pelangi", "Andrea Hirata", "Y", []],
+    ["Bumi Manusia", "", "", ["missing_author"]],
+  ]);
+  const author = parseList("1. Laskar Pelangi  Penulis: Andrea Hirata\n2. Bumi Manusia  Penulis: Pramoedya\n3. The Little Prince");
+  assert.deepEqual(author.map((entry) => [entry.title, entry.author]), [["Laskar Pelangi", "Andrea Hirata"], ["Bumi Manusia", "Pramoedya"], ["The Little Prince", ""]]);
+  const several = parseList("1. A  Penulis: X\n2. Placeholder B\n3. Placeholder C\n4. Placeholder D");
+  assert.deepEqual(several.map((entry) => [entry.title, entry.author]), [["A", "X"], ["Placeholder B", ""], ["Placeholder C", ""], ["Placeholder D", ""]]);
+  const crlf = parseList("1. A  Penulis: X\r\n2. Placeholder B\r\n");
+  assert.deepEqual(crlf.map((entry) => entry.title), ["A", "Placeholder B"]);
+});
+
+test("a number that does not continue the sequence, or has nothing after it, still starts no entry at the end of a list", () => {
+  assert.deepEqual(parseList("1. A  Penulis: X  Sinopsis: One.\n5. Not next").map((entry) => [entry.title, entry.blurb]), [["A", "One. 5. Not next"]]);
+  assert.deepEqual(parseList("1. A  Penulis: X  Sinopsis: One.\n2.").map((entry) => [entry.title, entry.blurb]), [["A", "One."]]);
+  assert.deepEqual(parseList("1. A  Penulis: X  Sinopsis: One. 2. Same line").map((entry) => entry.title), ["A"]);
+});
+
+test("a field of only invisible characters is empty and warns on its row, and the other rows are untouched", () => {
+  const found = parseList("1. Placeholder One  Penulis: Writer One\n2. Placeholder Blank  Penulis: \u2800\n3. Placeholder Three  Penulis: Writer Three  Sinopsis: \u3164 \u200b \ufe0f");
+  assert.deepEqual(found.map((entry) => [entry.title, entry.author, entry.blurb, entry.warnings]), [
+    ["Placeholder One", "Writer One", "", []],
+    ["Placeholder Blank", "", "", ["hidden", "missing_author"]],
+    ["Placeholder Three", "Writer Three", "", ["hidden"]],
+  ]);
+  for (const invisible of ["\u2800", "\u3164", "\ufe0f", "\ue000", "\u034f", "\u115f", "\u2800\u2800 \u3164"]) {
+    const [entry] = parseList(`1. Placeholder  Penulis: ${invisible}  Sinopsis: ${invisible}`);
+    assert.deepEqual([entry.author, entry.blurb, entry.warnings], ["", "", ["hidden", "missing_author"]], JSON.stringify(invisible));
+  }
+  for (const stripped of ["\u200b", "\u2060", "\u00ad"]) assert.deepEqual(parseList(`1. Placeholder  Penulis: ${stripped}`).map((entry) => [entry.author, entry.warnings]), [["", ["missing_author"]]]);
+  assert.deepEqual(parseList("1. \u2800  Penulis: X\n2. Placeholder Two  Penulis: Y").map((entry) => entry.title), ["Placeholder Two"]);
+  assert.deepEqual(parseList("\u2800\u3164\u200b"), []);
+  assert.deepEqual(parseList("1. Placeholder  Rating: \u2800").map((entry) => [entry.rated_elsewhere, entry.warnings]), [["", ["missing_author", "hidden"]]]);
+});
+
+test("a visible value keeps the hidden marks inside it, and a bare space does not warn", () => {
+  const [entry] = parseList("1. Placeholder  Penulis: Writer\u2800One  Sinopsis: ");
+  assert.deepEqual([entry.author, entry.blurb, entry.warnings], ["Writer\u2800One", "", []]);
+  assert.equal(tidy("\u2800"), "");
+  assert.equal(tidy("a\u2800"), "a\u2800");
+  assert.equal(tidy("\u{2764}\ufe0f"), "\u{2764}\ufe0f");
+  assert.deepEqual(parseList("1. Placeholder  Penulis:  ").map((entry) => entry.warnings), [["missing_author"]]);
+});
+
+test("a label right after a number starts a title-less entry that is dropped, and the entry before keeps its own fields", () => {
+  const found = parseList("1. A  Penulis: X\n2.Penulis: Y");
+  assert.deepEqual(found.map((entry) => [entry.title, entry.author, entry.warnings]), [["A", "X", []]]);
+});
+
+test("an unlabelled list restarting at 1 is two lists, and a bare number between entries ends the one before it quietly", () => {
+  assert.deepEqual(parseList("1. A\n2. B\n1. C\n2. D").map((entry) => entry.title), ["A", "B", "C", "D"]);
+  const found = parseList("1. A  Penulis: X  Sinopsis: One. 2. 3. C  Penulis: Z");
+  assert.deepEqual(found.map((entry) => [entry.title, entry.blurb, entry.warnings]), [["A", "One.", []], ["C", "", []]]);
+});
+
+test("spaces inside the parenthesis, around a rating's words and at a cut are trimmed away", () => {
+  assert.deepEqual(splitTitle("Judul ( Le Petit Prince )"), { title: "Judul", original: "Le Petit Prince" });
+  assert.equal(parseList("1. A  Penulis: X  Rating: about 4 / 5")[0].rated_elsewhere, "4 / 5");
+  const warnings: string[] = [];
+  assert.equal(fit("ab  cdefgh", 5, warnings as never), "ab…");
+  assert.deepEqual(warnings, ["cut"]);
+});
+
+test("an original title over the cap is cut and warns like the title does", () => {
+  const [entry] = parseList(`1. Judul (${"word ".repeat(120)})  Penulis: X`);
+  assert.ok(entry.original_title.length <= TEXT_MAX && entry.original_title.endsWith("…"));
+  assert.deepEqual(entry.warnings, ["cut"]);
+});
+
+test("a number glued to a letter or a digit, a year, or the end of a fraction is never the next entry", () => {
+  const entries = (text: string) => parseList(text).map((entry) => [entry.title, entry.blurb, entry.rated_elsewhere, entry.warnings]);
+  assert.deepEqual(entries("1. A  Penulis: X  Sinopsis: See page2. Done. 3. B  Penulis: Y  Sinopsis: Z."), [["A", "See page2. Done.", "", []], ["B", "Z.", "", []]]);
+  assert.deepEqual(entries("1. A  Penulis: X  Sinopsis: Set in 1002. Then. 3. B  Penulis: Y  Sinopsis: Z."), [["A", "Set in 1002. Then.", "", []], ["B", "Z.", "", []]]);
+  assert.deepEqual(entries("1. A  Penulis: X  Rating: ~4 / 2. 3. B  Penulis: Y"), [["A", "", "~4 / 2", []], ["B", "", "", []]]);
+  assert.deepEqual(entries("1. A  Penulis: X  Rating: ~4/2. 3. B  Penulis: Y"), [["A", "", "~4/2", []], ["B", "", "", []]]);
+});
+
+test("a first entry with only a title is kept when a labelled entry follows, and a label glued to a number starts a title-less piece", () => {
+  assert.deepEqual(parseList("1. Only Title\n2. B  Penulis: Y").map((entry) => [entry.title, entry.author]), [["Only Title", ""], ["B", "Y"]]);
+  assert.deepEqual(parseList("1. A  Penulis: X 2.Penulis: Y").map((entry) => [entry.title, entry.author, entry.warnings]), [["A", "X", []]]);
+  const found = parseList("1. A  Penulis: X  Sinopsis: One. 2. 7. C  Penulis: Z");
+  assert.deepEqual(found.map((entry) => [entry.title, entry.blurb, entry.warnings]), [["A", "One.", []], ["C", "", []]]);
+});
+
+test("a label with only spaces after it is just empty, with no hidden-characters warning", () => {
+  assert.deepEqual(parseList("1. A  Penulis:  Sinopsis: Words").map((entry) => [entry.author, entry.blurb, entry.warnings]), [["", "Words", ["missing_author"]]]);
+});
+
+test("a first entry that follows words on its line and has only a title is kept when a labelled entry comes next", () => {
+  assert.deepEqual(parseList("Words 1. Only Title\n2. B  Penulis: Y").map((entry) => [entry.title, entry.author]), [["Only Title", ""], ["B", "Y"]]);
 });

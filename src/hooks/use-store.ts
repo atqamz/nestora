@@ -20,6 +20,8 @@ export const actions = {
   logIn: () => location.assign(LOGIN_URL),
 };
 
+export const readItems = () => store.getSnapshot().rows.items;
+
 export const useSnapshot = () => useSyncExternalStore(store.subscribe, store.getSnapshot);
 
 export const useTable = <T extends TableName>(table: T) => useSnapshot().rows[table];

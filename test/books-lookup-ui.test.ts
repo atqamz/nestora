@@ -77,7 +77,7 @@ test("the lookup client is the only code that reaches the network for books, and
   const client = read("store/lookup.ts");
   assert.match(client, /credentials: "omit"/);
   assert.match(client, /referrerPolicy: "no-referrer"/);
-  assert.doesNotMatch(client, /headers|method:|cookie|localStorage|sendBeacon/);
+  assert.doesNotMatch(client, /headers:|method:|cookie|localStorage|sendBeacon/);
   assert.doesNotMatch(read("hooks/use-lookup.ts"), /fetch/);
 });
 
