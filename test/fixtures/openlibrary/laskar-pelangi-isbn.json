@@ -1,0 +1,76 @@
+{
+  "numFound": 2,
+  "start": 0,
+  "docs": [
+    {
+      "author_name": [
+        "Andrea Hirata"
+      ],
+      "cover_i": 7079796,
+      "first_publish_year": 2005,
+      "isbn": [
+        "9789793062792",
+        "9793062797"
+      ],
+      "key": "/works/OL15302003W",
+      "language": [
+        "ind"
+      ],
+      "title": "Laskar Pelangi",
+      "editions": {
+        "numFound": 1,
+        "start": 0,
+        "numFoundExact": true,
+        "docs": [
+          {
+            "key": "/books/OL23714627M",
+            "title": "Laskar pelangi",
+            "cover_i": 7079796,
+            "language": [
+              "ind"
+            ],
+            "isbn": [
+              "9793062797",
+              "9789793062792"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "author_name": [
+        "Ahmadun Y. Herfanda"
+      ],
+      "cover_i": 4250542,
+      "first_publish_year": 2003,
+      "isbn": [
+        "9793062797",
+        "9789793062792"
+      ],
+      "key": "/works/OL19511015W",
+      "language": [
+        "ind"
+      ],
+      "title": "Kota yang bernama dan tak bernama",
+      "editions": {
+        "numFound": 1,
+        "start": 0,
+        "numFoundExact": true,
+        "docs": [
+          {
+            "key": "/books/OL3339403M",
+            "title": "Kota yang bernama dan tak bernama",
+            "cover_i": 4250542,
+            "language": [
+              "ind"
+            ],
+            "isbn": [
+              "9793062797",
+              "9789793062792"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -111,7 +111,12 @@ test("choice and typed data keys are checked", () => {
   rejects(book(2, { data: { reading_b: "finished" } }), /data\.reading_b: must be one of want, reading, read, dnf/);
   rejects(book(2, { data: { language: "fr" } }), /data\.language: must be one of id, en, other/);
   rejects(book(2, { data: { series_no: -1 } }), /data\.series_no: must be a non-negative integer/);
-  rejects(book(2, { data: { cover: "not a url" } }), /data\.cover: must be an http or https URL/);
+  rejects(book(2, { data: { cover: "not a url" } }), /data\.cover: must be an https URL on covers\.openlibrary\.org/);
+  for (const cover of ["http://covers.openlibrary.org/b/id/1-M.jpg", "https://example.com/b/id/1-M.jpg", "https://covers.openlibrary.org.example.com/b/id/1-M.jpg", "https://user@covers.openlibrary.org/b/id/1-M.jpg", "https://covers.openlibrary.org:8443/b/id/1-M.jpg", "https://covers.openlibrary.org/b/id/1 M.jpg", "https://covers.openlibrary.org/", "https://coversxopenlibrary.org/b/id/1-M.jpg", `https://covers.openlibrary.org/${"a".repeat(201)}`, ["https://covers.openlibrary.org/b/id/1-M.jpg"]]) {
+    rejects(book(2, { data: { cover } }), /data\.cover: must be an https URL on covers\.openlibrary\.org/);
+  }
+  accepts(book(2, { data: { cover: "https://covers.openlibrary.org/b/id/7079796-M.jpg" } }));
+  accepts(book(2, { data: { cover: `https://covers.openlibrary.org/${"a".repeat(200)}` } }));
   rejects(book(2, { data: { finished_a: "2026-02-30" } }), /data\.finished_a: must be a date/);
   rejects(book(2, { data: { priority: "normal" } }), /data\.priority: must be one of high, low/);
   rejects(copy(3, 2, { data: { format: "scroll" } }), /data\.format: must be one of print, ebook, audio/);

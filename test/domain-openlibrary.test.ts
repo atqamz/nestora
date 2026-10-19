@@ -1,0 +1,159 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { isCover } from "../shared/validate.ts";
+
+const sample = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/openlibrary/${name}.json`, import.meta.url), "utf8"));
+
+test("a search hit carries the work, the title, the authors, the year, the edition's ISBN-13, language and cover", () => {
+  const [first, second] = parseSearch(sample("laskar-pelangi-search"));
+  assert.deepEqual(first, { work: "OL15302003W", title: "Laskar Pelangi", author: "Andrea Hirata", year: 2005, coverId: 7079796, isbn: "9789793062792", language: "id" });
+  assert.equal(second.title, "The rainbow troops");
+  assert.equal(second.language, "en");
+  assert.equal(second.isbn, "9780374246310");
+  assert.equal(second.coverId, 13007586);
+});
+
+test("an edition without an ISBN leaves the ISBN empty and takes the edition's own cover", () => {
+  const [first, second] = parseSearch(sample("bumi-manusia-search"));
+  assert.deepEqual(first, { work: "OL307247W", title: "Bumi Manusia", author: "Pramoedya Ananta Toer", year: 1972, coverId: 15122195, isbn: null, language: "id" });
+  assert.deepEqual([second.language, second.coverId], ["other", null]);
+});
+
+test("an edition in two languages gives neither an ISBN nor a language, and the work's cover stands in for its own", () => {
+  const [first, second, third] = parseSearch(sample("little-prince-search"));
+  assert.deepEqual(first, { work: "OL10263W", title: "Le petit prince", author: "Antoine de Saint-Exupéry", year: 1943, coverId: 10708272, isbn: null, language: null });
+  assert.deepEqual([second.isbn, second.language, second.coverId], ["9781467707374", null, 7605279]);
+  assert.deepEqual([third.isbn, third.language, third.coverId], [null, "en", 14491562]);
+});
+
+test("a search body of any other shape gives no hits, and bad docs are skipped", () => {
+  for (const body of [null, "x", 7, [], {}, { docs: "x" }, { docs: [null, 1, "x", [], {}] }]) assert.deepEqual(parseSearch(body), []);
+  const doc = { key: "/works/OL1W", title: "T" };
+  const bad = [{ ...doc, key: "/works/x" }, { ...doc, key: 5 }, { ...doc, title: " " }, { ...doc, title: 4 }];
+  assert.deepEqual(parseSearch({ docs: bad }), []);
+  assert.deepEqual(parseSearch({ docs: [{ ...doc, author_name: [1, "A", "B", "C", "D"], first_publish_year: -1, cover_i: "7", editions: { docs: "x" } }] }), [
+    { work: "OL1W", title: "T", author: "A; B; C", year: null, coverId: null, isbn: null, language: null },
+  ]);
+  assert.equal(parseSearch({ docs: Array.from({ length: 9 }, (_, n) => ({ key: `/works/OL${n + 1}W`, title: "T" })) }).length, 5);
+});
+
+test("a year or a cover id that is not a positive whole number is ignored, and a title is trimmed", () => {
+  const doc = (extra: object) => parseSearch({ docs: [{ key: "/works/OL1W", title: "  Spaced  ", ...extra }] })[0];
+  assert.deepEqual([doc({}).title, doc({ first_publish_year: 1943 }).year, doc({ cover_i: 7 }).coverId], ["Spaced", 1943, 7]);
+  for (const bad of [0, -3, 7.5, "7", null, Number.NaN]) {
+    assert.deepEqual([doc({ first_publish_year: bad }).year, doc({ cover_i: bad }).coverId, doc({ editions: { docs: [{ cover_i: bad, language: ["ind"] }] } }).coverId], [null, null, null], String(bad));
+  }
+});
+
+test("the first valid ISBN in the edition is used, and an ISBN-10 becomes an ISBN-13", () => {
+  const docs = (isbn: unknown) => ({ docs: [{ key: "/works/OL1W", title: "T", editions: { docs: [{ isbn, language: ["ind"] }] } }] });
+  assert.equal(parseSearch(docs(["123", "0156012197", "9789793062792"]))[0].isbn, "9780156012195");
+  assert.equal(parseSearch(docs(["123", 5]))[0].isbn, null);
+  assert.equal(parseSearch(docs("9789793062792"))[0].isbn, null);
+});
+
+test("a lookup by ISBN takes the work whose edition has that ISBN, else the first hit, else nothing", () => {
+  assert.equal(parseIsbn(sample("laskar-pelangi-isbn"), "9789793062792")?.work, "OL15302003W");
+  const body = { docs: [{ key: "/works/OL1W", title: "A" }, { key: "/works/OL2W", title: "B", editions: { docs: [{ isbn: ["9789793062792"] }] } }] };
+  assert.equal(parseIsbn(body, "9789793062792")?.work, "OL2W");
+  assert.equal(parseIsbn(body, "9780156012195")?.work, "OL1W");
+  assert.equal(parseIsbn({ docs: [] }, "9780156012195"), null);
+});
+
+test("a description is the first paragraph on one line, from a string or a typed value", () => {
+  assert.equal(parseBlurb(sample("laskar-pelangi-work"))?.startsWith("“Laskar Pelangi adalah ramuan"), true);
+  assert.equal(parseBlurb(sample("laskar-pelangi-work"))?.includes("\n"), false);
+  const typed = parseBlurb(sample("little-prince-work"));
+  assert.match(typed ?? "", /^\*Le Petit Prince\* est une œuvre de langue française/);
+  assert.doesNotMatch(typed ?? "", /Traduit en/);
+  assert.equal(parseBlurb({ description: "One\r\ntwo  three\u0007four\n\nNext" }), "One two three four");
+  assert.equal(parseBlurb({ description: "Intro ----------\nSee also" }), "Intro");
+  assert.equal(parseBlurb({ description: "\n\nAfter a gap" }), "After a gap");
+  assert.equal(parseBlurb({ description: "Well --- known" }), "Well --- known");
+  assert.equal(parseBlurb({ description: "Well ---- known" }), "Well ---- known");
+  assert.equal(parseBlurb({ description: "Read [more](https://example.com/x) now" }), "Read more now");
+  assert.equal(parseBlurb({ description: { value: "Typed" } }), "Typed");
+  for (const body of [null, {}, { description: "" }, { description: " \n " }, { description: 5 }, { description: { value: 5 } }]) {
+    assert.equal(parseBlurb(body), null);
+  }
+});
+
+test("a long description is cut at a word under 500 characters and ends with an ellipsis", () => {
+  const long = Array.from({ length: 200 }, () => "word").join(" ");
+  const cut = parseBlurb({ description: long }) ?? "";
+  assert.ok(cut.length <= 500 && cut.endsWith("word…"), String(cut.length));
+  assert.equal(parseBlurb({ description: "x".repeat(500) }), "x".repeat(500));
+  assert.equal(parseBlurb({ description: "x".repeat(501) }), `${"x".repeat(500)}…`);
+  assert.equal(parseBlurb({ description: `${"x".repeat(499)} yy` }), `${"x".repeat(499)}…`);
+  assert.equal(parseBlurb({ description: `${"x".repeat(400)} ${"y".repeat(99)} zz` }), `${"x".repeat(400)} ${"y".repeat(99)}…`);
+  assert.equal(parseBlurb({ description: `${"x".repeat(400)} ${"y".repeat(100)} zz` }), `${"x".repeat(400)}…`);
+  assert.equal(parseBlurb({ description: "x".repeat(600) }), `${"x".repeat(500)}…`);
+});
+
+test("urls carry only the query, a field list and a limit, and the cover url is one the registry accepts", () => {
+  const url = new URL(searchUrl("pangeran kecil Antoine"));
+  assert.equal(`${url.origin}${url.pathname}`, "https://openlibrary.org/search.json");
+  assert.deepEqual([...url.searchParams.keys()], ["q", "limit", "fields"]);
+  assert.equal(url.searchParams.get("q"), "pangeran kecil Antoine");
+  assert.equal(url.searchParams.get("limit"), "5");
+  assert.match(url.searchParams.get("fields") ?? "", /^key,title,author_name,first_publish_year,cover_i,editions/);
+  assert.doesNotMatch(url.searchParams.get("fields") ?? "", /(^|,)isbn/);
+  const byIsbn = new URL(isbnUrl("9789793062792"));
+  assert.deepEqual([...byIsbn.searchParams.keys()], ["isbn", "limit", "fields"]);
+  assert.equal(new URL(searchUrl("a&b=c#d")).searchParams.get("q"), "a&b=c#d");
+  assert.equal(workUrl("OL15302003W"), "https://openlibrary.org/works/OL15302003W.json");
+  assert.equal(coverUrl(7079796), "https://covers.openlibrary.org/b/id/7079796-M.jpg");
+  assert.ok(isCover(coverUrl(7079796)));
+});
+
+test("the work page link is built only from a well-formed work id", () => {
+  assert.equal(workPage("OL15302003W"), "https://openlibrary.org/works/OL15302003W");
+  for (const bad of ["", "x", "OL1M", "OL1W/../x", "javascript:1", "../OL1W"]) assert.equal(workPage(bad), null, bad);
+});
+
+test("the title is searched first with the author, then the original title", () => {
+  assert.deepEqual(queriesOf({ title: "Pangeran Kecil", author: "", original: "" }), ["Pangeran Kecil"]);
+  assert.deepEqual(queriesOf({ title: " Pangeran  Kecil ", author: " Antoine ", original: "Le Petit Prince" }), ["Pangeran Kecil Antoine", "Le Petit Prince Antoine"]);
+  assert.deepEqual(queriesOf({ title: "Le Petit Prince", author: "", original: "Le Petit Prince" }), ["Le Petit Prince"]);
+  assert.deepEqual(queriesOf({ title: "", author: "", original: "Le Petit Prince" }), ["Le Petit Prince"]);
+  assert.deepEqual(queriesOf({ title: "", author: "Antoine", original: "" }), []);
+  assert.deepEqual(queriesOf({ title: " ", author: "", original: " " }), []);
+});
+
+test("a typed title the hit contains becomes the hit's title; a translation keeps the typed title and the hit's goes to the original", () => {
+  assert.deepEqual(settle("laskar", "Laskar Pelangi"), { title: "Laskar Pelangi", original: "" });
+  assert.deepEqual(settle("bumi manusia", "Bumi manusia"), { title: "Bumi manusia", original: "" });
+  assert.deepEqual(settle("", "The Little Prince"), { title: "The Little Prince", original: "" });
+  assert.deepEqual(settle("Pangeran Kecil ", "Le petit prince"), { title: "Pangeran Kecil", original: "Le petit prince" });
+  assert.deepEqual(settle("the little prince", "Le petit prince"), { title: "the little prince", original: "Le petit prince" });
+  assert.deepEqual(settle("lask", "Laskar Pelangi"), { title: "Laskar Pelangi", original: "" });
+  assert.deepEqual(settle("Laskar Pelangi 2", "Laskar Pelangi"), { title: "Laskar Pelangi 2", original: "Laskar Pelangi" });
+});
+
+test("filling an existing book adds only what it lacks and never replaces what is there", () => {
+  const [hit] = parseSearch(sample("bumi-manusia-search"));
+  const blank = { title: "Bumi Manusia", data: null };
+  assert.deepEqual(fillPatch(blank, hit, "Short"), {
+    author: "Pramoedya Ananta Toer",
+    language: "id",
+    cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
+    ol: "OL307247W",
+    blurb: "Short",
+  });
+  assert.deepEqual(fillPatch({ title: "Bumi Manusia", data: { author: "Typed", cover: "https://covers.openlibrary.org/b/id/1-M.jpg", blurb: "Mine", ol: "OL1W", language: "en" } }, hit, "Short"), {});
+  assert.deepEqual(fillPatch({ title: "Pulau", data: { author: "X" } }, hit, null), {
+    original_title: "Bumi Manusia",
+    language: "id",
+    cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
+    ol: "OL307247W",
+  });
+  assert.deepEqual(fillPatch({ title: "Pulau", data: { author: null, ol: "OL1W" } }, hit, null), {
+    author: "Pramoedya Ananta Toer",
+    original_title: "Bumi Manusia",
+    language: "id",
+    cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
+  });
+  assert.deepEqual(fillPatch({ title: "Pulau", data: { original_title: "Mine" } }, { ...hit, author: "", coverId: null, language: null }, ""), { ol: "OL307247W" });
+});

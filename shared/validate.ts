@@ -22,6 +22,7 @@ const ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/;
 const DECIMAL = /^(0|[1-9]\d{0,5})(\.\d{1,4})?$/;
 const URL_SHAPE = /^https?:\/\/[^\s\p{Cc}\p{Cf}\p{Cs}/?#][^\s\p{Cc}\p{Cf}\p{Cs}]*$/iu;
 const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
+const COVER_SHAPE = /^https:\/\/covers\.openlibrary\.org\/[\x21-\x7e]{1,200}$/;
 const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
 const UNWANTED = /(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}]/u;
 const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
@@ -81,6 +82,8 @@ export const isPhoto = (v: unknown): v is string => {
     return false;
   }
 };
+
+export const isCover = (v: unknown): v is string => typeof v === "string" && COVER_SHAPE.test(v);
 
 export const isIsbn13 = (v: unknown) =>
   typeof v === "string" && /^\d{13}$/.test(v) && [...v].reduce((sum, digit, i) => sum + Number(digit) * (i % 2 === 0 ? 1 : 3), 0) % 10 === 0;
@@ -165,6 +168,7 @@ const expected: Record<string, string> = {
   decimal: "a positive decimal number such as 1.5",
   dates: "a JSON array of YYYY-MM-DD dates",
   isbn: "an ISBN-13 as 13 digits with no hyphens and a valid check digit",
+  cover: "an https URL on covers.openlibrary.org",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
   stages: `a JSON array of 1 to ${STAGES_MAX} stages, each with a unique key, a unique name of up to ${STAGE_NAME_MAX} characters and a month range from ${MONTH_MIN} to ${MONTH_MAX} that starts after the stage before`,
 };
@@ -191,6 +195,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "stages" ? isStages(v)
     : type === "photo" ? isPhoto(v)
     : type === "isbn" ? isIsbn13(v)
+    : type === "cover" ? isCover(v)
     : isPlain(v);
   return ok ? null : `must be ${expected[type as string]}`;
 };

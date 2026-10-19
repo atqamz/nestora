@@ -21,6 +21,7 @@ export type Type =
   | "stages"
   | "photo"
   | "isbn"
+  | "cover"
   | readonly string[];
 
 export type Column = {
@@ -151,7 +152,7 @@ export const tables = {
           series_no: "int",
           isbn: "isbn",
           language: ["id", "en", "other"],
-          cover: "url",
+          cover: "cover",
           blurb: "longtext",
           ol: "text",
           gb: "text",

@@ -75,7 +75,7 @@ function AddForm({ seed }: { seed: string }) {
     [input, today, me, settings.partnerA, settings.partnerB, lines, ignore, kindPick],
   );
 
-  const book = useBookForm("wish", draft.title, kind === "book");
+  const book = useBookForm("wish", draft.title, setInput, kind === "book");
 
   const phase = useMemo(() => {
     if (settings.ceremonyDate === null) return "";

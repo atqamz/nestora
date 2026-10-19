@@ -30,7 +30,7 @@ test("the book chip is the sixth kind of the global Add sheet and has its words"
 
 test("the unsent book is kept in memory until it is replaced or cleared", () => {
   assert.equal(overlay.keptBook(), null);
-  const draft = { kind: "wish" as const, title: "Bumi Manusia", author: "", original: "", isbn: "0156012197", ownerPick: null, placePick: null };
+  const draft = { kind: "wish" as const, title: "Bumi Manusia", author: "", original: "", isbn: "0156012197", language: "", blurb: "", found: null, ownerPick: null, placePick: null };
   overlay.keepBook(draft);
   assert.deepEqual(overlay.keptBook(), draft);
   overlay.keepBook(null);
