@@ -11,6 +11,8 @@ import { usePartner, useSettings, useToday } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { BookFields, useBookForm } from "./book-sheet.tsx";
+import { DETAILS, problemsOf } from "./add-problems.ts";
+import type { Detail } from "./add-problems.ts";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import type { Control } from "./field.tsx";
@@ -21,22 +23,11 @@ import { overlay, useOverlay, withSeed } from "./overlay.ts";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
 
-type Detail = "amount" | "due" | "line" | "group" | "phone" | "qty";
-
 type Owner = "a" | "b" | "both" | "none";
 
 const KINDS: readonly Kind[] = ["task", "planned", "payment", "guest", "vendor", "book"];
 
 const KIND_ICON: Record<Kind, IconName> = { task: "task", planned: "money", payment: "receipt", guest: "people", vendor: "shop", book: "book" };
-
-const DETAILS: Record<Kind, readonly Detail[]> = {
-  task: ["due", "amount", "group"],
-  planned: ["amount", "group"],
-  payment: ["line", "amount", "due"],
-  guest: ["group", "qty", "phone"],
-  vendor: ["group", "amount", "phone"],
-  book: [],
-};
 
 const DETAIL_ICON: Record<Detail, IconName> = { amount: "receipt", due: "calendar", line: "money", group: "flag", phone: "call", qty: "people" };
 
@@ -113,13 +104,7 @@ function AddForm({ seed }: { seed: string }) {
   const amount = values.amount.trim() === "" ? null : parseAmount(values.amount);
   const quantity = /^\d+$/.test(values.qty.trim()) ? Number(values.qty.trim()) : Number.NaN;
 
-  const problems: Partial<Record<Detail | "title", string>> = {};
-  if (kind !== "payment" && draft.title === "") problems.title = text.sheet.need.name;
-  if (values.amount.trim() !== "" && amount === null) problems.amount = text.invalid.int;
-  else if (kind === "payment" && amount === null) problems.amount = text.sheet.need.amount;
-  if (kind === "payment" && !lines.some((line) => line.id === values.line)) problems.line = lines.length === 0 ? text.sheet.need.noLines : text.sheet.need.line;
-  if (values.phone.trim() !== "" && normalizePhone(values.phone) === null) problems.phone = text.invalid.phone;
-  if (kind === "guest" && !(Number.isInteger(quantity) && quantity >= 1)) problems.qty = text.sheet.need.qty;
+  const problems = problemsOf(kind, draft.title, values, lines);
   const shown = attempt > 0 ? problems : {};
 
   useEffect(() => {

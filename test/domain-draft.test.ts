@@ -601,9 +601,10 @@ test("dates: every weekday and month is read in its short and long spelling", ()
 test("the table of fields a kind stores agrees with the chips and the owner group the sheet shows for that kind", async () => {
   const { readFileSync } = await import("node:fs");
   const { STORED } = await import("../src/domain/draft.ts");
-  const source = readFileSync(new URL("../src/ui/add-sheet.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/ui/add-problems.ts", import.meta.url), "utf8");
+  const sheet = readFileSync(new URL("../src/ui/add-sheet.tsx", import.meta.url), "utf8");
   const details = /const DETAILS: [^=]*= \{([\s\S]*?)\n\};/.exec(source)?.[1] ?? "";
-  const owners = /const OWNER_KINDS: [^=]*= \[([^\]]*)\]/.exec(source)?.[1] ?? "";
+  const owners = /const OWNER_KINDS: [^=]*= \[([^\]]*)\]/.exec(sheet)?.[1] ?? "";
   const readInText = ["amount", "due", "phone"];
   for (const kind of KINDS) {
     const chips = (new RegExp(`${kind}: \\[([^\\]]*)\\]`).exec(details)?.[1] ?? "").split(",").map((word) => word.trim().replace(/"/g, "")).filter((word) => readInText.includes(word));
