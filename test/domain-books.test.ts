@@ -156,19 +156,35 @@ test("every word must match somewhere in the book, in any order, across fields",
   assert.deepEqual(titles(searchBooks("buru", world)), ["Bumi Manusia"]);
 });
 
-test("a word matches the start of a word, and a single letter only a whole word, so Home A is not every author with an A", () => {
+test("a word matches the start of a word, and a single letter before the last word only a whole word, so Home A is not every author with an A", () => {
   assert.deepEqual(titles(searchBooks("pelan", world)), ["Laskar Pelangi"]);
   assert.deepEqual(titles(searchBooks("elangi", world)), []);
-  assert.deepEqual(titles(searchBooks("a", world)), ["Laskar Pelangi", "Pangeran Kecil"]);
-  assert.deepEqual(titles(searchBooks("home b", world)), ["Bumi Manusia"]);
+  assert.deepEqual(titles(searchBooks("a home", world)), ["Laskar Pelangi", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("a ", world)), ["Laskar Pelangi", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("home b ", world)), ["Bumi Manusia"]);
+  assert.deepEqual(titles(searchBooks("home p", world)), ["Laskar Pelangi", "Bumi Manusia", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("home p ", world)), []);
+});
+
+test("the word being typed is a prefix even when it is one letter, so the results never blank at a word start", () => {
+  assert.deepEqual(titles(searchBooks("p", world)), ["Laskar Pelangi", "Bumi Manusia", "Pangeran Kecil", "The Little Prince", "Wished Novel"]);
+  assert.deepEqual(titles(searchBooks("little p", world)), ["The Little Prince"]);
+  assert.deepEqual(titles(searchBooks("little p ", world)), []);
+  assert.deepEqual(titles(searchBooks("x", world)), []);
+});
+
+test("folding turns ł, đ and ß into plain letters so they can be typed without them", () => {
+  const rows = [book("Łódź Đà Lạt Straße")];
+  assert.equal(fold("Łódź Đà Lạt Straße"), "lodz da lat strasse");
+  for (const query of ["lodz", "da lat", "strasse", "ŁÓDŹ"]) assert.equal(searchBooks(query, rows).length, 1, query);
 });
 
 test("search finds a book by where it is, and a copy that is gone no longer counts", () => {
-  assert.deepEqual(titles(searchBooks("home a", world)), ["Laskar Pelangi", "Pangeran Kecil"]);
-  assert.deepEqual(titles(searchBooks("home b", world)), ["Bumi Manusia"]);
+  assert.deepEqual(titles(searchBooks("home a ", world)), ["Laskar Pelangi", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("home b ", world)), ["Bumi Manusia"]);
   assert.deepEqual(titles(searchBooks("siblings room", world)), ["The Little Prince"]);
   assert.deepEqual(titles(searchBooks("Sibling's room", world)), ["The Little Prince"]);
-  assert.deepEqual(titles(searchBooks("little home a", world)), []);
+  assert.deepEqual(titles(searchBooks("little home a ", world)), []);
 });
 
 test("search matches a copy's printed title and ISBN digits, and turns a typed ISBN-10 into its ISBN-13", () => {
@@ -236,6 +252,17 @@ test("a partial or prefixed ISBN finds the book after hyphens, spaces and an isb
   assert.deepEqual(titles(searchBooks("ISBN: 978-979-3062-79-2", world)), ["Pangeran Kecil"]);
   assert.deepEqual(titles(searchBooks("isbn 0156012197", world)), ["The Little Prince"]);
   assert.deepEqual(titles(searchBooks("9780156", world)), ["The Little Prince"]);
+});
+
+test("an ISBN labelled the way covers and shop pages print it still finds the book, with any hyphen", () => {
+  for (const query of ["ISBN-13: 978-0-15-601219-5", "ISBN-10: 0-15-601219-7", "ISBN13 9780156012195", "isbn10:0156012197", "ISBN 0-15-601219-7", "ISBN‐13: 978‐0‐15‐601219‐5", "978–0–15–601219–5", "isbn: 9780156"])
+    assert.deepEqual(titles(searchBooks(query, world)), ["The Little Prince"], query);
+});
+
+test("a typed number reads as an ISBN prefix from four digits, however it is spaced", () => {
+  assert.deepEqual(titles(searchBooks("97 8", world)), []);
+  assert.deepEqual(titles(searchBooks("97 89", world)), ["Bumi Manusia", "Pangeran Kecil"]);
+  assert.deepEqual(titles(searchBooks("9789", world)), ["Bumi Manusia", "Pangeran Kecil"]);
 });
 
 test("a short number is still an ordinary word, and a prefix that matches no ISBN finds nothing", () => {

@@ -21,7 +21,7 @@ const FORMATS = ["print", "ebook", "audio"] as const;
 
 export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemRow; onClose: () => void }) {
   const items = useTable("items");
-  const { label } = usePartner();
+  const { me, label } = usePartner();
   const { busy, once } = useBusy();
   const { removeCopy } = useBookActions();
   const stamp = useStamp();
@@ -52,7 +52,7 @@ export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemR
             group_key: place,
             data: { format, ...(code === null ? {} : { isbn: code }) },
           });
-      const patch = result.ok && copy ? moveCopy(copy, place, stamp()) : null;
+      const patch = result.ok && copy ? moveCopy(copy, place, stamp(), me) : null;
       const moved = patch === null ? result : await actions.update("items", copy!.id, patch);
       setFailure(failureOf(moved));
       if (moved.ok) onClose();

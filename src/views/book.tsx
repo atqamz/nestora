@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { bySort } from "../domain/order.ts";
+import { moverOf } from "../domain/places.ts";
 import { READING, ratingPatch, readingOf, readingPatch } from "../domain/reading.ts";
 import type { Reading } from "../domain/reading.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -92,7 +93,8 @@ function Copy({ copy, book, places, onEdit }: { copy: ItemRow; book: ItemRow; pl
   const language = word(copy, "language");
   const moved = word(copy, "moved_on");
   const place = places.get(copy.group_key ?? "");
-  const by = copy.updated_by === "a" || copy.updated_by === "b" ? label(copy.updated_by) : null;
+  const mover = moverOf(copy);
+  const by = mover === null ? null : label(mover);
   const owner = copy.who === "both" ? text.books.shared : copy.who === null ? null : text.books.ownedBy(label(copy.who));
   return (
     <li className="copy">

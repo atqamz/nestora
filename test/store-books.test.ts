@@ -33,15 +33,15 @@ for (const side of ["a", "b"] as const) {
   test(`a move made offline by partner ${side.toUpperCase()} shows their side at once and reaches the server with it`, async () => {
     const { server, store, copy, home, other } = await seeded(side);
     assert.equal(rowOf(store, copy).group_key, home);
-    idOf(await store.update("items", copy, moveCopy(rowOf(store, copy), other, "2026-10-19")!));
+    idOf(await store.update("items", copy, moveCopy(rowOf(store, copy), other, "2026-10-19", side)!));
     const shown = rowOf(store, copy);
-    assert.deepEqual([shown.group_key, shown.updated_by, shown.data], [other, side, { format: "print", was_at: home, moved_on: "2026-10-19" }]);
+    assert.deepEqual([shown.group_key, shown.updated_by, shown.data], [other, side, { format: "print", was_at: home, moved_on: "2026-10-19", moved_by: side }]);
     assert.equal(store.getSnapshot().pending, 1);
     server.control.down = false;
     await store.sync();
     assert.equal(store.getSnapshot().pending, 0);
     const stored = server.row("items", copy)!;
-    assert.deepEqual([stored.group_key, stored.updated_by, stored.data], [other, side, { format: "print", was_at: home, moved_on: "2026-10-19" }]);
+    assert.deepEqual([stored.group_key, stored.updated_by, stored.data], [other, side, { format: "print", was_at: home, moved_on: "2026-10-19", moved_by: side }]);
   });
 
   test(`partner ${side.toUpperCase()} reading state is written under their own keys and merges with the other partner's`, async () => {
@@ -84,7 +84,7 @@ test("We got it and its copy leave in one request, and undoing both brings the w
 test("undoing a move restores the old place and date in one update", async () => {
   const { store, server, copy, home, other } = await seeded("a");
   const before = rowOf(store, copy);
-  idOf(await store.update("items", copy, moveCopy(before, other, "2026-10-19")!));
+  idOf(await store.update("items", copy, moveCopy(before, other, "2026-10-19", "a")!));
   idOf(await store.update("items", copy, restoreMove(before)));
   server.control.down = false;
   await store.sync();

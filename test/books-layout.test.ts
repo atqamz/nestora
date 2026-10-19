@@ -13,10 +13,26 @@ const all = [books, read("style.css"), read("ui/ui.css"), read("ui/sheet.css")].
 const rule = (css: string, selector: string) =>
   new RegExp(`(?:^|\\n)${selector.replace(/[.>*[\]="():]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
-test("the phone tab bar has one column per entry, the Add button's wider than the rest", () => {
-  const columns = /\.tabs\s*\{[^}]*grid-template-columns:\s*([^;]+);/.exec(read("style.css"))?.[1].trim().split(/\s+/) ?? [];
+test("the phone tab bar has one column per entry, the Add button's wider than the rest and capped by the viewport so the links keep 44 px at large text", () => {
+  const columns = /\.tabs\s*\{[^}]*grid-template-columns:\s*([^;]+);/.exec(read("style.css"))?.[1].trim().replace(/min\(([^)]*)\)/, (_, args) => `min(${args.replace(/\s+/g, "")})`).split(/\s+/) ?? [];
   assert.equal(columns.length, navEntries("tabs").length);
-  assert.deepEqual(columns, ["1fr", "1fr", "4.5rem", "1fr", "1fr"]);
+  assert.deepEqual(columns, ["1fr", "1fr", "min(4.5rem,20vw)", "1fr", "1fr"]);
+  assert.match(rule(read("style.css"), ".tab-add"), /width:\s*min\(3\.5rem, 16vw\)/);
+});
+
+test("a tab label never breaks inside a word and never outgrows its column", () => {
+  const link = rule(read("style.css"), ".tabs a");
+  assert.match(link, /white-space:\s*nowrap/);
+  assert.match(link, /min-width:\s*0/);
+  assert.match(link, /font-size:\s*min\(var\(--fs-micro\), 3\.6vw\)/);
+  assert.match(link, /min-height:\s*3\.25rem/);
+});
+
+test("at large text the Undo toast wraps its action under the message and the place actions wrap inside the row", () => {
+  assert.match(rule(all, ".toast p"), /flex-wrap:\s*wrap/);
+  assert.match(rule(all, ".toast span"), /overflow-wrap:\s*anywhere/);
+  assert.match(rule(all, ".acts"), /flex-wrap:\s*wrap/);
+  assert.match(rule(all, ".acts"), /max-width:\s*100%/);
 });
 
 test("the location chip, the book link, the section header, the place choices and the stars keep a 44 px target", () => {
@@ -75,12 +91,16 @@ test("an action toast carries its action, lasts longer than a plain one, and can
 
 test("the book dialogs are native modals that lock the page, ride above the keyboard, give focus back and close on a route change", () => {
   const modal = read("ui/modal.tsx");
+  const hook = read("ui/use-sheet.ts");
   assert.match(modal, /showModal\(\)/);
-  assert.match(modal, /setProperty\("--lock-gap"/);
-  assert.match(modal, /removeProperty\("--lock-gap"\)/);
-  assert.match(modal, /keyboardInset\(innerHeight, viewport\)/);
+  assert.match(modal, /useSheet\(dialog, true, onClose\)/);
+  assert.match(read("ui/add-sheet.tsx"), /useSheet\(dialog, adding, overlay\.closeAdd\)/);
+  assert.match(hook, /setProperty\("--lock-gap"/);
+  assert.match(hook, /removeProperty\("--lock-gap"\)/);
+  assert.match(hook, /keyboardInset\(innerHeight, viewport\)/);
   assert.match(modal, /opener\.focus\(/);
-  assert.match(modal, /addEventListener\("hashchange"/);
+  assert.match(hook, /addEventListener\("hashchange"/);
+  assert.doesNotMatch(modal + read("ui/add-sheet.tsx"), /--lock-gap|keyboardInset/);
   assert.match(modal, /onClose=\{onClose\}/);
   assert.match(modal, /aria-labelledby=\{heading\}/);
   assert.match(modal, /aria-label=\{text\.sheet\.close\}/);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateChange } from "../shared/validate.ts";
 import { coverOf } from "../src/domain/cover.ts";
 import { reorder, sortAfter } from "../src/domain/order.ts";
-import { copiesAt, lastPlace, moveCopy, placesOf, restoreMove } from "../src/domain/places.ts";
+import { copiesAt, lastPlace, moveCopy, moverOf, placesOf, restoreMove } from "../src/domain/places.ts";
 import { ratingPatch, readersNow, readingNow, readingOf, readingPatch } from "../src/domain/reading.ts";
 import { item } from "./domain-rows.ts";
 
@@ -30,24 +30,24 @@ test("copiesAt lists every copy of a place, gone ones included, and nothing else
 
 test("a move records the place left and the day, and is valid for the server", () => {
   const here = copy(laskar, { group_key: homeA.id });
-  const patch = moveCopy(here, homeB.id, "2026-10-19");
-  assert.deepEqual(patch, { group_key: homeB.id, data: { was_at: homeA.id, moved_on: "2026-10-19" } });
+  const patch = moveCopy(here, homeB.id, "2026-10-19", "b");
+  assert.deepEqual(patch, { group_key: homeB.id, data: { was_at: homeA.id, moved_on: "2026-10-19", moved_by: "b" } });
   assert.deepEqual(validateChange("items", here, patch!), []);
 });
 
 test("moving to where the copy already is does nothing, and a copy with no place leaves no previous place", () => {
   const here = copy(laskar, { group_key: homeA.id });
-  assert.equal(moveCopy(here, homeA.id, "2026-10-19"), null);
+  assert.equal(moveCopy(here, homeA.id, "2026-10-19", "a"), null);
   const loose = copy(laskar, { group_key: null });
-  assert.deepEqual(moveCopy(loose, homeA.id, "2026-10-19"), { group_key: homeA.id, data: { was_at: null, moved_on: "2026-10-19" } });
-  assert.deepEqual(moveCopy(here, null, "2026-10-19"), { group_key: null, data: { was_at: homeA.id, moved_on: "2026-10-19" } });
+  assert.deepEqual(moveCopy(loose, homeA.id, "2026-10-19", "a"), { group_key: homeA.id, data: { was_at: null, moved_on: "2026-10-19", moved_by: "a" } });
+  assert.deepEqual(moveCopy(here, null, "2026-10-19", null), { group_key: null, data: { was_at: homeA.id, moved_on: "2026-10-19", moved_by: null } });
 });
 
 test("undoing a move puts back the place, the previous place and the date the copy had", () => {
-  const before = copy(laskar, { group_key: homeA.id, data: { format: "print", was_at: homeB.id, moved_on: "2026-09-01" } });
-  assert.deepEqual(restoreMove(before), { group_key: homeA.id, data: { was_at: homeB.id, moved_on: "2026-09-01" } });
+  const before = copy(laskar, { group_key: homeA.id, data: { format: "print", was_at: homeB.id, moved_on: "2026-09-01", moved_by: "b" } });
+  assert.deepEqual(restoreMove(before), { group_key: homeA.id, data: { was_at: homeB.id, moved_on: "2026-09-01", moved_by: "b" } });
   const fresh = copy(laskar, { group_key: homeA.id });
-  assert.deepEqual(restoreMove(fresh), { group_key: homeA.id, data: { was_at: null, moved_on: null } });
+  assert.deepEqual(restoreMove(fresh), { group_key: homeA.id, data: { was_at: null, moved_on: null, moved_by: null } });
   assert.deepEqual(validateChange("items", fresh, restoreMove(fresh)), []);
 });
 
@@ -132,4 +132,14 @@ test("a cover tone depends only on the row id and uses both tints across ids", (
   const tones = [...Array(40).keys()].map((n) => coverOf({ id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`, title: "T" }).tone);
   assert.deepEqual([...new Set(tones)].sort(), ["a", "b"]);
   assert.equal(coverOf({ id: "same", title: "One" }).tone, coverOf({ id: "same", title: "Another" }).tone);
+});
+
+test("the mover is the one who moved the copy, not whoever edited it last, and a copy without the mark has none", () => {
+  const moved = copy(laskar, { group_key: homeA.id, updated_by: "b", data: { moved_on: "2026-10-02", moved_by: "a" } });
+  assert.equal(moverOf(moved), "a");
+  assert.equal(moverOf(copy(laskar, { updated_by: "b", data: { moved_on: "2026-10-02" } })), null);
+  assert.equal(moverOf(copy(laskar, { data: { moved_by: null } })), null);
+  assert.equal(moverOf(copy(laskar, { data: { moved_by: "x" } })), null);
+  assert.equal(moverOf(copy(laskar)), null);
+  assert.equal(moveCopy(moved, homeB.id, "2026-10-19", "b")!.data!.moved_by, "b");
 });

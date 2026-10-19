@@ -6,11 +6,11 @@ import type { Field as Parsed, Kind } from "../domain/draft.ts";
 import { sortBefore } from "../domain/order.ts";
 import { normalizePhone } from "../domain/phone.ts";
 import { routeOf } from "../domain/stages.ts";
-import { ZOOMED, keyboardInset } from "../domain/viewport.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useSettings, useToday } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { Avatar, Pair } from "./avatar.tsx";
+import { BookFields, useBookForm } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import type { Control } from "./field.tsx";
@@ -19,14 +19,15 @@ import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { overlay, useOverlay, withSeed } from "./overlay.ts";
 import { text } from "./text.ts";
+import { useSheet } from "./use-sheet.ts";
 
 type Detail = "amount" | "due" | "line" | "group" | "phone" | "qty";
 
 type Owner = "a" | "b" | "both" | "none";
 
-const KINDS: readonly Kind[] = ["task", "planned", "payment", "guest", "vendor"];
+const KINDS: readonly Kind[] = ["task", "planned", "payment", "guest", "vendor", "book"];
 
-const KIND_ICON: Record<Kind, IconName> = { task: "task", planned: "money", payment: "receipt", guest: "people", vendor: "shop" };
+const KIND_ICON: Record<Kind, IconName> = { task: "task", planned: "money", payment: "receipt", guest: "people", vendor: "shop", book: "book" };
 
 const DETAILS: Record<Kind, readonly Detail[]> = {
   task: ["due", "amount", "group"],
@@ -34,6 +35,7 @@ const DETAILS: Record<Kind, readonly Detail[]> = {
   payment: ["line", "amount", "due"],
   guest: ["group", "qty", "phone"],
   vendor: ["group", "amount", "phone"],
+  book: [],
 };
 
 const DETAIL_ICON: Record<Detail, IconName> = { amount: "receipt", due: "calendar", line: "money", group: "flag", phone: "call", qty: "people" };
@@ -81,6 +83,8 @@ function AddForm({ seed }: { seed: string }) {
     () => draftFor(input, { today, me, nicknames: { a: settings.partnerA, b: settings.partnerB }, lines }, ignore, kindPick),
     [input, today, me, settings.partnerA, settings.partnerB, lines, ignore, kindPick],
   );
+
+  const book = useBookForm("wish", draft.title, kind === "book");
 
   const phase = useMemo(() => {
     if (settings.ceremonyDate === null) return "";
@@ -208,6 +212,8 @@ function AddForm({ seed }: { seed: string }) {
     const group = values.group.trim() === "" ? null : values.group.trim();
     const due = values.due === "" ? null : values.due;
     switch (kind) {
+      case "book":
+        return book.save();
       case "task":
         return actions.create("items", { kind: "task", title: draft.title, status: "todo", due_on: due, who: side, amount, group_key: group, sort: sortBefore(items.filter((item) => item.kind === "task")) });
       case "planned":
@@ -243,8 +249,9 @@ function AddForm({ seed }: { seed: string }) {
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAttempt((count) => count + 1);
+    if (kind === "book") book.reveal();
     const first = (Object.keys(problems) as (Detail | "title")[]).find((name) => name !== "title");
-    if (Object.keys(problems).length > 0) {
+    if (Object.keys(problems).length > 0 || (kind === "book" && !book.valid)) {
       setOpen(problems.title ? null : (first ?? null));
       return;
     }
@@ -318,16 +325,19 @@ function AddForm({ seed }: { seed: string }) {
           {text.sheet.kinds[kind]}
         </p>
         {read && <p className="saved-as">{text.sheet.savedAs(draft.title)}</p>}
-        <ul className="chips" aria-label={text.sheet.chips}>
-          {chips.map((chip) => (
-            <li key={chip.key}>
-              <button type="button" className="chip" aria-label={text.sheet.chipName(chip.field, chip.label)} aria-expanded={open === chip.key} data-invalid={chip.invalid || undefined} data-empty={chipEmpty(chip.key, values) || undefined} onClick={() => setOpen(open === chip.key ? null : chip.key)}>
-                <Icon name={chip.icon} />
-                <span>{chip.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {kind === "book" && <BookFields form={book} />}
+        {kind !== "book" && (
+          <ul className="chips" aria-label={text.sheet.chips}>
+            {chips.map((chip) => (
+              <li key={chip.key}>
+                <button type="button" className="chip" aria-label={text.sheet.chipName(chip.field, chip.label)} aria-expanded={open === chip.key} data-invalid={chip.invalid || undefined} data-empty={chipEmpty(chip.key, values) || undefined} onClick={() => setOpen(open === chip.key ? null : chip.key)}>
+                  <Icon name={chip.icon} />
+                  <span>{chip.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {open === "owner" && parsedOwner !== null && (
           <div className="editor">
             <p className="hint">{text.sheet.ownerRead(label(parsedOwner))}</p>
@@ -355,9 +365,9 @@ function AddForm({ seed }: { seed: string }) {
       </div>
       <div className="sheet-foot">
         <button type="submit" disabled={busy}>
-          {text.sheet.save[kind]}
+          {kind === "book" ? book.saveLabel : text.sheet.save[kind]}
         </button>
-        <p className="hint sheet-hint">{text.sheet.hint}</p>
+        <p className="hint sheet-hint">{kind === "book" ? text.sheet.hintBook : text.sheet.hint}</p>
       </div>
     </form>
   );
@@ -369,37 +379,15 @@ export function AddSheet() {
   const { adding, seed, session } = useOverlay();
   const dialog = useRef<HTMLDialogElement>(null);
 
+  useSheet(dialog, adding, overlay.closeAdd);
+
   useEffect(() => {
     const element = dialog.current!;
     if (adding && !element.open) {
-      document.documentElement.style.setProperty("--lock-gap", `${innerWidth - document.documentElement.clientWidth}px`);
       element.showModal();
       element.querySelector<HTMLElement>("[data-first]")?.focus();
     } else if (!adding && element.open) element.close();
   }, [adding, session]);
-
-  useEffect(() => {
-    if (!adding) return;
-    const element = dialog.current!;
-    const viewport = window.visualViewport;
-    const place = () => {
-      if (!viewport) return;
-      element.style.setProperty("--kb", `${keyboardInset(innerHeight, viewport)}px`);
-      element.style.setProperty("--vv-h", `${viewport.scale > ZOOMED ? innerHeight : viewport.height}px`);
-    };
-    place();
-    viewport?.addEventListener("resize", place);
-    viewport?.addEventListener("scroll", place);
-    addEventListener("hashchange", overlay.closeAdd);
-    return () => {
-      viewport?.removeEventListener("resize", place);
-      viewport?.removeEventListener("scroll", place);
-      removeEventListener("hashchange", overlay.closeAdd);
-      document.documentElement.style.removeProperty("--lock-gap");
-      element.style.removeProperty("--kb");
-      element.style.removeProperty("--vv-h");
-    };
-  }, [adding]);
 
   return (
     <dialog

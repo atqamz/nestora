@@ -17,8 +17,15 @@ test("an ISBN-10 becomes the ISBN-13 with the 978 prefix and a new check digit",
 });
 
 test("a wrong check digit, a wrong length or a stray character gives null", () => {
-  for (const bad of ["9789793062793", "0156012198", "080442957", "97897930627", "978979306279X", "X156012197", "isbn 9789793062792", "", "-"])
+  for (const bad of ["9789793062793", "0156012198", "080442957", "97897930627", "978979306279X", "X156012197", "isbn", "isbn x", "isbn-13", ""])
     assert.equal(toIsbn13(bad), null, bad);
+});
+
+test("a label, a colon and any kind of hyphen are dropped before the check", () => {
+  for (const typed of ["ISBN 0156012197", "ISBN-10: 0-15-601219-7", "isbn13 978-0-15-601219-5", "ISBN-13: 978‐0‐15‐601219‐5", "978–0–15–601219–5", "ISBN: 9780156012195"])
+    assert.equal(toIsbn13(typed), "9780156012195", typed);
+  assert.notEqual(toIsbn13("isbn 1301234567"), null);
+  assert.equal(toIsbn13("isbn 1301234567"), toIsbn13("1301234567"));
 });
 
 test("every converted ISBN-10 passes the stored isbn type", () => {

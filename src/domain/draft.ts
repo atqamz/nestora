@@ -4,7 +4,7 @@ import { parseRupiah } from "./money.ts";
 import { sideName } from "./names.ts";
 import { normalizePhone } from "./phone.ts";
 
-export type Kind = "task" | "planned" | "payment" | "guest" | "vendor";
+export type Kind = "task" | "planned" | "payment" | "guest" | "vendor" | "book";
 
 export type Field = "amount" | "due" | "who" | "phone" | "line";
 
@@ -258,6 +258,7 @@ export const STORED: Record<Kind, readonly Field[]> = {
   payment: ["amount", "due", "who"],
   guest: ["phone", "who"],
   vendor: ["amount", "phone"],
+  book: [],
 };
 
 const READ_IN_TEXT: readonly Field[] = ["amount", "due", "who", "phone"];

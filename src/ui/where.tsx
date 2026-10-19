@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { placesOf } from "../domain/places.ts";
-import { whereOf } from "../domain/shelf.ts";
+import { movable, whereOf } from "../domain/shelf.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useTable } from "../hooks/use-store.ts";
 import { useBookActions } from "./book-actions.ts";
@@ -29,8 +29,6 @@ export const whereLabel = (copy: ItemRow, places: Places): string | null => {
       return text.books.notWith;
   }
 };
-
-export const movable = (copy: ItemRow) => copy.status !== "gone" && copy.status !== "lent" && copy.data?.format !== "ebook";
 
 function Chip({ label, name, onPick }: { label: string; name?: string; onPick?: () => void }) {
   const inside = (
