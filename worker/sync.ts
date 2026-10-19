@@ -17,7 +17,9 @@ const NEW_REV = "(SELECT rev FROM sync_state WHERE id = 1)";
 
 const refs: Record<TableName, Record<string, readonly ["items" | "budget_entries", string]>> = {
   settings: {},
-  items: {},
+  items: {
+    parent_id: ["items", "book"],
+  },
   budget_entries: {
     vendor_id: ["items", "vendor"],
     budget_id: ["budget_entries", "planned"],

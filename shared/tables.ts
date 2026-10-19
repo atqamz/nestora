@@ -20,6 +20,7 @@ export type Type =
   | "dates"
   | "stages"
   | "photo"
+  | "isbn"
   | readonly string[];
 
 export type Column = {
@@ -138,6 +139,59 @@ export const tables = {
           rsvp_qty: "int",
           import_batch: "text",
         },
+      },
+      book: {
+        columns: ["status", "group_key", "who", "amount", "note"],
+        required: ["status"],
+        status: ["wish", "shelf"],
+        data: {
+          author: "text",
+          original_title: "text",
+          series: "text",
+          series_no: "int",
+          isbn: "isbn",
+          language: ["id", "en", "other"],
+          cover: "url",
+          blurb: "longtext",
+          ol: "text",
+          gb: "text",
+          public_rating: "decimal",
+          priority: ["high", "low"],
+          gift: "bool",
+          shop: "text",
+          shop_url: "url",
+          reading_a: ["want", "reading", "read", "dnf"],
+          rating_a: ["1", "2", "3", "4", "5"],
+          finished_a: "date",
+          reading_b: ["want", "reading", "read", "dnf"],
+          rating_b: ["1", "2", "3", "4", "5"],
+          finished_b: "date",
+          import_batch: "text",
+        },
+      },
+      copy: {
+        columns: ["parent_id", "status", "group_key", "who", "due_on", "done_on", "note"],
+        required: ["parent_id", "status"],
+        status: ["here", "lent", "borrowed", "gone"],
+        doneOnStatus: "gone",
+        data: {
+          isbn: "isbn",
+          language: ["id", "en", "other"],
+          format: ["print", "ebook", "audio"],
+          publisher: "text",
+          year: "int",
+          lent_to: "text",
+          lent_on: "date",
+          from: "text",
+          moved_on: "date",
+          was_at: "id",
+          import_batch: "text",
+        },
+      },
+      place: {
+        columns: ["note"],
+        required: [],
+        data: {},
       },
     },
   },
