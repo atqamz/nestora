@@ -128,26 +128,65 @@ export const sameBook = (book: { title: string; original: unknown }, found: stri
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
 
-const words = (part: string) => fold(part).split(" ").filter(Boolean);
+const HONORIFICS = new Set(["prof", "dr", "drs", "ir", "hj", "mr", "mrs", "ms", "sir"]);
 
-const person = (name: string) => {
-  const [head, ...rest] = name.split(",");
-  const first = words(head);
-  while (first.length > 1 && SUFFIXES.has(first.at(-1) as string)) first.pop();
-  const after = rest.flatMap(words).filter((word) => !SUFFIXES.has(word));
-  return { surname: first.at(-1) ?? "", given: after.length > 0 ? after[0] : first.length > 1 ? first[0] : undefined };
+const WEAK = new Set(["h", "van", "von", "de", "bin", "binti", "al", "el", "ibn"]);
+
+const SEPARATOR = /\s*&\s*|\s+(?:and|dan)\s+/i;
+
+const INITIALS = /^\p{Lu}{2,4}\.?$/u;
+
+type Person = { surname: string; given: string[]; every: string[] };
+
+const without = (list: string[], drop: Set<string>) => {
+  const kept = list.filter((word) => !drop.has(word));
+  return kept.length > 0 ? kept : list;
 };
 
-const people = (names: string) => names.split(/[;&]/).map(person);
+const person = (name: string): Person => {
+  const tokens = name.split(/\s+/);
+  while (tokens.length > 1 && SUFFIXES.has(fold(tokens.at(-1) as string))) tokens.pop();
+  const surname = fold(tokens.pop() ?? "").split(" ").at(-1) as string;
+  const spell = name !== name.toUpperCase();
+  const every = tokens
+    .flatMap((token) => (spell && INITIALS.test(token) && !HONORIFICS.has(fold(token)) ? [...fold(token)] : fold(token).split(" ")))
+    .filter((word) => word !== "" && !SUFFIXES.has(word) && !HONORIFICS.has(word));
+  return { surname, given: without(every, WEAK), every };
+};
+
+const alone = (name: string) =>
+  name
+    .split(/\s+/)
+    .slice(0, -1)
+    .every((token) => WEAK.has(fold(token)) || HONORIFICS.has(fold(token)));
+
+const listed = (entry: string): Person[] => {
+  const parts = entry.split(",").map((part) => part.trim()).filter(Boolean);
+  const named = parts.filter((part) => !fold(part).split(" ").every((word) => SUFFIXES.has(word)));
+  const [head, tail] = named;
+  if (named.length === 2 && alone(head) && !SEPARATOR.test(tail) && !/\d/.test(tail) && tail.split(/\s+/).length <= 4) return [person(`${tail} ${head}`)];
+  return named.flatMap((part) => part.split(SEPARATOR)).map(person);
+};
+
+const people = (names: string) => names.split(";").flatMap(listed);
 
 const initial = (short: string, long: string) => short.length === 1 && long.startsWith(short);
 
-const sameGiven = (typed: string | undefined, found: string | undefined) =>
-  typed === undefined || found === undefined || typed === found || initial(typed, found) || initial(found, typed);
+const covers = (left: string[], right: string[]) => {
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  let from = 0;
+  return short.every((word) => {
+    const at = long.findIndex((other, index) => index >= from && (other === word || initial(word, other) || initial(other, word)));
+    from = at + 1;
+    return at >= 0;
+  });
+};
+
+const sameGiven = (typed: Person, found: Person) => covers(typed.given, found.given) || covers(typed.every, found.every);
 
 const matches = (typed: unknown, found: string, given: boolean) => {
   const have = people(found);
-  return typeof typed === "string" && people(typed).some((name) => name.surname.length >= 2 && have.some((other) => other.surname === name.surname && (!given || sameGiven(name.given, other.given))));
+  return typeof typed === "string" && people(typed).some((name) => name.surname.length >= 2 && have.some((other) => other.surname === name.surname && (!given || sameGiven(name, other))));
 };
 
 export const sameAuthor = (typed: unknown, found: string) => matches(typed, found, true);

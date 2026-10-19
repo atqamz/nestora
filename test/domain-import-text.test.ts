@@ -391,3 +391,25 @@ test("a label that repeats inside an entry stays in the text of the first one", 
   assert.deepEqual(parseList("1. T  Sinopsis: A  Sinopsis: B  Penulis: C").map((entry) => [entry.blurb, entry.author]), [["A Sinopsis: B", "C"]]);
   assert.deepEqual(parseList("1. T  Penulis: A  Rating: 4  Rating: 5").map((entry) => [entry.author, entry.rated_elsewhere]), [["A", "4"]]);
 });
+
+test("a bare number at the end of a synopsis stays in it, and the title-only entry after it is kept", () => {
+  const read = (text: string) => parseList(text).map((entry) => [entry.title, entry.author, entry.blurb]);
+  const list = "1. Placeholder A Penulis: Writer One\n2. Placeholder B Penulis: Writer Two Sinopsis: Part of a series, book 1.\n3. Placeholder C\n4. Placeholder D Penulis: Writer Three";
+  assert.deepEqual(read(list), [
+    ["Placeholder A", "Writer One", ""],
+    ["Placeholder B", "Writer Two", "Part of a series, book 1."],
+    ["Placeholder C", "", ""],
+    ["Placeholder D", "Writer Three", ""],
+  ]);
+  assert.deepEqual(parseList(list).map((entry) => entry.warnings), [[], [], ["missing_author"], []]);
+  for (const end of ["Seri ke-1.", "Jilid 1.", "3.", "2."]) {
+    assert.deepEqual(read(`1. A Penulis: X Sinopsis: One ${end}\n2. B\n3. C Penulis: Z`).map((entry) => entry[0]), ["A", "B", "C"], end);
+    assert.deepEqual(read(`1. A Penulis: X Sinopsis: One ${end}   2. B 3. C Penulis: Z`).map((entry) => entry[0]), ["A", "B", "C"], end);
+  }
+  assert.deepEqual(read("1. A Penulis: X Sinopsis: Book 2.\n2. B"), [["A", "X", "Book 2."], ["B", "", ""]]);
+});
+
+test("text between an empty numbered line and the next entry is never dropped", () => {
+  const found = parseList("1. A  Penulis: X  Sinopsis: One. 2. 3. Words after");
+  assert.deepEqual(found.map((entry) => [entry.title, entry.blurb, entry.warnings]), [["A", "One. 2. 3. Words after", ["joined"]]]);
+});

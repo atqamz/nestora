@@ -295,19 +295,26 @@ test("a synopsis request by ISBN that is refused is handled the same way: no sav
   assert.equal([...rows.values()].every(needsDetails), true);
 });
 
-test("a synopsis request that is offline, stopped or refused for good never marks the book done", async () => {
+test("a synopsis request that is offline or too slow never marks the book done", async () => {
   const dropped: Answer = (url) => (url.pathname.startsWith("/works/") ? Promise.reject(new Error("down")) : undefined);
   const lost = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: dropped });
   assert.equal(await lost.run(), "offline");
   assert.deepEqual([lost.saved.length, lost.steps.length, needsDetails([...lost.rows.values()][0])], [0, 0, true]);
-  const refused = rig([book("Laskar Pelangi", { author: "Andrea Hirata" }), book("Bumi Manusia", { author: "Pramoedya Ananta Toer" })], { answer: (url, call) => (/OL15302003W/.test(url.pathname) ? gone(404)(url, call) : undefined) });
-  assert.equal(await refused.run(), "finished");
-  assert.deepEqual(refused.saved.map(([, patch]) => patch.ol), ["OL307247W"]);
-  assert.deepEqual(refused.steps.map(([, tally]) => tally), [{ filled: 0, empty: 0, failed: 1, unsure: 0 }, { filled: 1, empty: 0, failed: 1, unsure: 0 }]);
-  assert.equal(needsDetails([...refused.rows.values()][0]), true);
   const slow = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url, call, signal) => (url.pathname.startsWith("/works/") ? new Promise<Response>((_, reject) => signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))) : undefined), timeout: 20 });
   assert.equal(await slow.run(), "busy");
   assert.deepEqual([slow.saved.length, needsDetails([...slow.rows.values()][0])], [0, true]);
+});
+
+test("a synopsis page that is missing or unreadable does not stop the other fields from being filled", async () => {
+  const missing = rig([book("Laskar Pelangi", { author: "Andrea Hirata" }), book("Bumi Manusia", { author: "Pramoedya Ananta Toer" })], {
+    answer: (url, call) => (/OL15302003W/.test(url.pathname) ? gone(404)(url, call) : undefined),
+  });
+  assert.equal(await missing.run(), "finished");
+  assert.deepEqual(missing.saved.map(([, patch]) => [patch.ol, patch.blurb === undefined]), [["OL15302003W", true], ["OL307247W", false]]);
+  assert.deepEqual(missing.steps.map(([, tally]) => tally), [{ filled: 1, empty: 0, failed: 0, unsure: 0 }, { filled: 2, empty: 0, failed: 0, unsure: 0 }]);
+  const broken = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url) => (url.pathname.startsWith("/works/") ? new Response("<html>", { status: 200 }) : undefined) });
+  assert.equal(await broken.run(), "finished");
+  assert.deepEqual(broken.saved.map(([, patch]) => [patch.ol, patch.blurb === undefined]), [["OL15302003W", true]]);
 });
 
 test("stopping while the synopsis is in flight leaves the book untried", async () => {

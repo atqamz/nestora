@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { draftFor } from "../src/domain/draft.ts";
-import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, sharesSurname, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import type { Hit, Typed } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -440,4 +440,127 @@ test("a generational suffix is dropped before the names are compared, in either 
   assert.equal(sameAuthor("Ed Ford III", "Al Gates Jr."), false);
   assert.equal(sameAuthor("Jr.", "Al Gates Jr."), false);
   assert.equal(sameAuthor("Ed Jr", "Al Jr"), false);
+});
+
+const accepts = (typed: string, found: string, expected: boolean) => assert.equal(sameAuthor(typed, found), expected, `${typed} / ${found}`);
+
+test("a typed list of authors matches when any listed author matches, whether it is written with a comma, a semicolon, an ampersand, 'and' or 'dan'", () => {
+  for (const typed of ["Marek Valdis, Ilona Brandt", "Marek Valdis; Ilona Brandt", "Marek Valdis & Ilona Brandt", "Marek Valdis&Ilona Brandt", "Marek Valdis and Ilona Brandt", "Marek Valdis dan Ilona Brandt", "Marek Valdis DAN Ilona Brandt"]) {
+    accepts(typed, "Marek Valdis; Ilona Brandt", true);
+    accepts(typed, "Ilona Brandt", true);
+    accepts(typed, "Marek Valdis", true);
+    accepts(typed, "Oskar Wendt", false);
+  }
+  accepts("Marek Valdis, Ilona Brandt dan Oskar Wendt", "Oskar Wendt", true);
+  accepts("Writer One, Writer Two", "Writer Two", true);
+  accepts("Dan Brandt", "Dan Brandt", true);
+  accepts("Dan Brandt", "Brandt, Dan", true);
+  accepts("Brandt, Dan", "Dan Brandt", true);
+});
+
+test("a comma means Surname, Given only after a single surname and before something that reads as a given name", () => {
+  accepts("Brandt, Ilona", "Ilona Brandt", true);
+  accepts("Brandt, Ilona", "Brandt, Ilona", true);
+  accepts("Brandt, Ilona", "Marek Brandt", false);
+  accepts("Brandt, I.", "Ilona Brandt", true);
+  accepts("Brandt, Ilona Marta", "Ilona Brandt", true);
+  accepts("Valdis, Marek, Jr.", "Marek Valdis", true);
+  accepts("Marek Valdis, Jr.", "Marek Valdis Jr.", true);
+  accepts("Valdis, Jr.", "Marek Valdis", true);
+  accepts("Wendt, Ludo van", "Ludo van Wendt", true);
+  accepts("Van Wendt, Ludo", "Ludo van Wendt", true);
+  accepts("Adam Smith, John Brown", "John Smith", false);
+  accepts("Adam Smith, John Brown", "John Brown", true);
+  accepts("Brandt, Ilona 2", "Marek Brandt", true);
+  accepts("Brandt, Ilona Marta Karin Ruth Anna", "Marek Brandt", true);
+  accepts("Brandt, Ilona Marta Karin Ruth", "Marek Brandt", false);
+  accepts("Brandt, Ilona dan Wendt", "Wendt", true);
+  accepts("Brandt, Ilona, Marek Valdis", "Marek Valdis", true);
+  accepts("Brandt,, Ilona", "Marek Brandt", false);
+  accepts("Marek Valdis, Jr.", "Jr.", false);
+  accepts("Ford, Ed Jr.", "E. D. Ford", true);
+  accepts("Prof. Valdis, Marek", "Marek Valdis", true);
+  accepts("Prof. Valdis, Marek", "Oskar Valdis", false);
+  accepts("Van Wendt, Ludo", "Oskar van Wendt", false);
+});
+
+test("an honorific is not a given name", () => {
+  for (const title of ["Prof.", "Prof", "Dr.", "Drs.", "Ir.", "H.", "Hj.", "Mr.", "Mrs.", "Ms.", "Sir", "prof.", "DR."]) {
+    accepts(`${title} Marek Valdis`, "Marek Valdis", true);
+    accepts(`${title} Marek Valdis`, "M. Marek Valdis", true);
+    accepts("Marek Valdis", `${title} Marek Valdis`, true);
+    accepts(`${title} Marek Valdis`, "Oskar Valdis", false);
+  }
+  accepts("Dr. Valdis", "Marek Valdis", true);
+  accepts("Drs. H. Marek Valdis", "Marek Valdis", true);
+  accepts("H. Valdis", "Marek Valdis", false);
+  accepts("H. Valdis", "Harun Valdis", true);
+  accepts("H. G. Valdis", "Harun Gustav Valdis", true);
+});
+
+test("a particle belongs to the surname, so it is neither a given name nor a reason to skip", () => {
+  accepts("Al-Valdis", "Abu Karim al-Valdis", true);
+  accepts("El-Valdis", "Karim El Valdis", true);
+  accepts("Ibn Valdis", "Karim ibn Valdis", true);
+  accepts("Karim ibn Valdis", "Karim Valdis", true);
+  accepts("Bin Valdis", "Karim bin Valdis", true);
+  accepts("Siti binti Valdis", "Siti Valdis", true);
+  accepts("Ludo van Wendt", "Wendt, Ludo", true);
+  accepts("Ludo von Wendt", "Ludo Wendt", true);
+  accepts("Ludo de Wendt", "Ludo Wendt", true);
+  accepts("Wendt", "Ludo van Wendt", true);
+  accepts("Karim ibn Valdis", "Oskar ibn Valdis", false);
+  accepts("Van Wendt", "Oskar Wendt", false);
+  accepts("Al Valdis", "Jo Valdis", false);
+  accepts("Al Valdis", "Al Valdis", true);
+  accepts("De Valdis", "Marek Valdis", false);
+});
+
+test("a middle name, an undotted initial run and dotted initials are read against the full given names, and anything else unsure stays unsure", () => {
+  accepts("Ilona Brandt", "F. Ilona Brandt", true);
+  accepts("F. Ilona Brandt", "Ilona Brandt", true);
+  accepts("Marek Valdis", "Nelle Marek Valdis", true);
+  accepts("MJK Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("MJKR Valdis", "Marek Jonas Karel Reuel Valdis", true);
+  accepts("M. J. K. Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("M.J.K. Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("MJK. Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("Marek Jonas Karel Valdis", "MJK Valdis", true);
+  accepts("MJ Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("MK Valdis", "Marek Jonas Karel Valdis", true);
+  accepts("KM Valdis", "Marek Jonas Karel Valdis", false);
+  accepts("MJK Valdis", "Marek Oskar Valdis", false);
+  accepts("MJK Valdis", "Oskar Marek Valdis", false);
+  accepts("M. J. K. Valdis", "Marek Oskar Valdis", false);
+  accepts("MARK VALDIS", "Mark Valdis", true);
+  accepts("MARK VALDIS", "Oskar Valdis", false);
+  accepts("MJK VALDIS", "Marek Jonas Karel Valdis", false);
+  accepts("Jo Valdis", "Jonas Oskar Valdis", false);
+  accepts("Oskar Marek Valdis", "Marek Oskar Valdis", false);
+  accepts("Oskar Valdis", "Marek Valdis", false);
+  accepts("Oskar Karel Valdis", "Marek Jonas Valdis", false);
+  accepts("O. Valdis", "Marek Valdis", false);
+  accepts("Pierre-Karel Valdis", "Pierre Karel Valdis", true);
+  accepts("Pierre-Karel Valdis", "P.-K. Valdis", true);
+  accepts("Saint-Valdis", "Antoine de Saint-Valdis", true);
+});
+
+test("one given name or surname that merely starts like another is not the same, and a trailing or leading comma is only a comma", () => {
+  accepts("John Smith", "John Smithson", false);
+  accepts("Smithson", "John Smith", false);
+  accepts("John Smith", "Smith", true);
+  assert.equal(sharesSurname("John Smith", "John Smithson"), false);
+  assert.equal(sharesSurname("Smith", "John Smithson"), false);
+  assert.equal(sharesSurname("Smithson", "Adam Smith"), false);
+  assert.equal(sharesSurname("Adam Smith", "Smith, John"), true);
+  accepts("J. Smith", "Raj Smith", false);
+  accepts("Raj Smith", "J. Smith", false);
+  accepts("R. Smith", "Raj Smith", true);
+  accepts("Raj Smith", "R. Smith", true);
+  accepts("Marek Valdis,", "Marek Valdis", true);
+  accepts("Valdis, ", "Marek Valdis", true);
+  accepts(",Valdis", "Marek Valdis", true);
+  accepts("Marek Valdis,,", "Marek Valdis", true);
+  accepts("Marek Valdis, ,Ilona Brandt", "Ilona Brandt", true);
+  accepts("Marek Valdis", "Valdis,", true);
 });

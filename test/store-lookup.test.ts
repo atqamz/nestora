@@ -601,7 +601,7 @@ test("the title is read when the answer arrives, so a rename during the lookup i
   assert.deepEqual(await scanning, { kind: "mismatch" });
 });
 
-test("a description lookup superseded while filling is stale, and one that fails fails the fill instead of filling without it", async () => {
+test("a description lookup superseded while filling is stale, and one that is refused to retry later fails the fill instead of filling without it", async () => {
   let works = 0;
   const { fetcher } = server((url) => (url.includes("/works/") ? (works++, new Promise<Response>(() => {})) : reply(sample("laskar-pelangi-isbn"))));
   const lookup = createLookup({ fetcher });
@@ -614,7 +614,10 @@ test("a description lookup superseded while filling is stale, and one that fails
     fillBook(createLookup({ fetcher: server((url) => (url.includes("/works/") ? answer(url) : reply(sample("laskar-pelangi-isbn")))).fetcher, timeout }), "9789793062792", () => bookOf("Laskar Pelangi"));
   assert.deepEqual(await filled(() => reply({}, 500)), { kind: "failed", retry: 0 });
   assert.deepEqual(await filled(() => new Response("{}", { status: 429, headers: { "retry-after": "7" } })), { kind: "failed", retry: 7000 });
-  assert.deepEqual(await filled(() => reply({}, 404)), { kind: "failed" });
+  for (const gone of [() => reply({}, 404), () => reply({}, 403), () => new Response("<html>", { status: 200 })]) {
+    const out = await filled(gone);
+    assert.deepEqual(out.kind === "patch" && Object.keys(out.patch).sort(), ["author", "cover", "language", "ol"]);
+  }
   assert.deepEqual(await filled(() => Promise.reject(new Error("down"))), { kind: "offline" });
   assert.deepEqual(await filled(() => new Promise<Response>(() => {}), 20), { kind: "slow" });
   const none = await filled(() => reply({}));
@@ -625,6 +628,10 @@ test("a title fill whose description request fails fails too, and a description 
   const hit = { key: "/works/OL1W", title: "Placeholder Gamma", author_name: ["Writer One"] };
   const find = (work: Response) => fillTitle(createLookup({ wait: 0, fetcher: server((url) => (url.includes("/works/") ? work : reply({ docs: [hit] }))).fetcher }), () => bookOf("Placeholder Gamma", { author: "Writer One" }));
   assert.deepEqual(await find(reply({}, 503)), { kind: "failed", retry: 0 });
+  for (const gone of [reply({}, 404), new Response("<html>", { status: 200 })]) {
+    const out = await find(gone);
+    assert.deepEqual(out.kind === "patch" && Object.keys(out.patch), ["ol"]);
+  }
   const bare = await find(reply({}));
   assert.deepEqual(bare.kind === "patch" && Object.keys(bare.patch).sort(), ["ol"]);
 });

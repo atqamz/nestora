@@ -127,8 +127,8 @@ type Typed = () => { title: string; data: Record<string, unknown> | null };
 const complete = async (lookup: Lookup, hit: Hit, read: Typed): Promise<Filled> => {
   if (fillPatch(read(), hit, null) === null) return { kind: "mismatch" };
   const wanted = read().data?.blurb === undefined ? await lookup.blurb(hit.work) : null;
-  if (wanted !== null && wanted.kind !== "ok") return wanted;
-  const patch = fillPatch(read(), hit, wanted === null ? null : wanted.value);
+  if (wanted !== null && wanted.kind !== "ok" && (wanted.kind !== "failed" || wanted.retry !== undefined)) return wanted;
+  const patch = fillPatch(read(), hit, wanted?.kind === "ok" ? wanted.value : null);
   if (patch === null) return { kind: "mismatch" };
   return Object.keys(patch).length === 0 ? { kind: "nothing" } : { kind: "patch", patch };
 };

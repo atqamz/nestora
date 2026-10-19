@@ -26,6 +26,8 @@ const LABEL = new RegExp(
 
 const MARK = /(?<![\p{L}\p{N}])(?<!\/ ?)(\d{1,3})\.(?!\d)/gu;
 
+const EMPTY_LINES = /^(?:\s|\d{1,3}\.)*$/;
+
 const seen = (value: string) => (VISIBLE.test(value) ? value : "");
 
 export const tidy = (input: string) =>
@@ -92,18 +94,24 @@ const piecesOf = (text: string): Piece[] => {
     const plausible = continues || (last !== undefined && number === 1);
     if (!plausible && !(labels.length > 0 && trusted[at])) return;
     const rest = text.slice(ends[at], upTo(at)).trim();
-    if (!trusted[at] && !(continues && (following[at] === number + 1 || (lineStart && rest !== "")))) {
-      if (last && rest === "") {
+    const bare = rest === "";
+    if (!trusted[at] && (bare || !(continues && (following[at] === number + 1 || lineStart)))) {
+      const next = marks[at + 1];
+      if (last && bare && continues && (next === undefined || Number(next[1]) > number)) {
         last.stop ??= start;
         skipped = number;
-      } else if (last) last.joined = true;
+      } else if (last && !bare) last.joined = true;
       return;
     }
     skipped = null;
     chosen.push({ start, end: ends[at], number, joined: false });
   });
   if (chosen.length === 0) return text.split("\n").filter((row) => row !== "").map((body) => ({ body, joined: false }));
-  return chosen.map((entry, at) => ({ body: text.slice(entry.end, entry.stop ?? chosen[at + 1]?.start ?? text.length), joined: entry.joined }));
+  return chosen.map((entry, at) => {
+    const next = chosen[at + 1]?.start ?? text.length;
+    const emptied = entry.stop !== undefined && EMPTY_LINES.test(text.slice(entry.stop, next));
+    return { body: text.slice(entry.end, emptied ? entry.stop : next), joined: entry.joined };
+  });
 };
 
 export const splitTitle = (heading: string): { title: string; original: string } => {
