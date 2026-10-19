@@ -21,13 +21,18 @@ export type Snapshot = {
   notice: { discarded: number } | null;
 };
 
-export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true };
+export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; step?: number };
 
 export type Draft<T extends TableName> = Partial<
   Omit<Row<T>, "id" | "rev" | "updated_by" | "deleted_at" | "created_at" | "updated_at">
 >;
 
 type Dict = Record<string, unknown>;
+
+export type Step =
+  | { op: "create"; table: TableName; id: string; draft: Dict }
+  | { op: "update"; table: TableName; id: string; change: Dict }
+  | { op: "delete"; table: TableName; id: string };
 
 const notFound: Written = { ok: false, errors: ["row: not found"] };
 
@@ -259,6 +264,23 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     return { ok: true, id: mutation.row_id };
   };
 
+  const append = async (mutations: readonly Omit<Pending, "seq">[]): Promise<Written> => {
+    let seq = Math.max(nextSeq, Date.now() * 1000 + Math.floor(Math.random() * 1000));
+    const entries = mutations.map((mutation) => ({ ...mutation, seq: seq++ }));
+    nextSeq = seq;
+    outbox = [...outbox, ...entries];
+    emit();
+    try {
+      await persist({ outbox: { put: entries } });
+    } catch {
+      outbox = outbox.filter((queued) => !entries.includes(queued));
+      emit();
+      return unsaved;
+    }
+    if (link !== "expired") void sync();
+    return { ok: true, id: mutations[0]?.row_id ?? "" };
+  };
+
   const enqueue = async (mutation: Omit<Pending, "seq">): Promise<Written> => {
     const errors = validateMutation(wire(mutation));
     if (errors.length > 0) return { ok: false, errors };
@@ -267,47 +289,61 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
         ? outbox.findLast((entry) => entry.table === "settings" && entry.row_id === mutation.row_id && entry.op !== "delete" && !entry.rejected && !sending.has(entry.seq))
         : undefined;
     if (earlier) return fold(earlier, mutation);
-    const seq = Math.max(nextSeq, Date.now() * 1000 + Math.floor(Math.random() * 1000));
-    nextSeq = seq + 1;
-    const entry = { ...mutation, seq };
-    outbox = [...outbox, entry];
-    emit();
-    try {
-      await persist({ outbox: { put: [entry] } });
-    } catch {
-      outbox = outbox.filter((queued) => queued !== entry);
-      emit();
-      return unsaved;
-    }
-    if (link !== "expired") void sync();
-    return { ok: true, id: mutation.row_id };
+    return append([mutation]);
   };
 
-  const create = async <T extends TableName>(table: T, draft: Draft<T>): Promise<Written> => {
+  type Prepared = Omit<Pending, "seq"> | Written;
+
+  const isMutation = (prepared: Prepared): prepared is Omit<Pending, "seq"> => "op" in prepared;
+
+  const settle = (prepared: Prepared) => (isMutation(prepared) ? enqueue(prepared) : Promise.resolve(prepared));
+
+  const preparedCreate = (table: TableName, draft: Dict, rowId: string): Omit<Pending, "seq"> => {
     const at = toInstant(new Date());
-    const rowId = table === "settings" ? String((draft as Dict).key) : crypto.randomUUID();
     const fields = Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== undefined));
     const patch = { ...fields, [tables[table].key]: rowId, created_at: at, updated_at: at };
-    return enqueue({ id: crypto.randomUUID(), table, op: "create", row_id: rowId, patch, at });
+    return { id: crypto.randomUUID(), table, op: "create", row_id: rowId, patch, at };
   };
 
-  const update = async <T extends TableName>(table: T, rowId: string, change: Patch<T>): Promise<Written> => {
+  const preparedUpdate = (table: TableName, rowId: string, change: Dict): Prepared => {
     const row = view[table].get(rowId);
     if (!row) return notFound;
     const at = toInstant(new Date());
-    const fields = changedFields(row, change as Dict);
+    const fields = changedFields(row, change);
     if (Object.keys(fields).length === 0) return { ok: true, id: rowId };
     const patch = { ...fields, updated_at: at };
     const errors = validateChange(table, row, patch);
     if (errors.length > 0) return { ok: false, errors };
-    return enqueue({ id: crypto.randomUUID(), table, op: "update", row_id: rowId, patch, at });
+    return { id: crypto.randomUUID(), table, op: "update", row_id: rowId, patch, at };
   };
 
-  const remove = async (table: TableName, rowId: string): Promise<Written> => {
+  const preparedRemove = (table: TableName, rowId: string): Prepared => {
     const row = view[table].get(rowId);
     if (!row) return notFound;
     if (row.deleted_at !== null) return { ok: true, id: rowId };
-    return enqueue({ id: crypto.randomUUID(), table, op: "delete", row_id: rowId, patch: {}, at: toInstant(new Date()) });
+    return { id: crypto.randomUUID(), table, op: "delete", row_id: rowId, patch: {}, at: toInstant(new Date()) };
+  };
+
+  const create = async <T extends TableName>(table: T, draft: Draft<T>): Promise<Written> =>
+    enqueue(preparedCreate(table, draft, table === "settings" ? String((draft as Dict).key) : crypto.randomUUID()));
+
+  const update = async <T extends TableName>(table: T, rowId: string, change: Patch<T>): Promise<Written> =>
+    settle(preparedUpdate(table, rowId, change as Dict));
+
+  const remove = async (table: TableName, rowId: string): Promise<Written> => settle(preparedRemove(table, rowId));
+
+  const many = async (steps: readonly Step[]): Promise<Written> => {
+    const prepared = steps.map((step) =>
+      step.op === "create" ? preparedCreate(step.table, step.draft, step.id) : step.op === "update" ? preparedUpdate(step.table, step.id, step.change) : preparedRemove(step.table, step.id),
+    );
+    const failed = prepared.findIndex((entry) => !isMutation(entry) && !entry.ok);
+    if (failed >= 0) return { ...(prepared[failed] as Extract<Written, { ok: false }>), step: failed };
+    for (const [step, entry] of prepared.entries()) {
+      const errors = isMutation(entry) ? validateMutation(wire(entry)) : [];
+      if (errors.length > 0) return { ok: false, errors, step };
+    }
+    const mutations = prepared.filter(isMutation);
+    return mutations.length === 0 ? { ok: true, id: "" } : append(mutations);
   };
 
   const setSetting = (key: string, value: string) =>
@@ -340,6 +376,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     create,
     update,
     remove,
+    many,
     setSetting,
     discard,
     dismissNotice,

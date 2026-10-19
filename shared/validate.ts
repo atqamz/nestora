@@ -5,9 +5,9 @@ import type { Column, Table, Type, Variant } from "./tables.ts";
 type Plain = Record<string, unknown>;
 type Mode = "create" | "stored" | "patch";
 
-const TEXT_MAX = 500;
-const LONGTEXT_MAX = 2000;
-const NOTE_MAX = 10000;
+export const TEXT_MAX = 500;
+export const LONGTEXT_MAX = 2000;
+export const NOTE_MAX = 10000;
 const URL_MAX = 2048;
 const DATA_MAX = 20000;
 
@@ -25,7 +25,7 @@ const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
 const COVER_SHAPE = /^https:\/\/covers\.openlibrary\.org\/[\x21-\x7e]{1,200}$/;
 const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
 const UNWANTED = /(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}]/u;
-const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
+export const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
 
 export type Stage = { key: string; name: string; from: number; to: number };
 

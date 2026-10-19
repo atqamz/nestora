@@ -311,6 +311,12 @@ function AddForm({ seed }: { seed: string }) {
         </p>
         {read && <p className="saved-as">{text.sheet.savedAs(draft.title)}</p>}
         {kind === "book" && <BookFields form={book} />}
+        {kind === "book" && (
+          <a className="button secondary imp-link" href="#/books/import">
+            <Icon name="download" />
+            {text.books.import.open}
+          </a>
+        )}
         {kind !== "book" && (
           <ul className="chips" aria-label={text.sheet.chips}>
             {chips.map((chip) => (

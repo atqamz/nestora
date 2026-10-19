@@ -12,12 +12,15 @@ export const actions = {
   create: store.create,
   update: store.update,
   remove: store.remove,
+  many: store.many,
   setSetting: store.setSetting,
   discard: store.discard,
   dismissNotice: store.dismissNotice,
   sync: store.sync,
   logIn: () => location.assign(LOGIN_URL),
 };
+
+export const readItems = () => store.getSnapshot().rows.items;
 
 export const useSnapshot = () => useSyncExternalStore(store.subscribe, store.getSnapshot);
 

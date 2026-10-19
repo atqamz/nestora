@@ -29,6 +29,7 @@ import "./views/home.css";
 import "./views/money.css";
 import "./views/people.css";
 import "./views/books.css";
+import "./views/import.css";
 import "./views/settings.css";
 import "./views/entry.css";
 

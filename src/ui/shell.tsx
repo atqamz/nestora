@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
 import { AddSheet } from "./add-sheet.tsx";
 import { Pair } from "./avatar.tsx";
+import { sweepUndone } from "./book-import.ts";
 import { Icon } from "./icons.tsx";
 import { isCurrent, navEntries } from "./nav.ts";
 import { overlay, useOverlay } from "./overlay.ts";
@@ -29,8 +31,9 @@ function Nav({ className, section }: { className: "tabs" | "rail"; section: stri
 }
 
 export function Shell({ section, children }: { section: string; children: ReactNode }) {
-  const { notice } = useSnapshot();
+  const { notice, rows } = useSnapshot();
   const { toast } = useOverlay();
+  useEffect(() => sweepUndone(rows.items, actions.many), [rows.items]);
   const home = section === "";
   return (
     <div className="shell">

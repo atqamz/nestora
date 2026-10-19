@@ -208,6 +208,7 @@ export const createServer = () => {
     seen,
     asked,
     row: (table: TableName, id: string) => state[table].get(id),
+    rows: (table: TableName) => [...state[table].values()],
     wipe: () => {
       state = Object.fromEntries(tableNames.map((table) => [table, new Map()])) as State;
       rev = 0;

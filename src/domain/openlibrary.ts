@@ -126,6 +126,13 @@ const blank = (value: string) => value.trim() === "";
 export const sameBook = (book: { title: string; original: unknown }, found: string) =>
   blank(book.title) || sameTitle(book.title, found) || (typeof book.original === "string" && !blank(book.original) && sameTitle(book.original, found));
 
+const surnames = (names: string) => names.split(/[;&]/).map((name) => fold(name.split(",")[0]).split(" ").at(-1) ?? "");
+
+export const sameAuthor = (typed: unknown, found: string) => {
+  const have = surnames(found);
+  return typeof typed === "string" && surnames(typed).some((name) => name.length >= 2 && have.includes(name));
+};
+
 export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
 
 export type Field = (typeof AUTO)[number];

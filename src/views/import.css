@@ -1,0 +1,146 @@
+.imp-form {
+  max-width: 40rem;
+}
+
+.imp-paste {
+  min-height: 9rem;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.imp-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.imp-seg {
+  margin: 0;
+}
+
+input[type="file"] {
+  min-height: var(--target-min);
+  padding: var(--s2) var(--s3);
+}
+
+.imp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s3) 0;
+}
+
+.imp-bar > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.imp-bar svg,
+.imp-link svg {
+  flex: none;
+}
+
+.imp-link {
+  margin-top: var(--s3);
+}
+
+.imp-rows,
+.imp-batches {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--r-group);
+  box-shadow: 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+
+.imp-rows li + li,
+.imp-batches li + li {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.imp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  min-width: 0;
+  min-height: var(--row-min);
+  padding: var(--s3);
+  cursor: pointer;
+}
+
+.imp-row input {
+  flex: none;
+  margin: 0;
+}
+
+.imp-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.imp-warns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s3);
+}
+
+.imp-warn {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.imp-warn[data-warning="exists"],
+.imp-warn[data-warning="twice"] {
+  color: var(--late);
+}
+
+.imp-batch {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s3);
+}
+
+.imp-confirm {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.imp-line {
+  margin: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.imp-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.imp-acts > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.imp-progress:empty {
+  display: none;
+}
+
+.imp-problem,
+.imp-done {
+  margin: var(--s4) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.imp-done {
+  font-weight: 650;
+}

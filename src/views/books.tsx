@@ -19,6 +19,7 @@ import { Money } from "../ui/money.tsx";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 import { BookDetail } from "./book.tsx";
+import { ImportBooks } from "./import.tsx";
 import { Places } from "./places.tsx";
 
 type Mode = "shelf" | "wish";
@@ -63,6 +64,10 @@ function Head({ mode, shelf, wishes, onAdd }: { mode: Mode; shelf: number; wishe
           <Icon name="place" />
           {text.books.places}
         </a>
+        <a className="button secondary" href="#/books/import">
+          <Icon name="download" />
+          {text.books.import.open}
+        </a>
       </div>
     </>
   );
@@ -95,6 +100,7 @@ function Wish({ book }: { book: ItemRow }) {
   const [failure, setFailure] = useState<string[]>([]);
   const by = typeof book.data?.author === "string" ? book.data.author : null;
   const shop = typeof book.data?.shop === "string" ? book.data.shop : null;
+  const rated = typeof book.data?.rated_elsewhere === "string" ? book.data.rated_elsewhere : null;
   return (
     <li className="bk wish">
       <a className="bk-link" href={`#/books/${book.id}`}>
@@ -107,6 +113,7 @@ function Wish({ book }: { book: ItemRow }) {
             {book.data?.gift === true && <span>{text.books.giftIdea}</span>}
             {book.amount !== null && <Money rupiah={book.amount} />}
           </span>
+          {rated && <span className="bk-by">{text.books.ratedElsewhere(rated)}</span>}
         </span>
       </a>
       {(book.note || shop) && (
@@ -276,6 +283,7 @@ function Wishlist() {
 
 export function Books({ route, id }: { route: string; id?: string }) {
   if (route === "places") return <Places />;
+  if (id === "import") return <ImportBooks />;
   if (id !== undefined) return <BookDetail key={id} id={id} />;
   return route === "wishlist" ? <Wishlist /> : <Shelf />;
 }

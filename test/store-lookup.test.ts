@@ -270,14 +270,45 @@ test("a request that cannot connect is offline", async () => {
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "offline" });
 });
 
-test("every status but 200 is a failure, and so is a body that is not JSON", async () => {
-  for (const status of [204, 301, 400, 403, 404, 429, 500, 503]) {
+test("every status but 200 is a failure, 429 and 5xx say it is worth retrying, and so is a body that is not JSON", async () => {
+  for (const status of [204, 301, 400, 403, 404]) {
     const lookup = createLookup({ fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
     assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed" }, String(status));
   }
+  for (const status of [429, 500, 503, 599]) {
+    const lookup = createLookup({ fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
+    assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed", retry: 0 }, String(status));
+  }
+  assert.deepEqual(await createLookup({ fetcher: server(() => reply({}, 499)).fetcher, wait: 1 }).search(input("laskar")), { kind: "failed" });
   const lookup = createLookup({ fetcher: server(() => reply("<html>")).fetcher, wait: 1 });
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed" });
   assert.deepEqual(await lookup.blurb("OL1W"), { kind: "failed" });
+});
+
+test("a Retry-After header is read as seconds or as a date and passed on, and nonsense or a past date means no wait", async () => {
+  const after = async (value: string | null) => {
+    const headers: Record<string, string> = value === null ? {} : { "retry-after": value };
+    const out = await createLookup({ fetcher: server(() => new Response("{}", { status: 429, headers })).fetcher, wait: 1 }).search(input("laskar"));
+    return out.kind === "failed" ? out.retry : undefined;
+  };
+  assert.equal(await after("12"), 12_000);
+  assert.equal(await after("0"), 0);
+  assert.equal(await after("2.5"), 2500);
+  assert.equal(await after(null), 0);
+  assert.equal(await after(""), 0);
+  assert.equal(await after(" "), 0);
+  assert.equal(await after("soon"), 0);
+  assert.equal(await after("-5"), 0);
+  assert.equal(await after("Wed, 21 Oct 2015 07:28:00 GMT"), 0);
+  const later = (await after(new Date(Date.now() + 20_000).toUTCString()))!;
+  assert.ok(later > 18_000 && later <= 20_000, String(later));
+});
+
+test("a stopped lookup is stale even when the server said it was busy", async () => {
+  const lookup = createLookup({ fetcher: server(() => new Response("{}", { status: 503 })).fetcher, wait: 1 });
+  const pending = lookup.search(input("laskar"));
+  lookup.stop();
+  assert.deepEqual(await pending, { kind: "stale" });
 });
 
 test("a very slow answer is cut off at the timeout and reported as slow, and the request is aborted", async () => {
@@ -327,7 +358,7 @@ test("the original title is not searched when the title already found something 
   assert.equal(out.kind, "ok");
   assert.equal(found.calls.length, 1);
   const down = server(() => reply({}, 500));
-  assert.deepEqual(await createLookup({ fetcher: down.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince")), { kind: "failed" });
+  assert.deepEqual(await createLookup({ fetcher: down.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince")), { kind: "failed", retry: 0 });
   assert.equal(down.calls.length, 1);
 });
 
@@ -507,7 +538,7 @@ test("a book that has it all gets nothing new, and an empty ISBN answer is empty
 
 test("a failed, slow, offline or superseded lookup is reported as it is, so the button can come back", async () => {
   const book = () => bookOf("Laskar Pelangi");
-  assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({}, 500)).fetcher }), "9789793062792", book), { kind: "failed" });
+  assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({}, 500)).fetcher }), "9789793062792", book), { kind: "failed", retry: 0 });
   assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({})).fetcher, online: () => false }), "9789793062792", book), { kind: "offline" });
   const hold = server(() => new Promise<Response>(() => {}));
   const lookup = createLookup({ fetcher: hold.fetcher, wait: 1 });

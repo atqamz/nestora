@@ -157,6 +157,7 @@ export const tables = {
           ol: "text",
           gb: "text",
           public_rating: "decimal",
+          rated_elsewhere: "text",
           priority: ["high", "low"],
           gift: "bool",
           shop: "text",
