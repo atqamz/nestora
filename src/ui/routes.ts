@@ -1,4 +1,4 @@
-export type Screen = "home" | "tasks" | "money" | "payments" | "people" | "settings" | "sync";
+export type Screen = "home" | "tasks" | "money" | "payments" | "people" | "books" | "settings" | "sync";
 
 export const screens: Readonly<Record<string, Screen>> = {
   "": "home",
@@ -9,6 +9,9 @@ export const screens: Readonly<Record<string, Screen>> = {
   people: "people",
   guests: "people",
   vendors: "people",
+  books: "books",
+  wishlist: "books",
+  places: "books",
   settings: "settings",
   sync: "sync",
 };

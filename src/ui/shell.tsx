@@ -62,7 +62,22 @@ export function Shell({ section, children }: { section: string; children: ReactN
       </div>
       <Nav className="tabs" section={section} />
       <div className="toast" role="status">
-        {toast && <p key={toast.id}>{toast.message}</p>}
+        {toast && (
+          <p key={toast.id}>
+            <span>{toast.message}</span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action!.run();
+                  overlay.dismissToast();
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
+          </p>
+        )}
       </div>
       <AddSheet />
     </div>

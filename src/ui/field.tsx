@@ -29,7 +29,7 @@ const attributes = (type: Type, words?: true) =>
         ? { type: "url", inputMode: "url" as const, autoComplete: "off", autoCapitalize: "none", autoCorrect: "off", spellCheck: false }
         : type === "int"
           ? { type: "text", inputMode: "numeric" as const, autoComplete: "off", enterKeyHint: "done" as const }
-          : type === "zone"
+          : type === "zone" || type === "isbn"
             ? { type: "text", autoComplete: "off", autoCapitalize: "none", spellCheck: false }
             : { type: "text", autoComplete: "off", autoCapitalize: words ? "words" : "sentences" };
 

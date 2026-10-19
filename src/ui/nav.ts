@@ -2,12 +2,13 @@ import { screenOf } from "./routes.ts";
 import type { Screen } from "./routes.ts";
 import { text } from "./text.ts";
 
-type Item = { section: string; icon: "home" | "money" | "people" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
+type Item = { section: string; icon: "home" | "money" | "people" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
 
 const items: Item[] = [
   { section: "", icon: "home", label: text.nav.home, screens: ["home", "tasks"] },
   { section: "money", icon: "money", label: text.nav.money, screens: ["money", "payments"] },
   { section: "people", icon: "people", label: text.nav.people, screens: ["people"] },
+  { section: "books", icon: "book", label: text.nav.books, screens: ["books"] },
   { section: "settings", icon: "settings", label: text.nav.settings, screens: ["settings"], rail: true },
 ];
 

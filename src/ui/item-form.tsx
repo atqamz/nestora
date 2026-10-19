@@ -6,6 +6,7 @@ import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import type { Written } from "../hooks/use-store.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { failureOf, splitErrors } from "./failure.ts";
 import { Field } from "./field.tsx";
@@ -23,9 +24,15 @@ const valueOf = (row: Row, field: string) =>
   (field.startsWith("data.") ? (row.data?.[field.slice(5)] ?? null) : (row[field as keyof Row] ?? null)) as Value;
 
 export const backHref = (name: ViewName, row: Row) =>
-  name === "payment" ? `#/money/${(row as BudgetEntryRow).budget_id}` : `#/${views[name].route}`;
+  name === "payment"
+    ? `#/money/${(row as BudgetEntryRow).budget_id}`
+    : name === "book" && (row as ItemRow).status === "wish"
+      ? "#/wishlist"
+      : `#/${views[name].route}`;
 
-export function ItemForm({ name, row }: { name: ViewName; row: Row }) {
+type Props = { name: ViewName; row: Row; only?: readonly string[]; onRemove?: () => Promise<Written> };
+
+export function ItemForm({ name, row, only, onRemove }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
   const form = useRef<HTMLFormElement>(null);
@@ -43,8 +50,8 @@ export function ItemForm({ name, row }: { name: ViewName; row: Row }) {
         .flatMap((other) => (other.group_key ? [other.group_key] : [])),
     );
     const names = name === "guest" || name === "vendor";
-    const title: Control = { name: "title", label: text.field.common.title, type: "text", required: true, value: row.title, words: names ? true : undefined };
-    const rest = view.fields.map((field): Control => {
+    const title: Control = { name: "title", label: fieldLabel(name, "title"), type: "text", required: true, value: row.title, words: names ? true : undefined };
+    const rest = (only ?? view.fields).map((field): Control => {
       const options = fieldOptions(name, field);
       const grouped = field === "group_key";
       const events = grouped && name === "planned" ? [...new Set([...EVENT_ORDER, ...used])] : null;
@@ -69,7 +76,7 @@ export function ItemForm({ name, row }: { name: ViewName; row: Row }) {
       };
     });
     return [title, ...rest];
-  }, [row, siblings, name, view, label]);
+  }, [row, siblings, name, view, only, label]);
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -116,7 +123,7 @@ export function ItemForm({ name, row }: { name: ViewName; row: Row }) {
 
   const remove = () =>
     once(async () => {
-      const result = await actions.remove(view.table, row.id);
+      const result = await (onRemove ? onRemove() : actions.remove(view.table, row.id));
       setFailure(failureOf(result));
     });
 

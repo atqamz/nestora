@@ -256,6 +256,9 @@ html:has(dialog[open]) {
 }
 
 .toast p {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
   max-width: 28rem;
   margin: 0;
   padding: var(--s3) var(--s4);
@@ -265,6 +268,18 @@ html:has(dialog[open]) {
   font-size: var(--fs-meta);
   font-weight: 550;
   box-shadow: 0 12px 30px -12px color-mix(in oklch, var(--shade) 50%, transparent);
+}
+
+.toast span {
+  min-width: 0;
+}
+
+.toast button {
+  flex: none;
+  border-color: currentColor;
+  background: transparent;
+  color: inherit;
+  pointer-events: auto;
 }
 
 @media (min-width: 62.5rem) {
