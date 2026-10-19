@@ -372,14 +372,30 @@ test("both Add sheets and the book detail get the scan: the shared form fills th
   assert.match(detail, /\{\(isbn === null \|\| kept\) && <ScanIsbn onIsbn=\{\(code\) => void onScan\(code\)\} \/>\}/);
   assert.match(detail, /if \(isbn === null && work === null && !can\) return null;/);
   assert.match(detail, /const step = await scanBook\(lookup, code, \(\) => latest\.current\);/);
-  assert.match(detail, /if \(step\.kind === "write"\) return write\(code\);/);
-  assert.match(detail, /if \(step\.kind === "confirm"\) setPending\(\{ old: step\.old, code \}\);/);
-  assert.match(detail, /onClick=\{\(\) => void write\(pending\.code\)\}/);
+  assert.match(detail, /if \(next\.kind === "write"\) return write\(code\);/);
   assert.equal(detail.match(/actions\.update\("items", book\.id, \{ data: \{ isbn: code \} \}\)/g)?.length, 1);
   assert.match(detail, /if \(result\.ok\) await run\(code\);/);
   assert.equal(text.books.lookup.replace, "Replace ISBN?");
   assert.equal(text.books.lookup.replaceBody(PRINCE, LASKAR), `Now ${PRINCE}. Scanned ${LASKAR}.`);
   assert.match(read("views/book.tsx"), /<FillBook key=\{book\.id\} book=\{book\} \/>/);
+});
+
+test("the Replace step is driven by the pure decisions: a superseded scan is dropped, Keep only dismisses, Replace writes what was decided, Escape from the camera dialog is not for the prompt, and the prompt shows old then scanned", () => {
+  const view = read("ui/book-lookup.tsx");
+  assert.match(view, /const mine = scans\.current\.begin\(\);\s*setPending\(null\);\s*setFailure\(\[\]\);\s*setState\("busy"\);/);
+  assert.match(view, /const next = landing\(scans\.current\.latest\(mine\), step, code, latest\.current\);\s*if \(next\.kind === "drop"\) return;\s*if \(next\.kind === "write"\) return write\(code\);\s*setState\(next\.state\);\s*setPending\(next\.pending\);/);
+  assert.match(view, /const \{ write: code, changed \} = decide\(pending, choice, latest\.current\);\s*dismiss\(\);\s*if \(changed\) setState\("changed"\);\s*if \(code !== null\) void write\(code\);/);
+  assert.match(view, /<button ref=\{keep\} type="button" className="secondary" onClick=\{\(\) => choose\("keep"\)\}>\s*\{WORDS\.replaceNo\}/);
+  assert.match(view, /<button type="button" onClick=\{\(\) => choose\("replace"\)\}>\s*\{WORDS\.replaceYes\}/);
+  assert.equal(view.match(/write\(/g)?.length, 2);
+  assert.match(view, /const write = async \(code: string\) => \{\s*dismiss\(\);\s*setKept\(true\);\s*const result = await actions\.update\("items", book\.id, \{ data: \{ isbn: code \} \}\);/);
+  assert.match(view, /if \(pending !== null\) keep\.current\?\.focus\(\);/);
+  assert.match(view, /setPending\(null\);\s*box\.current\?\.querySelector<HTMLElement>\("button:not\(\[disabled\]\)"\)\?\.focus\(\);/);
+  assert.match(view, /onKeyDown=\{\(event\) => dismisses\(event\.key, pending !== null, event\.target instanceof Element && event\.target\.closest\("dialog"\) !== null\) && dismiss\(\)\}/);
+  assert.match(view, /<p className="hint">\{WORDS\.replaceBody\(pending\.old, pending\.code\)\}<\/p>/);
+  assert.match(view, /state === "changed" \? WORDS\.changed/);
+  assert.match(view, /const \[state, setState\] = useState<Fill \| "nothing" \| "changed">\("idle"\);/);
+  assert.equal(text.books.lookup.changed, "This book changed while you decided. The ISBN was not replaced.");
 });
 
 test("a dialog inside a sheet closes alone: the sheet's close handler ignores a close that came from a dialog within it", () => {

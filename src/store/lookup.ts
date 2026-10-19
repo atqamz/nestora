@@ -127,7 +127,7 @@ type Typed = () => { title: string; data: Record<string, unknown> | null };
 const complete = async (lookup: Lookup, hit: Hit, read: Typed): Promise<Filled> => {
   if (fillPatch(read(), hit, null) === null) return { kind: "mismatch" };
   const wanted = read().data?.blurb === undefined ? await lookup.blurb(hit.work) : null;
-  if (wanted?.kind === "stale") return wanted;
+  if (wanted !== null && wanted.kind !== "ok" && (wanted.kind !== "failed" || wanted.retry !== undefined)) return wanted;
   const patch = fillPatch(read(), hit, wanted?.kind === "ok" ? wanted.value : null);
   if (patch === null) return { kind: "mismatch" };
   return Object.keys(patch).length === 0 ? { kind: "nothing" } : { kind: "patch", patch };
@@ -146,10 +146,10 @@ export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled | {
   const found = await lookup.search({ title, author: word(data?.author), original: word(data?.original_title) });
   if (found.kind !== "ok") return found;
   const titled = found.value.filter((candidate) => fillPatch(read(), candidate, null) !== null);
-  if (titled.length > 0 && word(data?.author).trim() === "") return { kind: "unsure" };
   const confirmed = titled.filter((candidate) => sameAuthor(data?.author, candidate.author));
   if (new Set(confirmed.map((candidate) => candidate.work)).size > 1) return { kind: "unsure" };
-  return confirmed.length === 0 ? { kind: "empty" } : complete(lookup, confirmed[0], read);
+  if (confirmed.length === 0) return titled.length > 0 ? { kind: "unsure" } : { kind: "empty" };
+  return complete(lookup, confirmed[0], read);
 };
 
 export type Fill = "idle" | "busy" | "empty" | "mismatch" | "offline" | "failed" | "slow" | "done";
@@ -180,3 +180,26 @@ export const scanBook = async (lookup: Lookup, code: string, read: () => { title
   const old = text(book.data?.isbn);
   return old === "" ? { kind: "write" } : { kind: "confirm", old };
 };
+
+type Book = { title: string; data: Record<string, unknown> | null };
+
+export type Pending = { old: string; code: string; title: string; original: string };
+
+export type Landing = { kind: "drop" } | { kind: "write" } | { kind: "show"; state: "idle" | "mismatch"; pending: Pending | null };
+
+export const landing = (latest: boolean, step: Scan, code: string, book: Book): Landing => {
+  if (!latest) return { kind: "drop" };
+  if (step.kind === "write") return { kind: "write" };
+  if (step.kind === "confirm") return { kind: "show", state: "idle", pending: { old: step.old, code, title: book.title, original: text(book.data?.original_title) } };
+  return { kind: "show", state: step.kind === "mismatch" ? "mismatch" : "idle", pending: null };
+};
+
+export type Choice = "keep" | "replace";
+
+export const decide = (pending: Pending, choice: Choice, book: Book): { write: string | null; changed: boolean } => {
+  if (choice === "keep") return { write: null, changed: false };
+  const same = text(book.data?.isbn) === pending.old && book.title === pending.title && text(book.data?.original_title) === pending.original;
+  return same ? { write: pending.code, changed: false } : { write: null, changed: true };
+};
+
+export const dismisses = (key: string, open: boolean, inDialog: boolean) => open && key === "Escape" && !inDialog;

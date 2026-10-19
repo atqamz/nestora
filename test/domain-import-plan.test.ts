@@ -213,6 +213,14 @@ test("the books of a batch come in paste order", () => {
   assert.deepEqual(batchesOf([recent, old]).map((batch) => batch.id), ["new", "old"]);
 });
 
+test("a batch is dated by its earliest book, whatever the order the rows come in", () => {
+  const stamps = ["2026-10-03T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-02T00:00:00Z"];
+  for (const order of [stamps, [...stamps].reverse(), [stamps[1], stamps[0], stamps[2]]]) {
+    const items = order.map((created_at, at) => book(at + 1, { title: `B${at}`, created_at, data: { import_batch: "x" } }));
+    assert.equal(batchesOf(items)[0].at, "2026-10-01T00:00:00Z");
+  }
+});
+
 test("batches are listed newest first with their live books, and a batch's rows include its copies only", () => {
   const items = [
     book(1, { title: "A", created_at: "2026-10-01T00:00:00Z", data: { import_batch: "old" } }),

@@ -521,6 +521,7 @@ export const text = {
       replaceBody: (old: string, code: string) => `Now ${old}. Scanned ${code}.`,
       replaceYes: "Replace",
       replaceNo: "Keep",
+      changed: "This book changed while you decided. The ISBN was not replaced.",
       nothingNew: "Nothing new to add.",
       coverOf: (title: string) => `Cover of ${title}`,
     },

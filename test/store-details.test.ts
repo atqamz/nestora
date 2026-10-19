@@ -5,7 +5,7 @@ import type { ItemRow } from "../shared/tables.ts";
 import { GAP_MS, findDetails, needsDetails, paced } from "../src/store/details.ts";
 import type { Tally } from "../src/store/details.ts";
 import { createLookup } from "../src/store/lookup.ts";
-import type { Fetcher } from "../src/store/lookup.ts";
+import type { Fetcher, Lookup } from "../src/store/lookup.ts";
 import { text } from "../src/ui/text.ts";
 import { item } from "./domain-rows.ts";
 
@@ -18,6 +18,8 @@ const SEARCHES: [RegExp, string][] = [
 ];
 
 const WORKS: Record<string, string> = { OL15302003W: "laskar-pelangi-work", OL10263W: "little-prince-work" };
+
+const INVENTED: Record<string, string> = { OL307247W: JSON.stringify({ description: "Invented synopsis." }) };
 
 const clock = () => {
   const state = { now: 0, waits: [] as number[], starts: [] as number[], ends: [] as number[], open: 0, peak: 0, calls: [] as string[] };
@@ -48,8 +50,8 @@ const openLibrary = (state: ReturnType<typeof clock>["state"], broken: RegExp | 
     const found = SEARCHES.find(([pattern]) => pattern.test(query));
     return new Response(found ? sample(found[1]) : JSON.stringify({ docs: [] }));
   }
-  const work = WORKS[url.pathname.replace(/^\/works\/|\.json$/g, "")];
-  return work ? new Response(sample(work)) : new Response("{}", { status: 404 });
+  const key = url.pathname.replace(/^\/works\/|\.json$/g, "");
+  return WORKS[key] ? new Response(sample(WORKS[key])) : INVENTED[key] ? new Response(INVENTED[key]) : new Response("{}", { status: 404 });
 };
 
 const book = (title: string, data: Record<string, unknown> = {}) => item({ kind: "book", status: "wish", title, data: { import_batch: "b", ...data } });
@@ -138,10 +140,10 @@ test("what was typed or imported is never overwritten, and no blurb is requested
   assert.equal(state.calls.some((call) => call.startsWith("/works/")), false);
 });
 
-test("a title that matches only an author of a different name is not accepted, and a hit by the same surname is", async () => {
+test("a title that matches only an author of a different name is skipped as not sure, and a hit by the same name is written", async () => {
   const wrong = rig([book("Bumi Manusia", { author: "Somebody Else" })]);
   assert.equal(await wrong.run(), "finished");
-  assert.deepEqual([wrong.saved.length, wrong.steps[0][1]], [0, { filled: 0, empty: 1, failed: 0, unsure: 0 }]);
+  assert.deepEqual([wrong.saved.length, wrong.steps[0][1]], [0, { filled: 0, empty: 0, failed: 0, unsure: 1 }]);
   const right = rig([book("Bumi Manusia", { author: "Pramoedya Ananta Toer" }), book("Bumi Manusia", { author: "Toer, Pramoedya Ananta" })]);
   await right.run();
   assert.deepEqual(right.saved.map(([, patch]) => patch.ol), ["OL307247W", "OL307247W"]);
@@ -158,21 +160,33 @@ const outcome = async (typed: Record<string, unknown>, ...docs: ReturnType<typeo
   return { saved, tally: steps[0][1] };
 };
 
-test("a hit by another author is never written, whatever the title and however much of the name is shared", async () => {
-  const none = { filled: 0, empty: 1, failed: 0, unsure: 0 };
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["John Green"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "Pramoedya" }, doc("OL1W", "Placeholder Gamma", ["Pramoedya Ananta Toer"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "Pramudya Ananta Tur" }, doc("OL1W", "Placeholder Gamma", ["Pramoedya Ananta Toer"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John S." }, doc("OL1W", "Placeholder Gamma", ["John Smith"])), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma")), { saved: [], tally: none });
-  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Another Placeholder", ["John Smith"])), { saved: [], tally: none });
+const unsure = { saved: [], tally: { filled: 0, empty: 0, failed: 0, unsure: 1 } };
+
+test("a hit by another author, a part of the name or a title that differs is never written", async () => {
+  const none = { saved: [], tally: { filled: 0, empty: 1, failed: 0, unsure: 0 } };
+  for (const [typed, found] of [["John Smith", "John Green"], ["John Smith", "Adam Smith"], ["John Smith", "Smith, Adam"], ["Wang Wei", "Li Wei"], ["Pramoedya", "Pramoedya Ananta Toer"], ["Pramudya Ananta Tur", "Pramoedya Ananta Toer"], ["Ed Ford II", "Al Ford III"], ["J. Smith", "John Smith"], ["John S.", "John Smith"], ["Prof. John Smith", "John Smith"]])
+    assert.deepEqual(await outcome({ author: typed }, doc("OL1W", "Placeholder Gamma", [found])), unsure, `${typed} / ${found}`);
+  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma")), unsure);
+  assert.deepEqual(await outcome({ author: "" }, doc("OL1W", "Placeholder Gamma", ["John Smith"])), unsure);
+  assert.deepEqual(await outcome({}, doc("OL1W", "Placeholder Gamma", ["John Smith"])), unsure);
+  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", ["Jane Smith"])), unsure);
+  assert.deepEqual(await outcome({ author: "John Smith" }, doc("OL1W", "Another Placeholder", ["John Smith"])), none);
 });
 
-test("a hit by the same surname with the same title is written, and nothing else on it is trusted beyond the existing rules", async () => {
-  const { saved, tally } = await outcome({ author: "J. Smith" }, doc("OL1W", "Placeholder Gamma", ["John Smith"]));
-  assert.deepEqual(tally, { filled: 1, empty: 0, failed: 0, unsure: 0 });
-  assert.equal(saved[0][1].ol, "OL1W");
-  assert.equal(saved[0][1].blurb, "Invented synopsis.");
+test("a typed two-author list with Surname, Given entries is written only from a hit that lists both authors", async () => {
+  const typed = { author: "Okoye, Maren and Lindqvist, Tove" };
+  for (const found of [["Rafi Lindqvist"], ["Anna Tove"], ["Dara Maren"], ["Maren Okoye"], ["Tove Lindqvist"]]) assert.deepEqual(await outcome(typed, doc("OL1W", "Placeholder Gamma", found)), unsure, found.join());
+  for (const found of [["Maren Okoye", "Tove Lindqvist"], ["Tove Lindqvist", "Maren Okoye"], ["Okoye, Maren", "Lindqvist, Tove", "Rafi Okoye"]]) {
+    const { saved, tally } = await outcome(typed, doc("OL1W", "Placeholder Gamma", ["Rafi Voss"]), doc("OL2W", "Placeholder Gamma", found));
+    assert.deepEqual([saved[0][1].ol, saved[0][1].blurb, tally.unsure], ["OL2W", "Invented synopsis.", 0], found.join());
+  }
+});
+
+test("an author that is the same name in another order, or with a generational suffix, is written", async () => {
+  for (const [given, found] of [["John Smith", "Smith, John"], ["Ed Ford Jr.", "Ed Ford"], ["Smith, John", "John Smith"]]) {
+    const { saved, tally } = await outcome({ author: given }, doc("OL1W", "Placeholder Gamma", ["Adam Smith"]), doc("OL2W", "Placeholder Gamma", [found]));
+    assert.deepEqual([saved[0][1].ol, saved[0][1].blurb, tally], ["OL2W", "Invented synopsis.", { filled: 1, empty: 0, failed: 0, unsure: 0 }], given);
+  }
 });
 
 test("an empty typed author is skipped as not sure, never matched on the title alone", async () => {
@@ -182,7 +196,7 @@ test("an empty typed author is skipped as not sure, never matched on the title a
   assert.deepEqual((await outcome({}, doc("OL1W", "Another Placeholder", ["Writer One"]))).tally, { filled: 0, empty: 1, failed: 0, unsure: 0 });
 });
 
-test("a common title with several authors is written only when exactly one work carries the typed surname", async () => {
+test("a common title with several authors is written only when exactly one work carries the typed author", async () => {
   const crowd = [doc("OL1W", "Placeholder Gamma", ["Writer One"]), doc("OL2W", "Placeholder Gamma", ["Writer One", "Writer Two"]), doc("OL3W", "Placeholder Gamma", ["Writer Three"])];
   assert.deepEqual(await outcome({ author: "Writer One" }, ...crowd), { saved: [], tally: { filled: 0, empty: 0, failed: 0, unsure: 1 } });
   const alone = await outcome({ author: "Writer Three" }, ...crowd);
@@ -241,6 +255,70 @@ test("429 and 5xx are not a no-match: the pass backs off with a doubling pause, 
     assert.equal([...rows.values()].every(needsDetails), true);
     assert.equal(state.calls.length, 3);
   }
+});
+
+const gone = (status: number, headers: Record<string, string> = {}): Answer => (url) => (url.pathname.startsWith("/works/") ? new Response("slow down", { status, headers }) : undefined);
+
+test("a synopsis request that is refused as busy backs off like any lookup, asks again, and the book is filled with the synopsis", async () => {
+  let refused = 0;
+  const { run, saved, backoffs, state } = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url, call) => (url.pathname.startsWith("/works/") && refused++ < 2 ? gone(429)(url, call) : undefined) });
+  assert.equal(await run(), "finished");
+  assert.deepEqual(backoffs, [2000, 4000]);
+  assert.equal(saved.length, 1);
+  assert.equal(typeof saved[0][1].blurb, "string");
+  assert.deepEqual(state.calls.filter((call) => call.startsWith("/works/")).length, 3);
+});
+
+test("a synopsis request that keeps failing stops the pass as busy and leaves the book untried, so Resume fetches it", async () => {
+  for (const status of [429, 500, 503]) {
+    let down = true;
+    const { run, saved, steps, backoffs, rows } = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url, call) => (down ? gone(status)(url, call) : undefined) });
+    assert.equal(await run(), "busy", String(status));
+    assert.deepEqual([saved.length, steps.length, backoffs], [0, 0, [2000, 4000]], String(status));
+    assert.equal([...rows.values()].every(needsDetails), true);
+    down = false;
+    assert.equal(await run(), "finished");
+    assert.equal(typeof saved[0][1].blurb, "string");
+    assert.equal([...rows.values()].some(needsDetails), false);
+  }
+});
+
+test("a synopsis request by ISBN that is refused is handled the same way: no save, no done mark", async () => {
+  const { run, saved, rows } = rig([book("Laskar Pelangi", { isbn: "9789793062792" })], { answer: gone(503) });
+  assert.equal(await run(), "busy");
+  assert.deepEqual(saved, []);
+  assert.equal([...rows.values()].every(needsDetails), true);
+});
+
+test("a synopsis request that is offline or too slow never marks the book done", async () => {
+  const dropped: Answer = (url) => (url.pathname.startsWith("/works/") ? Promise.reject(new Error("down")) : undefined);
+  const lost = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: dropped });
+  assert.equal(await lost.run(), "offline");
+  assert.deepEqual([lost.saved.length, lost.steps.length, needsDetails([...lost.rows.values()][0])], [0, 0, true]);
+  const slow = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url, call, signal) => (url.pathname.startsWith("/works/") ? new Promise<Response>((_, reject) => signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))) : undefined), timeout: 20 });
+  assert.equal(await slow.run(), "busy");
+  assert.deepEqual([slow.saved.length, needsDetails([...slow.rows.values()][0])], [0, true]);
+});
+
+test("a synopsis page that is missing or unreadable does not stop the other fields from being filled", async () => {
+  const missing = rig([book("Laskar Pelangi", { author: "Andrea Hirata" }), book("Bumi Manusia", { author: "Pramoedya Ananta Toer" })], {
+    answer: (url, call) => (/OL15302003W/.test(url.pathname) ? gone(404)(url, call) : undefined),
+  });
+  assert.equal(await missing.run(), "finished");
+  assert.deepEqual(missing.saved.map(([, patch]) => [patch.ol, patch.blurb === undefined]), [["OL15302003W", true], ["OL307247W", false]]);
+  assert.deepEqual(missing.steps.map(([, tally]) => tally), [{ filled: 1, empty: 0, failed: 0, unsure: 0 }, { filled: 2, empty: 0, failed: 0, unsure: 0 }]);
+  const broken = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url) => (url.pathname.startsWith("/works/") ? new Response("<html>", { status: 200 }) : undefined) });
+  assert.equal(await broken.run(), "finished");
+  assert.deepEqual(broken.saved.map(([, patch]) => [patch.ol, patch.blurb === undefined]), [["OL15302003W", true]]);
+});
+
+test("stopping while the synopsis is in flight leaves the book untried", async () => {
+  const { run, controller, saved, rows } = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: (url, call, signal) => (url.pathname.startsWith("/works/") ? new Promise<Response>((_, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")))) : undefined) });
+  const pass = run();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  controller.abort();
+  assert.equal(await pass, "stopped");
+  assert.deepEqual([saved.length, needsDetails([...rows.values()][0])], [0, true]);
 });
 
 test("Resume after a busy stop picks the same books up again and fills them", async () => {
@@ -421,4 +499,52 @@ test("a Retry-After of exactly the cap is waited out, and one second more ends t
   const over = rig([book("Laskar Pelangi", { author: "Andrea Hirata" })], { answer: busy(429, { "retry-after": "61" }) });
   assert.equal(await over.run(), "busy");
   assert.deepEqual(over.backoffs, []);
+});
+
+const dummyLookup = (calls: string[], search: Lookup["search"]): Lookup => ({
+  search,
+  byIsbn: async () => ({ kind: "ok", value: null }),
+  blurb: async () => ({ kind: "ok", value: null }),
+  cancel: () => void calls.push("cancel"),
+  stop: () => void calls.push("stop"),
+});
+
+const readOf = (rows: ItemRow[]) => (id: string) => rows.find((row) => row.id === id);
+
+test("aborting the pass stops the lookup in flight, once", async () => {
+  const calls: string[] = [];
+  const controller = new AbortController();
+  const rows = [book("Laskar Pelangi", { author: "Andrea Hirata" })];
+  const lookup = dummyLookup(calls, () => new Promise(() => {}));
+  const pass = findDetails({ ids: [rows[0].id], lookup, read: readOf(rows), save: async (id) => ({ ok: true, id }), signal: controller.signal, onStep: () => {} });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.deepEqual(calls, []);
+  controller.abort();
+  assert.deepEqual(calls, ["stop"]);
+  controller.abort();
+  assert.deepEqual(calls, ["stop"]);
+  void pass;
+});
+
+test("a finished pass lets go of the signal: aborting it later stops nothing", async () => {
+  const calls: string[] = [];
+  const controller = new AbortController();
+  const rows = [book("Laskar Pelangi", { author: "Andrea Hirata" })];
+  const lookup = dummyLookup(calls, async () => ({ kind: "ok", value: [] }));
+  assert.equal(await findDetails({ ids: [rows[0].id], lookup, read: readOf(rows), save: async (id) => ({ ok: true, id }), signal: controller.signal, onStep: () => {} }), "finished");
+  controller.abort();
+  assert.deepEqual(calls, []);
+  const aborted = new AbortController();
+  aborted.abort();
+  assert.equal(await findDetails({ ids: [rows[0].id], lookup, read: readOf(rows), save: async (id) => ({ ok: true, id }), signal: aborted.signal, onStep: () => {} }), "stopped");
+});
+
+test("an answer that arrives after the pass was stopped is not counted or saved, even when the lookup did not call it stale", async () => {
+  const controller = new AbortController();
+  const rows = [book("Laskar Pelangi", { author: "Andrea Hirata" })];
+  const saved: string[] = [];
+  const steps: string[] = [];
+  const lookup = dummyLookup([], async () => (controller.abort(), { kind: "ok", value: [] }));
+  const finish = await findDetails({ ids: [rows[0].id], lookup, read: readOf(rows), save: async (id) => (saved.push(id), { ok: true, id }), signal: controller.signal, onStep: (id) => steps.push(id) });
+  assert.deepEqual([finish, saved, steps], ["stopped", [], []]);
 });

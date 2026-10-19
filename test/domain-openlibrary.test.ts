@@ -377,27 +377,119 @@ test("one rule says whether a hit is the book: its title, its original title whe
   assert.equal(book("", "Laskar Pelangi"), true);
 });
 
-test("an author matches only on the surname, so a shared first name, an initial or a blank side never passes", () => {
-  assert.equal(sameAuthor("Andrea Hirata", "Hirata, Andrea"), true);
-  assert.equal(sameAuthor("Andrea Hirata", "Andrea Hirata"), true);
-  assert.equal(sameAuthor("Hirata, Andrea", "Andrea Hirata"), true);
-  assert.equal(sameAuthor("Andrea Hirata", "Hirata, A."), true);
-  assert.equal(sameAuthor("A. Hirata", "Andrea Hirata"), true);
-  assert.equal(sameAuthor("Hirata", "Andrea Hirata"), true);
-  assert.equal(sameAuthor("Antoine de Saint-Exupéry", "Antoine de Saint Exupery"), true);
-  assert.equal(sameAuthor("Writer One", "Someone Else; Writer One"), true);
-  assert.equal(sameAuthor("Writer One & Writer Two", "Writer Two"), true);
-  assert.equal(sameAuthor("Pramoedya Ananta Toer", "Song, Poo Yong"), false);
-  assert.equal(sameAuthor("John Smith", "John Green"), false);
-  assert.equal(sameAuthor("Pramoedya", "Pramoedya Ananta Toer"), false);
-  assert.equal(sameAuthor("Pramudya Ananta Tur", "Pramoedya Ananta Toer"), false);
-  assert.equal(sameAuthor("Andrea H.", "Andrea Hirata"), false);
-  assert.equal(sameAuthor("Tan Zzzzz", "Tan Yyyy"), false);
-  assert.equal(sameAuthor("Al Bo", "Al Bo"), true);
-  assert.equal(sameAuthor("X", "X"), false);
-  assert.equal(sameAuthor("", "Anyone"), false);
+const accepts = (typed: string, found: string, expected: boolean) => assert.equal(sameAuthor(typed, found), expected, `${typed} / ${found}`);
+
+test("an author matches only when the sets of name words are equal, in either order and with a comma ignored", () => {
+  accepts("Andrea Hirata", "Andrea Hirata", true);
+  accepts("Andrea Hirata", "Hirata, Andrea", true);
+  accepts("Hirata, Andrea", "Andrea Hirata", true);
+  accepts("Smith, John", "John Smith", true);
+  accepts("John Smith", "Smith, John", true);
+  accepts("ANDREA HIRATA", "andrea hirata", true);
+  accepts("Antoine de Saint-Exupéry", "Antoine de Saint Exupery", true);
+  accepts("O'Brien, Patrick", "Patrick OBrien", true);
+  accepts("John Smith", "Adam Smith", false);
+  accepts("Jane Smith", "John Smith", false);
+  accepts("John Smith", "Smith", false);
+  accepts("Smith", "John Smith", false);
+  accepts("Smith", "Smith", true);
+  accepts("John Smith", "John Smithson", false);
+  accepts("Wang Wei", "Li Wei", false);
+  accepts("Pramoedya", "Pramoedya Ananta Toer", false);
+  accepts("Pramudya Ananta Tur", "Pramoedya Ananta Toer", false);
+  accepts("Pramoedya Ananta Toer", "Song, Poo Yong", false);
+});
+
+test("an initial, an honorific, a particle or a missing middle name is never a match, so Find skips the book as not sure", () => {
+  accepts("J. Smith", "John Smith", false);
+  accepts("John Smith", "J. Smith", false);
+  accepts("J. Smith", "Smith, John", false);
+  accepts("Andrea H.", "Andrea Hirata", false);
+  accepts("A. Hirata", "Andrea Hirata", false);
+  accepts("Prof. Marek Valdis", "Marek Valdis", false);
+  accepts("Marek Valdis", "Dr. Marek Valdis", false);
+  accepts("Prof. Marek Valdis", "Prof. Marek Valdis", true);
+  accepts("Ludo Wendt", "Ludo van Wendt", false);
+  accepts("Karim ibn Valdis", "Karim Valdis", false);
+  accepts("John Michael Smith", "Michael Smith", false);
+  accepts("MJK Valdis", "Marek Jonas Karel Valdis", false);
+  accepts("Luc-Anton Verhoeven", "Anton Verhoeven", false);
+  accepts("Luc-Anton Verhoeven", "Luc Verhoeven", false);
+  accepts("Luc-Anton Verhoeven", "Luc Anton Verhoeven", true);
+  accepts("Maren Oyelaran-Kask", "Maren Voss-Kask", false);
+});
+
+test("a generational suffix is dropped only as a whole word", () => {
+  accepts("Ed Ford Jr.", "Ed Ford", true);
+  accepts("Ed Ford", "Ford, Ed, Jr.", true);
+  accepts("Ford, Ed Jr.", "Ed Ford Sr.", true);
+  accepts("Ed Ford III", "Ed Ford II", true);
+  accepts("Ed Ford IV", "Ed Ford", true);
+  accepts("Ed Ford Jr.", "Ned Ford Jr.", false);
+  accepts("Ed Ford II", "Al Gates II", false);
+  accepts("Jr.", "Al Gates Jr.", false);
+  accepts("Jr.", "Jr.", false);
+  accepts("Ed Jr", "Al Jr", false);
+  accepts("Ed Jrx Ford", "Ed Ford", false);
+  accepts("Ed Siii Ford", "Ed Ford", false);
+});
+
+test("a typed list matches only when every typed author is one of the hit's authors, whatever separates them", () => {
+  for (const typed of ["Marek Valdis; Ilona Brandt", "Marek Valdis & Ilona Brandt", "Marek Valdis and Ilona Brandt", "Marek Valdis dan Ilona Brandt", "Marek Valdis DAN Ilona Brandt", "Marek Valdis AND Ilona Brandt"]) {
+    accepts(typed, "Marek Valdis; Ilona Brandt", true);
+    accepts(typed, "Ilona Brandt; Marek Valdis", true);
+    accepts(typed, "Oskar Wendt; Ilona Brandt; Marek Valdis", true);
+    accepts(typed, "Ilona Brandt", false);
+    accepts(typed, "Marek Valdis", false);
+    accepts(typed, "Oskar Wendt", false);
+    accepts(typed, "Oskar Wendt; Ilona Brandt", false);
+  }
+  accepts("Marek Valdis, Ilona Brandt", "Marek Valdis; Ilona Brandt", false);
+  accepts("Marek Valdis, Ilona Brandt", "Ilona Brandt", false);
+  accepts("Marek Valdis;", "Marek Valdis", true);
+  accepts("; Marek Valdis ;", "Marek Valdis", true);
+  accepts("Marek Valdis; Jr.", "Marek Valdis", true);
+  accepts("Dan Brandt", "Dan Brandt", true);
+  accepts("Dan Brandt", "Brandt, Dan", true);
+  accepts("Brandt, Dan", "Dan Brandt", true);
+  accepts("Marek Valdis&Ilona Brandt", "Marek Valdis; Ilona Brandt", false);
+  accepts("Marek Valdis& Ilona Brandt", "Marek Valdis; Ilona Brandt", false);
+  accepts("Marek Valdis &Ilona Brandt", "Marek Valdis; Ilona Brandt", false);
+  accepts("Marek Valdis;Ilona Brandt", "Marek Valdis; Ilona Brandt", true);
+  accepts("Marek Valdis ;Ilona Brandt", "Ilona Brandt; Marek Valdis", true);
+  accepts("Marek Valdis and", "Marek Valdis", false);
+  accepts("Marek Valdis; Oskar Wendt", "Marek Valdis", false);
+});
+
+test("a list of Surname, Given entries is never read as one-word authors", () => {
+  for (const typed of ["Okoye, Maren and Lindqvist, Tove", "Okoye, Maren & Lindqvist, Tove", "Okoye, Maren dan Lindqvist, Tove", "Okoye, Maren; Lindqvist, Tove", "Maren Okoye and Tove Lindqvist", "Lindqvist, Tove and Maren Okoye"]) {
+    for (const other of ["Rafi Lindqvist", "Anna Tove", "Dara Maren", "Rafi Okoye", "Maren", "Tove Lindqvist", "Maren Okoye", "Okoye; Maren", "Okoye; Maren; Lindqvist; Tove", "Maren Okoye; Rafi Lindqvist", "Tove Lindqvist; Rafi Okoye"]) accepts(typed, other, false);
+    for (const both of ["Maren Okoye; Tove Lindqvist", "Tove Lindqvist; Maren Okoye", "Okoye, Maren; Lindqvist, Tove", "Lindqvist, Tove; Okoye, Maren", "Rafi Okoye; Tove Lindqvist; Maren Okoye"]) accepts(typed, both, true);
+  }
+});
+
+test("names without spaces compare as they are written, and a different mark or letter is a different name", () => {
+  accepts("田中 太郎", "田中 太郎", true);
+  accepts("太郎 田中", "田中 太郎", true);
+  accepts("田中太郎", "田中 太郎", false);
+  accepts("田中 太郎", "田中 次郎", false);
+  accepts("田中 太郎", "佐藤 太郎", false);
+  accepts("田中 太郎; 佐藤 次郎", "佐藤 次郎; 田中 太郎", true);
+  accepts("かとう ゆき", "かとう ゆき", true);
+  accepts("かとう ゆき", "がとう ゆき", false);
+  accepts("सुमन कुमार", "समन कुमार", false);
+  accepts("Žofia Černá", "Zofia Cerna", true);
+  accepts("Zoe\u0361 Smith", "Zoe Smith", true);
+});
+
+test("a blank, missing or non-text author never matches", () => {
+  accepts("", "Anyone", false);
+  accepts("  ", "", false);
+  accepts("Someone", "", false);
+  accepts(";", ";", false);
+  accepts(",", "Anyone", false);
   assert.equal(sameAuthor(undefined, "Anyone"), false);
+  assert.equal(sameAuthor(null, "Anyone"), false);
   assert.equal(sameAuthor(5, "5"), false);
-  assert.equal(sameAuthor("Someone", ""), false);
-  assert.equal(sameAuthor("  ", ""), false);
+  assert.equal(sameAuthor(["Anyone"], "Anyone"), false);
 });

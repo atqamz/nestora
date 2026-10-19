@@ -126,11 +126,30 @@ const blank = (value: string) => value.trim() === "";
 export const sameBook = (book: { title: string; original: unknown }, found: string) =>
   blank(book.title) || sameTitle(book.title, found) || (typeof book.original === "string" && !blank(book.original) && sameTitle(book.original, found));
 
-const surnames = (names: string) => names.split(/[;&]/).map((name) => fold(name.split(",")[0]).split(" ").at(-1) ?? "");
+const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
+
+const AUTHORS = /\s*;\s*|\s+&\s+|\s+(?:and|dan)\s+/i;
+
+const nameOf = (name: string) =>
+  [
+    ...new Set(
+      name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/['’`]/g, "")
+        .split(/[^\p{L}\p{N}\p{M}]+/u)
+        .filter((word) => word !== "" && !SUFFIXES.has(word)),
+    ),
+  ]
+    .sort()
+    .join(" ");
 
 export const sameAuthor = (typed: unknown, found: string) => {
-  const have = surnames(found);
-  return typeof typed === "string" && surnames(typed).some((name) => name.length >= 2 && have.includes(name));
+  if (typeof typed !== "string") return false;
+  const wanted = typed.split(AUTHORS).map(nameOf).filter(Boolean);
+  const have = found.split(";").map(nameOf);
+  return wanted.length > 0 && wanted.every((name) => have.includes(name));
 };
 
 export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
