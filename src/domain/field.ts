@@ -1,4 +1,5 @@
 import type { Type } from "../../shared/tables.ts";
+import { toIsbn13 } from "./isbn.ts";
 import { parseRupiah } from "./money.ts";
 import { normalizePhone } from "./phone.ts";
 
@@ -11,6 +12,10 @@ export const parseField = (type: Type, raw: string | boolean): Parsed => {
   if (type === "phone") {
     const phone = normalizePhone(text);
     return phone === null ? { ok: false } : { ok: true, value: phone };
+  }
+  if (type === "isbn") {
+    const isbn = toIsbn13(text);
+    return isbn === null ? { ok: false } : { ok: true, value: isbn };
   }
   if (type === "int") {
     const number = parseRupiah(text);

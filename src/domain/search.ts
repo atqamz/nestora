@@ -13,19 +13,25 @@ export const fold = (text: string) =>
 
 const texts = (row: ItemRow) => [row.title, row.data?.original_title, row.data?.author, row.data?.series, row.data?.isbn];
 
+const MIN_PREFIX = 4;
+
 export const searchBooks = (query: string, rows: readonly ItemRow[]): ItemRow[] => {
-  const words = fold(toIsbn13(query) ?? query).split(" ").filter(Boolean);
+  const typed = query.replace(/^\s*isbn(?=[\s:.-]*\d)[\s:.-]*/i, "");
+  const full = toIsbn13(typed);
+  const digits = typed.replace(/[\s-]/g, "");
+  const prefix = full ?? (/^[\d\s-]+$/.test(typed) && digits.length >= MIN_PREFIX ? digits : null);
+  const words = fold(full ?? typed).split(" ").filter(Boolean);
   const places = new Map(rows.filter((row) => row.kind === "place").map((place) => [place.id, place.title]));
   const copies = copiesByBook(rows);
   return rows
     .filter((row) => row.kind === "book")
     .filter((book) => {
       const kept = (copies.get(book.id) ?? []).filter((copy) => copy.status !== "gone");
-      const haystack = fold(
-        [...texts(book), ...kept.flatMap((copy) => [...texts(copy), places.get(copy.group_key ?? "")])]
-          .filter((text): text is string => typeof text === "string")
-          .join(" "),
-      ).split(" ");
+      const strings = [...texts(book), ...kept.flatMap((copy) => [...texts(copy), places.get(copy.group_key ?? "")])].filter(
+        (text): text is string => typeof text === "string",
+      );
+      const haystack = fold(strings.join(" ")).split(" ");
+      if (prefix !== null && [book, ...kept].some((row) => typeof row.data?.isbn === "string" && row.data.isbn.startsWith(prefix))) return true;
       return words.every((word) => haystack.some((found) => (word.length > 1 ? found.startsWith(word) : found === word)));
     });
 };
