@@ -102,29 +102,72 @@ export const settle = (typed: string, found: string): { title: string; original:
     : { title: typed.trim(), original: found };
 };
 
-export const sameTitle = (typed: string, found: string) => settle(typed, found).original === "";
+const SUBTITLE = /\s*(?::|–|—|\s-\s).*$/su;
+
+const SUFFIXES = [/\s*\([^)]*\)$/, /\s+(?:(?:vol(?:ume)?|book|bk|no|part|#)\.?\s*)?\d{1,3}$/i];
+
+const heads = (title: string) =>
+  [title, title.replace(SUBTITLE, "")]
+    .flatMap((whole) => [whole, ...SUFFIXES.map((suffix) => whole.replace(suffix, ""))])
+    .map(fold)
+    .filter(Boolean);
+
+export const sameTitle = (typed: string, found: string) => {
+  const [left, right] = [fold(typed), fold(found)];
+  return left === right || heads(typed).includes(right) || heads(found).includes(left);
+};
 
 const blank = (value: string) => value.trim() === "";
 
-export const adopt = (typed: { title: string; author: string; original: string; isbn: string; language: string }, hit: Hit) => {
+export const sameBook = (book: { title: string; original: unknown }, found: string) =>
+  blank(book.title) || sameTitle(book.title, found) || (typeof book.original === "string" && !blank(book.original) && sameTitle(book.original, found));
+
+export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
+
+export type Field = (typeof AUTO)[number];
+
+export type Auto = Partial<Record<Field, string>>;
+
+export type Found = { title: string; cover: string | null; ol: string; auto: Auto };
+
+export type Typed = Record<Field | "title", string> & { found: Found | null };
+
+export type Patch = Record<Field, string | null>;
+
+const patchOf = (change: (field: Field) => string | null) => Object.fromEntries(AUTO.map((field) => [field, change(field)])) as Patch;
+
+const mine = (typed: Typed, field: Field) => !blank(typed[field]) && typed[field] !== typed.found?.auto[field];
+
+export const adopt = (typed: Typed, hit: Hit) => {
   const next = settle(typed.title, hit.title);
   const edition = next.original === "";
-  return {
-    title: next.title,
-    author: blank(typed.author) && hit.author !== "" ? hit.author : null,
-    original: blank(typed.original) && !edition ? next.original : null,
-    isbn: edition && blank(typed.isbn) ? hit.isbn : null,
-    language: edition && blank(typed.language) ? hit.language : null,
+  const fresh: Record<Field, string> = {
+    author: hit.author,
+    original: edition ? "" : next.original,
+    isbn: edition ? (hit.isbn ?? "") : "",
+    language: edition ? (hit.language ?? "") : "",
+    blurb: "",
   };
+  const patch = patchOf((field) => (mine(typed, field) ? null : fresh[field]));
+  const auto: Auto = Object.fromEntries(AUTO.flatMap((field) => (patch[field] ? [[field, patch[field]]] : [])));
+  const found: Found = { title: next.title.trim(), cover: hit.coverId === null ? null : coverUrl(hit.coverId), ol: hit.work, auto };
+  return { title: next.title, patch, wantsBlurb: patch.blurb !== null, found };
+};
+
+export const release = (typed: Typed): Patch => patchOf((field) => (typed.found?.auto[field] !== undefined && typed[field] === typed.found.auto[field] ? "" : null));
+
+export const arrive = (typed: { blurb: string; found: Found | null }, work: string, blurb: string) => {
+  const { found } = typed;
+  if (found === null || found.ol !== work || blank(blurb)) return null;
+  if (!blank(typed.blurb) && typed.blurb !== found.auto.blurb) return null;
+  return { blurb, found: { ...found, auto: { ...found.auto, blurb } } };
 };
 
 export const fillPatch = (book: { title: string; data: Record<string, unknown> | null }, hit: Hit, blurb: string | null): Record<string, string> | null => {
-  const original = book.data?.original_title;
-  const edition = sameTitle(book.title, hit.title);
-  if (!edition && !(typeof original === "string" && !blank(original) && sameTitle(original, hit.title))) return null;
+  if (!sameBook({ title: book.title, original: book.data?.original_title }, hit.title)) return null;
   const found: Record<string, string | null> = {
     author: hit.author,
-    language: edition ? hit.language : null,
+    language: sameTitle(book.title, hit.title) ? hit.language : null,
     cover: hit.coverId === null ? null : coverUrl(hit.coverId),
     ol: hit.work,
     blurb,

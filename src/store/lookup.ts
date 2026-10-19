@@ -1,4 +1,4 @@
-import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, searchUrl, workUrl } from "../domain/openlibrary.ts";
+import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
 export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale" };
@@ -122,4 +122,18 @@ export const fillBook = async (lookup: Lookup, code: string, read: () => { title
   const patch = fillPatch(read(), hit, wanted?.kind === "ok" ? wanted.value : null);
   if (patch === null) return { kind: "mismatch" };
   return Object.keys(patch).length === 0 ? { kind: "nothing" } : { kind: "patch", patch };
+};
+
+export type Fill = "idle" | "busy" | "empty" | "mismatch" | "offline" | "failed" | "slow" | "done";
+
+export const turns = () => {
+  let last = 0;
+  return { begin: () => ++last, latest: (turn: number) => turn === last };
+};
+
+export const fillOutcome = (out: Outcome<Hit | null>, typed: { title: string; original: string }, latest: boolean): { hit: Hit | null; state: Fill | null } => {
+  if (out.kind === "stale") return { hit: null, state: latest ? "idle" : null };
+  if (out.kind !== "ok") return { hit: null, state: out.kind };
+  if (out.value === null) return { hit: null, state: "empty" };
+  return sameBook(typed, out.value.title) ? { hit: out.value, state: "done" } : { hit: null, state: "mismatch" };
 };

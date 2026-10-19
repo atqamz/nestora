@@ -1,7 +1,8 @@
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createLookup, fillBook, follow, searchOf } from "../src/store/lookup.ts";
+import { createLookup, fillBook, fillOutcome, follow, searchOf, turns } from "../src/store/lookup.ts";
+import { parseSearch } from "../src/domain/openlibrary.ts";
 import type { Fetcher, Search } from "../src/store/lookup.ts";
 
 const sample = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/openlibrary/${name}.json`, import.meta.url), "utf8"));
@@ -526,4 +527,50 @@ test("a description lookup superseded while filling is stale, and a failed one s
   const failing = server((url) => (url.includes("/works/") ? reply({}, 500) : reply(sample("laskar-pelangi-isbn"))));
   const out = await fillBook(createLookup({ fetcher: failing.fetcher }), "9789793062792", () => bookOf("Laskar Pelangi"));
   assert.deepEqual(out.kind === "patch" && Object.keys(out.patch).sort(), ["author", "cover", "language", "ol"]);
+});
+
+test("a book that already has a description does not ask for one", async () => {
+  const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-isbn")));
+  const out = await fillBook(createLookup({ fetcher }), "9789793062792", () => bookOf("Laskar Pelangi", { blurb: "Mine" }));
+  assert.equal(out.kind, "patch");
+  assert.deepEqual(out.kind === "patch" && Object.keys(out.patch).sort(), ["author", "cover", "language", "ol"]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls.filter(({ url }) => url.includes("/works/")).length, 0);
+});
+
+test("a book that stops being the work of the ISBN while the description is fetched is a mismatch, not a patch", async () => {
+  let book = bookOf("Laskar Pelangi");
+  const { fetcher } = server((url) => {
+    if (!url.includes("/works/")) return reply(sample("laskar-pelangi-isbn"));
+    book = bookOf("Pangeran Kecil");
+    return reply(sample("laskar-pelangi-work"));
+  });
+  assert.deepEqual(await fillBook(createLookup({ fetcher }), "9789793062792", () => book), { kind: "mismatch" });
+});
+
+test("each turn is a new number and only the last one is the latest", () => {
+  const counter = turns();
+  const [first, second] = [counter.begin(), counter.begin()];
+  assert.notEqual(first, second);
+  assert.deepEqual([counter.latest(first), counter.latest(second)], [false, true]);
+  assert.equal(turns().latest(counter.begin()), false);
+});
+
+test("the answer to Fill details becomes a state, and a hit only when it is this book's", () => {
+  const [laskar] = parseSearch(sample("laskar-pelangi-search"));
+  const typed = { title: "Laskar Pelangi", original: "" };
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, typed, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "Pangeran Kecil", original: "" }, true), { hit: null, state: "mismatch" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "Pangeran Kecil", original: "Laskar Pelangi" }, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: laskar }, { title: "", original: "" }, true), { hit: laskar, state: "done" });
+  assert.deepEqual(fillOutcome({ kind: "ok", value: null }, typed, true), { hit: null, state: "empty" });
+  for (const kind of ["offline", "failed", "slow"] as const) assert.deepEqual(fillOutcome({ kind }, typed, true), { hit: null, state: kind });
+});
+
+test("an old Fill details that was superseded leaves the state alone, and the newest one goes back to idle", () => {
+  const typed = { title: "Laskar Pelangi", original: "" };
+  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, true), { hit: null, state: "idle" });
+  assert.deepEqual(fillOutcome({ kind: "stale" }, typed, false), { hit: null, state: null });
+  const [laskar] = parseSearch(sample("laskar-pelangi-search"));
+  assert.equal(fillOutcome({ kind: "ok", value: laskar }, typed, false).state, "done");
 });

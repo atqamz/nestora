@@ -1,9 +1,8 @@
 import { useSyncExternalStore } from "react";
 import type { Field, Kind } from "../domain/draft.ts";
+import type { Found } from "../domain/openlibrary.ts";
 
 export type SheetDraft = { input: string; kindPick: Kind | null; ignore: Field[]; edits: Record<string, string>; ownerPick: string | null };
-
-export type Found = { title: string; cover: string | null; ol: string };
 
 export type BookDraft = {
   kind: "shelf" | "wish";

@@ -4,8 +4,9 @@ import { coverUrl, workPage } from "../domain/openlibrary.ts";
 import { lookup } from "../hooks/use-lookup.ts";
 import { actions } from "../hooks/use-store.ts";
 import { fillBook } from "../store/lookup.ts";
+import type { Fill } from "../store/lookup.ts";
 import { Cover } from "./book-bits.tsx";
-import type { BookForm, Fill } from "./book-sheet.tsx";
+import type { BookForm } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
 import { text } from "./text.ts";
 
