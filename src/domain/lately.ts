@@ -1,5 +1,6 @@
 import type { BudgetEntryRow, ItemRow } from "../../shared/tables.ts";
 import { compare } from "./order.ts";
+import { moverOf } from "./places.ts";
 
 export const LATELY_COUNT = 5;
 
@@ -38,13 +39,14 @@ export const lately = (items: readonly ItemRow[], entries: readonly BudgetEntryR
     return book !== undefined && [book.created_at, book.updated_at].some((at) => apart(at, row.created_at) < TOGETHER_MS);
   };
   return [...items, ...entries]
-    .flatMap((row) => {
+    .flatMap((row): Activity[] => {
       if (row.updated_by !== "a" && row.updated_by !== "b") return [];
       if (row.data !== null && "import_batch" in row.data) return [];
       const verb = verbOf(row);
       if ("kind" in row && (row.kind === "place" || (row.kind === "copy" && verb !== "moved" && together(row)))) return [];
-      const to = verb === "moved" ? (byId.get((row as ItemRow).group_key ?? "")?.title ?? null) : null;
-      return [{ id: row.id, by: row.updated_by, verb, title: row.title, to, at: row.updated_at }];
+      if (verb !== "moved") return [{ id: row.id, by: row.updated_by, verb, title: row.title, to: null, at: row.updated_at }];
+      const copy = row as ItemRow;
+      return [{ id: row.id, by: moverOf(copy) ?? row.updated_by, verb, title: byId.get(copy.parent_id ?? "")?.title ?? row.title, to: byId.get(copy.group_key ?? "")?.title ?? null, at: row.updated_at }];
     })
     .sort((a, b) => compare(b.at, a.at) || compare(a.id, b.id))
     .slice(0, limit);

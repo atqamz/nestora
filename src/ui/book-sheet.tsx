@@ -2,24 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { parseField } from "../domain/field.ts";
-import { sortBefore } from "../domain/order.ts";
-import { lastPlace, placesOf } from "../domain/places.ts";
+import { placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import type { Written } from "../store/store.ts";
 import { Avatar, Pair } from "./avatar.tsx";
+import { bookDefaults, saveBook } from "./book-save.ts";
+import type { BookKind as Kind, BookOwner as Owner } from "./book-save.ts";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
 import { overlay } from "./overlay.ts";
 import { text } from "./text.ts";
-
-type Kind = "shelf" | "wish";
-
-
-type Owner = "a" | "b" | "both";
 
 const MIN_DIGITS = 10;
 
@@ -44,8 +40,7 @@ export function useBookForm(start: Kind, title: string, live = true) {
   const [placePick, setPlacePick] = useState<string | null>(kept?.placePick ?? null);
   const [attempt, setAttempt] = useState(false);
 
-  const owner: Owner = ownerPick ?? (kind === "shelf" ? "both" : (me ?? "both"));
-  const placeId = placePick ?? lastPlace(items) ?? "";
+  const { owner, placeId } = bookDefaults({ kind, ownerPick, placePick }, items, me);
   const checked = parseField("isbn", isbn);
   const digits = isbn.replace(/[\s\p{Pd}]/gu, "").length;
   const isbnError = !checked.ok && (digits >= MIN_DIGITS || (attempt && isbn.trim() !== "")) ? text.invalid.isbn : undefined;
@@ -55,32 +50,7 @@ export function useBookForm(start: Kind, title: string, live = true) {
     if (live) overlay.keepBook(pristine ? null : { kind, title, author, original, isbn, ownerPick, placePick });
   }, [live, pristine, kind, title, author, original, isbn, ownerPick, placePick]);
 
-  const save = async (): Promise<Written> => {
-    const code = checked.ok && checked.value !== null ? { isbn: String(checked.value) } : {};
-    const data = Object.fromEntries(Object.entries({ author: author.trim(), original_title: original.trim() }).filter(([, value]) => value !== ""));
-    const book = await actions.create("items", {
-      kind: "book",
-      title: title.trim(),
-      status: kind,
-      who: kind === "wish" ? owner : null,
-      sort: sortBefore(items.filter((row) => row.kind === "book" && row.status === kind)),
-      data: { ...data, ...code },
-    });
-    const copy =
-      book.ok && kind === "shelf"
-        ? await actions.create("items", {
-            kind: "copy",
-            parent_id: book.id,
-            title: title.trim(),
-            status: "here",
-            who: owner,
-            group_key: placeId === "" ? null : placeId,
-            data: { format: "print", ...code },
-          })
-        : book;
-    if (copy.ok) overlay.keepBook(null);
-    return copy;
-  };
+  const save = (): Promise<Written> => saveBook(items, actions.create, { kind, title, author, original, isbn, ownerPick, placePick }, me);
 
   return {
     kind,

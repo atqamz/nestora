@@ -152,3 +152,32 @@ test("books do not push the wedding work off Home: 5 slots hold the latest weddi
   const copy = copyOf(book, { group_key: home.id });
   assert.deepEqual(summary([...rows, book, copy, home]).map(([, title]) => title), ["Laskar Pelangi", "t1", "t2"]);
 });
+
+const withMove = (data: Record<string, unknown>, by: "a" | "b", at: string, home: ReturnType<typeof item>, fields: Parameters<typeof item>[0] = {}) => {
+  const novel = shelf("Laskar Pelangi", "2026-09-01T10:00:00Z", { updated_by: null });
+  return { novel, copy: copyOf(novel, { title: "Copy of the story", created_at: "2026-09-01T10:00:00Z", updated_at: at, updated_by: by, rev: 3, group_key: home.id, data, ...fields }) };
+};
+
+test("a move later edited by the other partner names the mover and shows the book title", () => {
+  const home = place("Home B");
+  const { novel, copy } = withMove({ moved_on: "2026-10-19", moved_by: "a" }, "b", "2026-10-19T14:00:00Z", home);
+  assert.deepEqual(
+    lately([novel, home, copy], []).map((activity) => [activity.by, activity.verb, activity.title, activity.to]),
+    [["a", "moved", "Laskar Pelangi", "Home B"]],
+  );
+});
+
+test("an old move without a mover is credited to the last editor", () => {
+  const home = place("Sibling's room");
+  const { novel, copy } = withMove({ moved_on: "2026-10-19" }, "b", "2026-10-19T09:00:00Z", home);
+  assert.deepEqual(
+    lately([novel, home, copy], []).map((activity) => [activity.by, activity.verb, activity.title]),
+    [["b", "moved", "Laskar Pelangi"]],
+  );
+});
+
+test("a move whose book is not in the list keeps the copy title", () => {
+  const home = place("Home A");
+  const { copy } = withMove({ moved_on: "2026-10-19", moved_by: "a" }, "a", "2026-10-19T09:00:00Z", home);
+  assert.equal(lately([home, copy], [])[0].title, "Copy of the story");
+});

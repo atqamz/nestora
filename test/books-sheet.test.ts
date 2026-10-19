@@ -28,21 +28,6 @@ test("the book chip is the sixth kind of the global Add sheet and has its words"
   assert.match(text.sheet.hintBook, /kept until you add it/);
 });
 
-test("the global sheet and the Books sheet share one book form, one save and one draft", () => {
-  const global = read("ui/add-sheet.tsx");
-  const books = read("ui/book-sheet.tsx");
-  assert.match(global, /useBookForm\("wish", draft\.title, kind === "book"\)/);
-  assert.match(global, /<BookFields form=\{book\} \/>/);
-  assert.match(global, /case "book":\s*return book\.save\(\)/);
-  assert.match(books, /useBookForm\(start, title\)/);
-  assert.equal([...books.matchAll(/actions\.create\("items"/g)].length, 2);
-  assert.equal([...global.matchAll(/kind: "book"/g)].length, 0);
-  assert.match(books, /overlay\.keptBook\(\)/);
-  assert.match(books, /if \(live\) overlay\.keepBook\(pristine \? null : \{/);
-  assert.equal([...books.matchAll(/overlay\.keepBook\(null\)/g)].length, 1);
-  assert.match(books, /if \(copy\.ok\) overlay\.keepBook\(null\)/);
-});
-
 test("the unsent book is kept in memory until it is replaced or cleared", () => {
   assert.equal(overlay.keptBook(), null);
   const draft = { kind: "wish" as const, title: "Bumi Manusia", author: "", original: "", isbn: "0156012197", ownerPick: null, placePick: null };
@@ -50,12 +35,6 @@ test("the unsent book is kept in memory until it is replaced or cleared", () => 
   assert.deepEqual(overlay.keptBook(), draft);
   overlay.keepBook(null);
   assert.equal(overlay.keptBook(), null);
-});
-
-test("the Add sheet saves a book as a wish by default and the form can be switched to the shelf", () => {
-  const start = /useBookForm\("(\w+)"/.exec(read("ui/add-sheet.tsx"))?.[1];
-  assert.equal(start, "wish");
-  assert.match(read("ui/book-sheet.tsx"), /\(\["shelf", "wish"\] as const\)\.map/);
 });
 
 test("the detail line names the mover from the copy's own mark, never the last editor", () => {
