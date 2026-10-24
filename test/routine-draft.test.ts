@@ -260,7 +260,7 @@ test("a duplicate can be made private by choice, and then takes the signed-in si
 });
 
 test("the draft limits are the registry's caps", () => {
-  assert.deepEqual(LIMITS, { title: 120, heading: 60, note: 2000, where: 120, unit: 24 });
+  assert.deepEqual(LIMITS, { title: 120, heading: 60, note: 2000, where: 120, unit: 24, minutes: 1440 });
 });
 
 test("the smallest values are valid: one minute, a target of one, and a start week with every two weeks", () => {

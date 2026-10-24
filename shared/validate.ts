@@ -276,6 +276,7 @@ const checkVariant = (
   for (const [name, max] of Object.entries(variant.caps ?? {})) {
     const value = name.startsWith("data.") && isPlain(input.data) ? input.data[name.slice(5)] : input[name];
     if (typeof value === "string" && value.length > max) errors.push(`${name}: must be at most ${max} characters`);
+    else if (typeof value === "number" && value > max && mode !== "stored") errors.push(`${name}: must be at most ${max}`);
   }
   for (const name of variant.required) {
     if (input[name] === null || (mode !== "patch" && input[name] === undefined)) {
