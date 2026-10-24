@@ -34,11 +34,11 @@ export function Shell({ section, children }: { section: string; children: ReactN
   const { link, notice, paused, rows } = useSnapshot();
   const { toast } = useOverlay();
   useEffect(() => sweepUndone(rows.items, actions.many), [rows.items]);
-  const home = section === "";
+  const journey = section === "marriage";
   return (
     <div className="shell">
       <div className="chrome">
-        <header className="bar" data-hero={home || undefined}>
+        <header className="bar" data-hero={journey || undefined}>
           <a className="brand" href="#/">
             {text.appName}
           </a>
@@ -74,7 +74,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
             </button>
           </div>
         )}
-        <main data-page={home ? "home" : undefined}>{link === "mismatch" ? null : children}</main>
+        <main data-page={journey ? "journey" : undefined}>{link === "mismatch" ? null : children}</main>
       </div>
       <Nav className="tabs" section={section} locked={link === "mismatch"} />
       <div className="toast" role="status">

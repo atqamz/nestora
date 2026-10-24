@@ -615,6 +615,36 @@ progress::-moz-progress-bar {
   box-shadow: 0 0 0 1px var(--line);
 }
 
+.space-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s4);
+  margin: 0 0 var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.space-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  margin-bottom: -1px;
+  padding: 0 var(--s1);
+  border-bottom: 3px solid transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.space-tabs a:hover {
+  color: var(--ink);
+}
+
+.space-tabs a[aria-current="page"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
 .sec-h {
   display: flex;
   flex-wrap: wrap;

@@ -1,7 +1,8 @@
-export type Screen = "home" | "tasks" | "routines" | "money" | "payments" | "people" | "books" | "settings" | "sync";
+export type Screen = "home" | "marriage" | "tasks" | "routines" | "money" | "payments" | "people" | "books" | "settings" | "sync";
 
 export const screens: Readonly<Record<string, Screen>> = {
   "": "home",
+  marriage: "marriage",
   tasks: "tasks",
   routines: "routines",
   money: "money",

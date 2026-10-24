@@ -12,6 +12,7 @@ import { actions, useTable } from "../hooks/use-store.ts";
 import { failureOf } from "../ui/failure.ts";
 import { formatMoney } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
+import { MarriageTabs } from "../ui/marriage-tabs.tsx";
 import { Money } from "../ui/money.tsx";
 import { OwnerFilter } from "../ui/owner-filter.tsx";
 import { PaymentLine } from "../ui/payment-line.tsx";
@@ -155,6 +156,7 @@ export function MoneyView({ id }: { id?: string }) {
   const list = (
     <>
       <Title>{text.nav.money}</Title>
+      <MarriageTabs screen="money" />
       <Summary budget={budget} />
       <section aria-labelledby="to-pay">
         <div className="sec-h">

@@ -10,6 +10,7 @@ import { useTable } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { Contact } from "../ui/contact.tsx";
 import { optionLabel } from "../ui/labels.ts";
+import { MarriageTabs } from "../ui/marriage-tabs.tsx";
 import { Money } from "../ui/money.tsx";
 import { OwnerFilter } from "../ui/owner-filter.tsx";
 import { QuickAdd } from "../ui/quick-add.tsx";
@@ -109,6 +110,7 @@ export function People({ route, id }: { route: string; id?: string }) {
   const list = (
     <>
       <Title>{text.nav.people}</Title>
+      <MarriageTabs screen="people" />
       <div role="group" aria-label={text.contacts.switch} className="seg">
         <a href="#/guests" aria-current={kind === "guest" ? "page" : undefined}>
           {text.contacts.guests} <b>{guests.length}</b>

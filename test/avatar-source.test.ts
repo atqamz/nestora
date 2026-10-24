@@ -48,8 +48,8 @@ test("the size each place asks for matches the disc the style gives it", () => {
   assert.match(css, /width: var\(--av, 1\.25rem\)/);
   assert.equal(rem(read("style.css"), ".pair"), 32);
   assert.match(read("ui/shell.tsx"), /<Pair size=\{32\} \/>/);
-  assert.equal(rem(read("views/home.css"), ".side"), 28);
-  assert.match(read("views/home.tsx"), /<Avatar side=\{activity\.by\} size=\{28\} \/>/);
+  assert.equal(rem(read("views/journey.css"), ".side"), 28);
+  assert.match(read("views/journey.tsx"), /<Avatar side=\{activity\.by\} size=\{28\} \/>/);
   assert.equal(rem(read("views/settings.css"), ".setl-two"), 44);
   assert.match(read("views/settings.tsx"), /<Avatar side=\{side\} size=\{44\} \/>/);
 });

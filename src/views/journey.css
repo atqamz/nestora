@@ -78,10 +78,14 @@
   display: none;
 }
 
-.home {
+.journey {
   max-width: 40rem;
   margin: 0 auto;
   padding: 0 var(--safe-r) 0 var(--safe-l);
+}
+
+.journey-tabs {
+  margin: var(--s4) var(--s4) 0;
 }
 
 .spine {
@@ -485,13 +489,17 @@
     font-weight: 700;
   }
 
-  .home {
+  .journey {
     max-width: 72rem;
     padding: 0;
   }
 
+  .journey-tabs {
+    margin: var(--s5) var(--s8) 0;
+  }
+
   .spine {
-    padding: var(--s7) var(--s8) 0;
+    padding: var(--s5) var(--s8) 0;
   }
 
   .loose {
@@ -518,10 +526,14 @@
 }
 
 @media (min-width: 75rem) {
-  .home {
+  .journey {
     display: grid;
     grid-template-columns: minmax(0, 1fr) min(22.5rem, 38%);
     gap: 0 var(--s7);
+  }
+
+  .journey-tabs {
+    grid-column: 1 / -1;
   }
 
   .spine {

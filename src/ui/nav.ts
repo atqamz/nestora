@@ -2,14 +2,21 @@ import { screenOf } from "./routes.ts";
 import type { Screen } from "./routes.ts";
 import { text } from "./text.ts";
 
-type Item = { section: string; icon: "home" | "money" | "people" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
+type Item = { section: string; icon: "place" | "heart" | "clock" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
 
 const items: Item[] = [
-  { section: "", icon: "home", label: text.nav.home, screens: ["home", "tasks", "routines"] },
-  { section: "money", icon: "money", label: text.nav.money, screens: ["money", "payments"] },
-  { section: "people", icon: "people", label: text.nav.people, screens: ["people"] },
-  { section: "books", icon: "book", label: text.nav.books, screens: ["books"] },
+  { section: "", icon: "place", label: text.nav.home, screens: ["home"] },
+  { section: "marriage", icon: "heart", label: text.nav.marriage, screens: ["marriage", "tasks", "money", "payments", "people"] },
+  { section: "routines", icon: "clock", label: text.nav.routines, screens: ["routines"] },
+  { section: "books", icon: "book", label: text.nav.library, screens: ["books"] },
   { section: "settings", icon: "settings", label: text.nav.settings, screens: ["settings"], rail: true },
+];
+
+export const marriageTabs: readonly { section: string; label: string; screens: readonly Screen[] }[] = [
+  { section: "marriage", label: text.marriage.journey, screens: ["marriage"] },
+  { section: "tasks", label: text.tasks, screens: ["tasks"] },
+  { section: "money", label: text.nav.money, screens: ["money", "payments"] },
+  { section: "people", label: text.nav.people, screens: ["people"] },
 ];
 
 export const navItems = (kind: "tabs" | "rail") => (kind === "rail" ? items : items.filter((item) => !item.rail));
