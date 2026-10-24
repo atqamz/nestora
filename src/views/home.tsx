@@ -19,6 +19,7 @@ import { Money } from "../ui/money.tsx";
 import { PaymentLine } from "../ui/payment-line.tsx";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
+import { Today } from "./today.tsx";
 
 function Entries({ id, heading, late, entries }: { id: string; heading: string; late?: true; entries: WeekEntry[] }) {
   if (entries.length === 0) return null;
@@ -122,6 +123,7 @@ export function Home() {
   const work = (
     <>
       <Capture />
+      <Today />
       {empty && <p className="empty">{text.week.empty}</p>}
       <Entries id="week-overdue" heading={text.week.overdue} late entries={week.overdue} />
       <Entries id="week-soon" heading={text.week.soon} entries={week.soon} />

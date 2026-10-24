@@ -5,7 +5,7 @@ import { text } from "./text.ts";
 type Item = { section: string; icon: "home" | "money" | "people" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
 
 const items: Item[] = [
-  { section: "", icon: "home", label: text.nav.home, screens: ["home", "tasks"] },
+  { section: "", icon: "home", label: text.nav.home, screens: ["home", "tasks", "routines"] },
   { section: "money", icon: "money", label: text.nav.money, screens: ["money", "payments"] },
   { section: "people", icon: "people", label: text.nav.people, screens: ["people"] },
   { section: "books", icon: "book", label: text.nav.books, screens: ["books"] },

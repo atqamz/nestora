@@ -1,0 +1,124 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { text } from "../src/ui/text.ts";
+import { views } from "../src/ui/registry.ts";
+
+const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
+
+const screens = ["views/routines.tsx", "views/routine.tsx", "views/today.tsx", "ui/routine-action.tsx", "ui/routine-sheet.tsx"];
+
+const css = read("views/routines.css");
+
+const rule = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace(/[.>*[\]="():]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+
+test("the routine screens read rows only through the hook that applies the partition filter", () => {
+  for (const file of screens) assert.doesNotMatch(read(file), /useTable\(|useSnapshot\(|readItems|rows\.items|\.rows\b.*items/, file);
+  const hook = read("hooks/use-routines.ts");
+  assert.match(hook, /routineRows\(rows\.items, me\)/);
+  assert.equal([...hook.matchAll(/rows\.items/g)].length, 2);
+  assert.match(read("domain/routines.ts"), /export const routineRows = \(rows: readonly ItemRow\[\], me: Side \| null\) => visible\(rows, me\)\.filter/);
+  assert.match(read("domain/lately.ts"), /isRoutineKind\(row\.kind\)/);
+});
+
+test("every routine screen takes its rows from useRoutines and its writes from the flows", () => {
+  for (const file of ["views/routines.tsx", "views/routine.tsx", "views/today.tsx"]) {
+    const source = read(file);
+    assert.match(source, /useRoutines\(\)/, file);
+    assert.match(source, /useRoutineFlows\(\)/, file);
+  }
+  for (const file of [...screens, "ui/routine-flows.ts"]) assert.doesNotMatch(read(file), /fetch *\(|indexedDB|XMLHttpRequest|localStorage|sendBeacon/, file);
+  assert.doesNotMatch(read("ui/routine-action.tsx"), /actions\.|hooks\/use-store/);
+});
+
+test("the routine writes go through the store, so the paused refusal and the outbox apply", () => {
+  const flows = read("ui/routine-flows.ts");
+  assert.match(flows, /actions: Pick<Store, "update" \| "many">/);
+  assert.match(flows, /paused/);
+  assert.match(read("hooks/use-routines.ts"), /routineFlows\(\{\s*items,\s*actions,/);
+});
+
+test("every icon-only button on the routine screens has a label, and every external link says where it goes", () => {
+  for (const file of screens) {
+    const source = read(file);
+    for (const [match] of source.matchAll(/<button[^>]*className="[^"]*\bib\b[^"]*"[^>]*>/g)) assert.match(match, /aria-label=/, `${file}: ${match}`);
+    for (const [match] of source.matchAll(/<a[^>]*target="_blank"[^>]*>/g)) assert.match(match, /rel="noopener noreferrer"/, `${file}: ${match}`);
+    for (const [match] of source.matchAll(/<a[^>]*className="pill"[^>]*>/g)) assert.match(match, /aria-label=/, `${file}: ${match}`);
+  }
+  assert.match(read("ui/routine-sheet.tsx"), /aria-label=\{copy\.dayNames\[code\]\}/);
+});
+
+test("the edit sheet and the pause sheet are the native modal, which traps focus and closes on Escape and on a route change", () => {
+  const sheet = read("ui/routine-sheet.tsx");
+  assert.equal([...sheet.matchAll(/<Modal\b/g)].length, 2);
+  assert.doesNotMatch(sheet, /<dialog/);
+  assert.match(read("ui/modal.tsx"), /showModal\(\)/);
+  assert.match(read("ui/modal.tsx"), /useSheet\(dialog, true, onClose\)/);
+});
+
+test("the sheet shows the private choice at creation only, with one line of explanation, and never offers it on an edit", () => {
+  const sheet = read("ui/routine-sheet.tsx");
+  assert.match(sheet, /\{creating && \(\s*<div className="field check-field">/);
+  assert.match(sheet, /\{!creating && locked && <p className="hint rt-private">\{form\.privateKept\}<\/p>\}/);
+  assert.match(sheet, /\{!locked && \(\s*<Field/);
+  assert.equal(text.routines.form.privateHint.split(/[.!?]\s/).length <= 2, true);
+  assert.match(text.routines.form.makePrivate, /duplicate it as private, then delete the shared one/);
+});
+
+test("the global Add sheet has no routine chip and the Settings exports list no routine kinds, which the full export already covers", () => {
+  assert.deepEqual(Object.keys(text.sheet.kinds), ["task", "planned", "payment", "guest", "vendor", "book"]);
+  assert.deepEqual(Object.keys(views).filter((name) => /routine|step|timer|pack|block|day_type|counter|text/.test(name)), []);
+  assert.match(read("views/settings.tsx"), /label: text\.settings\.exportAll, query: "format=json"/);
+});
+
+test("Home shows the Today block between the capture box and the due list, and the route is wired", () => {
+  const home = read("views/home.tsx");
+  assert.match(home, /<Capture \/>\s*<Today \/>\s*\{empty/);
+  assert.match(read("main.tsx"), /case "routines":\s*return <Routines id=\{id\} \/>;/);
+  assert.match(read("main.tsx"), /import "\.\/views\/routines\.css";/);
+});
+
+test("the Today block collapses by its own choice only, so a tick never moves the page", () => {
+  const today = read("views/today.tsx");
+  assert.match(today, /useState\(!finished\)/);
+  assert.match(today, /<details open=\{open\} onToggle=\{\(event\) => setOpen\(event\.currentTarget\.open\)\}>/);
+  assert.doesNotMatch(today, /useEffect/);
+});
+
+test("long names, notes and many actions wrap inside the row and never push the page sideways", () => {
+  for (const selector of [".rt-btns", ".rt-act", ".rt-fields", ".rt-block h4 a", ".rt-add button", ".rt-dayset button"]) assert.match(rule(selector), /min-width:\s*(0|var\(--target-min\))/, selector);
+  assert.match(rule(".rt-btns"), /flex-wrap:\s*wrap/);
+  assert.match(rule(".rt-side"), /flex-wrap:\s*wrap/);
+  assert.match(rule(".rt-note"), /white-space:\s*pre-wrap/);
+  assert.match(rule(".rt-today summary"), /flex-wrap:\s*wrap/);
+  assert.doesNotMatch(css, /white-space:\s*nowrap/);
+  assert.match(rule(".rt-dayset"), /repeat\(auto-fit, minmax\(2\.75rem, 1fr\)\)/);
+  assert.match(rule(".rt-fields"), /repeat\(auto-fit, minmax\(min\(100%, 8rem\), 1fr\)\)/);
+});
+
+test("every control keeps a 44 px target and the summaries are tall enough to tap", () => {
+  for (const selector of [".rt-today summary", ".rt-more summary", ".rt-block h4 a"]) assert.match(rule(selector), /min-height:\s*var\(--target-min\)/, selector);
+  assert.match(rule(".rt-plus"), /min-width:\s*var\(--target-min\)/);
+});
+
+test("the routine styles use the existing tokens only, with no colour of their own and no gamification", () => {
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgb\(|hsl\(|oklch\(|animation|@keyframes|confetti/i);
+  const words = JSON.stringify(text.routines).toLowerCase();
+  for (const banned of ["streak", "badge", "points", "score", "missed", "congrat", "level"]) assert.equal(words.includes(banned), false, banned);
+});
+
+test("the Today block and the routine screens show nothing of the partner beyond the shared routines", () => {
+  const list = read("views/routines.tsx");
+  assert.match(list, /const today = own && occursOn\(routine, day\)/);
+  assert.match(read("domain/routines.ts"), /\.filter\(\(\{ routine \}\) => mine\(routine, me\)\)/);
+});
+
+test("a tick never changes the width of what sits beside it, so the block keeps its line breaks", () => {
+  assert.match(rule(".rt-tally"), /min-width:\s*9ch/);
+  assert.match(rule(".rt-tally"), /tabular-nums/);
+  assert.match(rule(".rt-nums"), /tabular-nums/);
+  assert.match(rule(".rt-block h4 span"), /display:\s*inline-block/);
+  assert.match(rule(".rt-block h4 span"), /min-width:\s*8ch/);
+  assert.match(rule(".rt-block h4 span"), /tabular-nums/);
+  assert.match(read("ui/routine-action.tsx"), /className="meta rt-nums"/);
+});

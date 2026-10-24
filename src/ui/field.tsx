@@ -16,14 +16,15 @@ export type Control = {
   suggestions?: readonly string[];
   hint?: string;
   words?: true;
+  max?: number;
   onChange?: (value: string) => void;
 };
 
 const LIMITS: Partial<Record<string, number>> = { text: 500, longtext: 2000, note: 10000, url: 2048 };
 
 const attributes = (type: Type, words?: true) =>
-  type === "date"
-    ? { type: "date" }
+  type === "date" || type === "time"
+    ? { type }
     : type === "phone"
       ? { type: "tel", inputMode: "tel" as const, autoComplete: "off", autoCapitalize: "none", spellCheck: false }
       : type === "url"
@@ -36,7 +37,7 @@ const attributes = (type: Type, words?: true) =>
 
 export function Field({ control, error }: { control: Control; error?: string }) {
   const id = useId();
-  const { name, label, type, value, required, options, choice, blank, blankIcon, suggestions, hint, words, onChange } = control;
+  const { name, label, type, value, required, options, choice, blank, blankIcon, suggestions, hint, words, max, onChange } = control;
   const shown = value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
   const [typed, setTyped] = useState<string | null>(null);
   const note = type === "isbn" ? isbnNote(onChange ? shown : (typed ?? shown)) : hint;
@@ -44,7 +45,7 @@ export function Field({ control, error }: { control: Control; error?: string }) 
   const common = { id, name, required, "aria-invalid": error ? true : undefined, "aria-describedby": described };
   const change = (event: { target: { value: string } }) => (setTyped(event.target.value), onChange?.(event.target.value));
   const state = onChange ? { value: shown, onChange: change } : { defaultValue: shown, onChange: change };
-  const maxLength = typeof type === "string" ? LIMITS[type] : undefined;
+  const maxLength = max ?? (typeof type === "string" ? LIMITS[type] : undefined);
   const notes = (
     <>
       {note && (

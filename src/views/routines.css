@@ -1,0 +1,279 @@
+.rt-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0 0 var(--s5);
+}
+
+.rt-tools > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rt-tools svg,
+.rt-add svg {
+  flex: none;
+}
+
+.rt-group {
+  margin-top: var(--s4);
+}
+
+.rt-group h3 {
+  margin: 0 0 var(--s2);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+.rt-meta {
+  margin: 0 0 var(--s1);
+}
+
+.rt-when {
+  margin: 0 0 var(--s4);
+}
+
+.rt-run h2 {
+  margin: var(--s5) 0 var(--s2);
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+}
+
+.rt-run {
+  margin-top: var(--s4);
+}
+
+.rt-side {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.rt-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s1);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.rt-btns > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rt-plus {
+  min-width: var(--target-min);
+  padding: 0 var(--s3);
+}
+
+.rt-count {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--fs-station);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.rt-timer,
+.rt-other {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rt-other {
+  color: var(--ink);
+}
+
+.rt-note {
+  display: block;
+  margin-top: var(--s1);
+  white-space: pre-wrap;
+}
+
+.rt-line {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  color: var(--ink-2);
+}
+
+.rt-today details {
+  margin: 0;
+}
+
+.rt-today summary {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: var(--target-min);
+  cursor: pointer;
+}
+
+.rt-today summary::-webkit-details-marker {
+  display: none;
+}
+
+.rt-today summary h3 {
+  margin: 0;
+  min-width: 0;
+}
+
+.rt-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.rt-tally {
+  flex: none;
+  min-width: 9ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 500;
+}
+
+.rt-block {
+  margin-top: var(--s1);
+}
+
+.rt-block h4 {
+  margin: 0 0 var(--s1);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+}
+
+.rt-block h4 a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--target-min);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.rt-block h4 span {
+  display: inline-block;
+  min-width: 8ch;
+  margin-left: var(--s3);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
+}
+
+.rt-form {
+  max-width: none;
+  margin-top: var(--s2);
+}
+
+.rt-private {
+  margin: 0;
+}
+
+.rt-h {
+  margin: var(--s3) 0 0;
+}
+
+.rt-days legend {
+  margin-bottom: var(--s1);
+}
+
+.rt-dayset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr));
+  gap: var(--s1);
+}
+
+.rt-dayset button {
+  min-width: 0;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+.rt-dayset button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.rt-dayset button[aria-invalid="true"] {
+  border-color: var(--late);
+}
+
+.rt-acts {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rt-act {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+  padding: var(--s3);
+  border-radius: var(--r-group);
+  background: var(--bg);
+}
+
+.rt-act-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s2);
+}
+
+.rt-act-h > :first-child {
+  flex: 1 1 10rem;
+}
+
+.rt-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: var(--s3);
+}
+
+.rt-more {
+  display: grid;
+  min-width: 0;
+  gap: var(--s3);
+}
+
+.rt-more summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 650;
+}
+
+.rt-more[open] summary {
+  margin-bottom: var(--s2);
+}
+
+.rt-add {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  gap: var(--s2);
+}
+
+.rt-add button {
+  min-width: 0;
+}
+
+.rt-delete {
+  margin-left: 0;
+}

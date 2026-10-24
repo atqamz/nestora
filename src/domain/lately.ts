@@ -1,3 +1,4 @@
+import { isRoutineKind } from "../../shared/routines.ts";
 import type { BudgetEntryRow, ItemRow } from "../../shared/tables.ts";
 import { compare } from "./order.ts";
 import { moverOf } from "./places.ts";
@@ -43,7 +44,7 @@ export const lately = (items: readonly ItemRow[], entries: readonly BudgetEntryR
       if (row.updated_by !== "a" && row.updated_by !== "b") return [];
       const verb = verbOf(row);
       if (verb === "added" && row.data !== null && "import_batch" in row.data) return [];
-      if ("kind" in row && (row.kind === "place" || (row.kind === "copy" && verb !== "moved" && together(row)))) return [];
+      if ("kind" in row && (row.kind === "place" || isRoutineKind(row.kind) || (row.kind === "copy" && verb !== "moved" && together(row)))) return [];
       if (verb !== "moved") return [{ id: row.id, by: row.updated_by, verb, title: row.title, to: null, at: row.updated_at }];
       const copy = row as ItemRow;
       return [{ id: row.id, by: moverOf(copy) ?? row.updated_by, verb, title: byId.get(copy.parent_id ?? "")?.title ?? row.title, to: byId.get(copy.group_key ?? "")?.title ?? null, at: row.updated_at }];
