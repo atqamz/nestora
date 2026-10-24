@@ -29,7 +29,7 @@ const world = async (t: TestContext, me: Side = "a", server = createServer()) =>
   const row = (id: string) => rows().find((candidate) => candidate.id === id)!;
   const flows = () => routineFlows({ items: rows(), actions: store, me, now: () => clock.now, go: (hash) => hashes.push(hash) });
   const make = async (draft = blankDraft(me)) => {
-    const plan = planOf(draft, null, newId);
+    const plan = planOf(draft, null, [], newId);
     assert.ok(plan.ok);
     idOf(await store.many(plan.steps));
     return plan.id;
@@ -143,7 +143,7 @@ test("pausing needs a later day, and resuming clears the date", async (t) => {
 
 test("saving navigates to a new routine and stays on an edited one", async (t) => {
   const w = await world(t);
-  const plan = planOf(draftWith("a", "step"), null, newId);
+  const plan = planOf(draftWith("a", "step"), null, [], newId);
   assert.ok(plan.ok);
   await w.flows().save(plan.steps, plan.id);
   assert.deepEqual(w.hashes, [`/routines/${plan.id}`]);
@@ -174,7 +174,7 @@ test("while the side is unconfirmed every write answers paused and changes nothi
   const server = createServer();
   const warm = client(server, "a");
   await warm.store.open();
-  const draft = planOf(draftWith("a", "step"), null, newId);
+  const draft = planOf(draftWith("a", "step"), null, [], newId);
   assert.ok(draft.ok);
   idOf(await warm.store.many(draft.steps));
   const [routine] = warm.store.getSnapshot().rows.items.filter((row) => row.kind === "routine");

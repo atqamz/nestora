@@ -741,6 +741,7 @@ export const text = {
         start: "Add a start time.",
         end: "The end must be after the start.",
         number: "Use a whole number of 1 or more.",
+        url: "Use a link that starts with http:// or https://, without spaces.",
       },
       problemAt: (title: string, message: string) => `${title}: ${message}`,
     },

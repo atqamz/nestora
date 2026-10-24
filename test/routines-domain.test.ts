@@ -67,17 +67,17 @@ test("Today holds only routines that run today and belong to this partner or bot
 });
 
 test("a Today block counts the ticks of the side that owns the mark and carries the day label", () => {
-  const training = routine("Training", {}, { who: "a" });
-  const lower = action(training, "Lower", "day_type", { data: { days: "MO,TH" } });
-  const rest = action(training, "Rest", "day_type", { data: { days: "TU,WE" } });
-  const first = action(training, "item 1", "step", { data: { done_a: DAY } });
-  const second = action(training, "item 2", "step", { data: { done_a: "2026-10-25" } });
-  const water = action(training, "item 3", "counter", { qty: 2, data: { done_a: DAY, value_a: 2 } });
-  const onlyTuesday = action(training, "item 4", "step", { data: { days: "TU" } });
-  const [block] = todayBlocks([training, lower, rest, first, second, water, onlyTuesday], "a", DAY);
-  assert.equal(block.label, "Lower");
+  const weekly = routine("Routine 1", {}, { who: "a" });
+  const typeOne = action(weekly, "Day type 1", "day_type", { data: { days: "MO,TH" } });
+  const typeTwo = action(weekly, "Day type 2", "day_type", { data: { days: "TU,WE" } });
+  const first = action(weekly, "item 1", "step", { data: { done_a: DAY } });
+  const second = action(weekly, "item 2", "step", { data: { done_a: "2026-10-25" } });
+  const counted = action(weekly, "item 3", "counter", { qty: 2, data: { done_a: DAY, value_a: 2 } });
+  const onlyTuesday = action(weekly, "item 4", "step", { data: { days: "TU" } });
+  const [block] = todayBlocks([weekly, typeOne, typeTwo, first, second, counted, onlyTuesday], "a", DAY);
+  assert.equal(block.label, "Day type 1");
   assert.deepEqual(block.progress, { done: 2, total: 3 });
-  assert.deepEqual(block.actions.map((row) => row.title), ["Lower", "item 1", "item 2", "item 3"]);
+  assert.deepEqual(block.actions.map((row) => row.title), ["Day type 1", "item 1", "item 2", "item 3"]);
   const shared = routine("Shared", {}, { who: "both" });
   const mark = action(shared, "item 1", "step", { data: { done_a: DAY } });
   assert.deepEqual(todayBlocks([shared, mark], "a", DAY)[0].progress, { done: 1, total: 1 });
@@ -138,4 +138,26 @@ test("a custom moment comes after the known ones and before a routine with no mo
   assert.deepEqual(moments.map(({ key }) => key), ["morning", "on_demand", "evening", "afternoon", "timetable", null]);
   const today = todayBlocks(rows, "a", DAY).map((block) => block.routine.title);
   assert.deepEqual(today, ["morning", "demand", "evening", "custom a", "custom b", "none"]);
+});
+
+test("custom moments sort by name whatever order they arrive in, and routines with no moment keep their order, in the listing and in Today", () => {
+  const rows = [
+    routine("Routine 1", {}, { group_key: null }),
+    routine("Routine 2", {}, { group_key: "zeta" }),
+    routine("Routine 3", {}, { group_key: null }),
+    routine("Routine 4", {}, { group_key: "alpha" }),
+    routine("Routine 5", {}, { group_key: "mid" }),
+    routine("Routine 6", {}, { group_key: null }),
+    routine("Routine 7", {}, { group_key: "alpha" }),
+  ];
+  const titles = (list: readonly ItemRow[]) => list.map((row) => row.title);
+  assert.deepEqual(todayBlocks(rows, "a", DAY).map((block) => block.routine.title), ["Routine 4", "Routine 7", "Routine 5", "Routine 2", "Routine 1", "Routine 3", "Routine 6"]);
+  const [{ moments }] = listing(rows, "a");
+  assert.deepEqual(moments.map(({ key, routines }) => [key, titles(routines)]), [["alpha", ["Routine 4", "Routine 7"]], ["mid", ["Routine 5"]], ["zeta", ["Routine 2"]], [null, ["Routine 1", "Routine 3", "Routine 6"]]]);
+  assert.deepEqual(listing([routine("Routine 1", {}, { group_key: "b" }), routine("Routine 2", {}, { group_key: "a" })], "a")[0].moments.map(({ key }) => key), ["a", "b"]);
+});
+
+test("routines of one moment are listed by their sort, not by the order the rows arrive in", () => {
+  const rows = [routine("Routine 3", {}, { group_key: "morning", sort: 2 }), routine("Routine 1", {}, { group_key: "morning", sort: 0 }), routine("Routine 2", {}, { group_key: "morning", sort: 1 })];
+  assert.deepEqual(listing(rows, "a")[0].moments[0].routines.map((row) => row.title), ["Routine 1", "Routine 2", "Routine 3"]);
 });

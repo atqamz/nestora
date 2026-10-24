@@ -66,7 +66,7 @@ const isText = (v: unknown, max: number, multiline: boolean) =>
   !UNWANTED.test(multiline ? v.replace(/[\n\t]/g, "") : v) &&
   VISIBLE.test(v);
 
-const isUrl = (v: unknown) => {
+export const isUrl = (v: unknown) => {
   if (typeof v !== "string" || v.length > URL_MAX || !URL_SHAPE.test(v)) return false;
   try {
     return new URL(v).hostname !== "";

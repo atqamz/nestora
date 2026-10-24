@@ -131,12 +131,13 @@ function ActionEditor({
 export function RoutineSheet({ start, current, me, today, duplicate, flows, onClose }: Props) {
   const { label } = usePartner();
   const { busy, once } = useBusy();
+  const [opened] = useState(current);
   const [draft, setDraft] = useState(start);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [failure, setFailure] = useState<string[]>([]);
   const [focus, setFocus] = useState<string[] | null>(null);
   const body = useRef<HTMLDivElement>(null);
-  const creating = current === null;
+  const creating = opened === null;
   const locked = draft.private;
 
   const set = (patch: Partial<RoutineDraft>) => setDraft((was) => ({ ...was, ...patch }));
@@ -182,7 +183,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     return once(async () => {
-      const plan = planOf(draft, current, () => crypto.randomUUID());
+      const plan = planOf(draft, opened, current?.actions ?? [], () => crypto.randomUUID());
       if (!plan.ok) {
         setFailure([]);
         return setProblems(plan.problems);
@@ -299,7 +300,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
           ))}
         </div>
         {!creating && (
-          <button type="button" className="danger rt-delete" disabled={busy} onClick={() => once(async () => setFailure(failureOf(await flows.remove(current.routine))))}>
+          <button type="button" className="danger rt-delete" disabled={busy} onClick={() => once(async () => setFailure(failureOf(await flows.remove(opened.routine))))}>
             {form.delete}
           </button>
         )}
