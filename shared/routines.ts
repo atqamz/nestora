@@ -35,7 +35,22 @@ const COMPLETES = ["step", "timer", "pack", "counter"];
 
 const dataOf = (row: ItemRow) => (row.data ?? {}) as Record<string, unknown>;
 
-const epochDay = (date: string) => Date.parse(`${date}T00:00:00Z`) / DAY;
+const digit = (text: string, at: number) => {
+  const value = text.charCodeAt(at) - 48;
+  return value >= 0 && value <= 9 ? value : NaN;
+};
+
+const epochDay = (date: string) => {
+  const year = digit(date, 0) * 1000 + digit(date, 1) * 100 + digit(date, 2) * 10 + digit(date, 3);
+  const month = digit(date, 5) * 10 + digit(date, 6);
+  const day = digit(date, 8) * 10 + digit(date, 9);
+  if (date.length !== 10 || date[4] !== "-" || date[7] !== "-" || !(year >= 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31)) return Date.parse(`${date}T00:00:00Z`) / DAY;
+  const shifted = month <= 2 ? year - 1 : year;
+  const era = Math.floor(shifted / 400);
+  const inEra = shifted - era * 400;
+  const inYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1;
+  return era * 146097 + inEra * 365 + Math.floor(inEra / 4) - Math.floor(inEra / 100) + inYear - 719468;
+};
 
 const dateOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -69,7 +84,13 @@ export const weekDates = (date: string) => DAY_CODES.map((_, step) => plus(date,
 
 const weekIndex = (date: string) => Math.floor((epochDay(date) + 3) / 7);
 
-const covers = (days: unknown, code: DayCode) => typeof days !== "string" || days.split(",").includes(code);
+export const covers = (days: unknown, code: DayCode) => {
+  if (typeof days !== "string") return true;
+  for (let at = days.indexOf(code); at >= 0; at = days.indexOf(code, at + 1)) {
+    if ((at === 0 || days[at - 1] === ",") && (at + code.length === days.length || days[at + code.length] === ",")) return true;
+  }
+  return false;
+};
 
 const listed = (days: unknown, date: string) => covers(days, weekday(date));
 

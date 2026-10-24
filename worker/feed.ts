@@ -63,7 +63,7 @@ export const serveFeed = async (request: Request, db: Db, pathname: string, now 
   const who = await sideOf(db, token);
   if (who === null) return json({ error: "not_found" }, 404, QUIET);
   const [items, settings] = await db.batch([
-    db.prepare("SELECT * FROM items WHERE deleted_at IS NULL AND kind IN ('routine', 'block')"),
+    db.prepare("SELECT id, kind, parent_id, who, title, data, rev, updated_at, deleted_at FROM items WHERE deleted_at IS NULL AND kind IN ('routine', 'block')"),
     db.prepare("SELECT value FROM settings WHERE key = 'holidays' AND deleted_at IS NULL"),
     db.prepare("UPDATE feed_tokens SET fetched_at = ? WHERE who = ?").bind(toInstant(now), who),
   ]);

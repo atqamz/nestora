@@ -1,6 +1,7 @@
 import type { Side } from "./api.ts";
-import { DAY_CODES, actionOccursOn, mine, occursOn, plus, routineDay, visible, weekday } from "./routines.ts";
-import type { Schedule } from "./routines.ts";
+import { DAY_CODES, covers, mine, occursOn, plus, routineDay, visible, weekday } from "./routines.ts";
+import type { DayCode, Schedule } from "./routines.ts";
+import { DURATION_MAX } from "./tables.ts";
 import type { ItemRow } from "./tables.ts";
 import { isTime } from "./validate.ts";
 
@@ -24,35 +25,40 @@ export const escape = (value: string) =>
   value
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
     .replace(/[\\;,]/g, "\\$&")
-    .replace(/\r\n|\r|\n/g, "\\n");
-
-const octets = (char: string) => {
-  const point = char.codePointAt(0)!;
-  return point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
-};
+    .replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, "\\n");
 
 export const fold = (line: string) => {
-  const parts = [""];
+  const parts: string[] = [];
+  let start = 0;
   let size = 0;
-  for (const char of line) {
-    const width = octets(char);
+  for (let at = 0; at < line.length; at++) {
+    const unit = line.charCodeAt(at);
+    const pair = unit >= 0xd800 && unit <= 0xdbff && line.charCodeAt(at + 1) >= 0xdc00 && line.charCodeAt(at + 1) <= 0xdfff;
+    const width = pair ? 4 : unit < 0x80 ? 1 : unit < 0x800 ? 2 : 3;
     if (size + width > LINE_OCTETS) {
-      parts.push("");
+      parts.push(line.slice(start, at));
+      start = at;
       size = 1;
     }
-    parts[parts.length - 1] += char;
     size += width;
+    if (pair) at++;
   }
+  parts.push(line.slice(start));
   return parts.join("\r\n ");
 };
 
+type Day = { date: string; code: DayCode };
+
 const range = (from: string, to: string) => {
-  const dates: string[] = [];
-  for (let date = from; date <= to; date = plus(date, 1)) dates.push(date);
-  return dates;
+  const days: Day[] = [];
+  for (let date = from; date <= to; date = plus(date, 1)) days.push({ date, code: weekday(date) });
+  return days;
 };
 
-const instant = (when: number | string) => new Date(when).toISOString().replace(/[-:]|\.\d{3}/g, "");
+const instant = (when: number | string) => {
+  const iso = new Date(when).toISOString();
+  return `${iso.slice(0, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}T${iso.slice(11, 13)}${iso.slice(14, 16)}${iso.slice(17, 19)}Z`;
+};
 
 const utc = (date: string, time: string) => instant(`${date}T${time}:00+07:00`);
 
@@ -62,23 +68,24 @@ const local = (name: string, date: string, time: string) => `${name};TZID=${ZONE
 
 const loosened = (routine: ItemRow): ItemRow => ({ ...routine, data: { ...routine.data, paused_until: undefined } });
 
-const holds = (entry: Entry, routine: ItemRow, date: string, holidays: readonly string[]) =>
-  entry.block ? actionOccursOn(routine, entry.row, date, holidays) : occursOn(routine, date, holidays);
+type Flags = (routine: ItemRow) => boolean[];
 
 const entriesOf = (rows: readonly ItemRow[], side: Side): Entry[] => {
   const open = visible(
     rows.filter((row) => row.deleted_at === null),
     null,
   );
+  const blocks = new Map<string, ItemRow[]>();
+  for (const row of open) if (row.kind === "block" && row.parent_id !== null) blocks.set(row.parent_id, [...(blocks.get(row.parent_id) ?? []), row]);
   const entries: Entry[] = [];
   for (const routine of open.filter((row) => row.kind === "routine" && mine(row, side))) {
     const start = text(routine.data?.start_time);
     const duration = routine.data?.duration;
     if (isTime(start)) {
-      const minutes = typeof duration === "number" && duration >= 1 ? duration : DEFAULT_MINUTES;
+      const minutes = typeof duration === "number" && duration >= 1 ? Math.min(duration, DURATION_MAX) : DEFAULT_MINUTES;
       entries.push({ row: routine, routine, block: false, title: routine.title, start, end: null, minutes, where: null });
     }
-    for (const row of open.filter((child) => child.kind === "block" && child.parent_id === routine.id)) {
+    for (const row of blocks.get(routine.id) ?? []) {
       const data = row.data ?? {};
       const start = text(data.start_time);
       const end = text(data.end_time);
@@ -89,12 +96,15 @@ const entriesOf = (rows: readonly ItemRow[], side: Side): Entry[] => {
   return entries;
 };
 
-const eventOf = (entry: Entry, window: readonly string[], holidays: readonly string[]) => {
-  const dates = window.filter((date) => holds(entry, entry.routine, date, holidays));
-  if (dates.length === 0) return null;
-  const first = dates[0];
-  const last = dates[dates.length - 1];
+const eventOf = (entry: Entry, window: readonly Day[], held: Flags, loosely: Flags) => {
   const { row, routine } = entry;
+  const only = row.data?.days;
+  const listed = (day: Day) => !entry.block || covers(only, day.code);
+  const hits = held(routine);
+  const dates = window.filter((day, at) => hits[at] && listed(day));
+  if (dates.length === 0) return null;
+  const first = dates[0].date;
+  const last = dates[dates.length - 1].date;
   const stamp = instant(Math.max(Date.parse(row.updated_at), Date.parse(routine.updated_at)));
   const lines = [
     "BEGIN:VEVENT",
@@ -110,13 +120,16 @@ const eventOf = (entry: Entry, window: readonly string[], holidays: readonly str
   if (dates.length > 1) {
     const { every_weeks, from } = (routine.data ?? {}) as Schedule;
     const interval = from !== undefined && Number(every_weeks) > 1 ? Number(every_weeks) : 1;
-    const days = DAY_CODES.filter((code) => dates.some((date) => weekday(date) === code));
+    const codes = new Set(dates.map((day) => day.code));
+    const days = DAY_CODES.filter((code) => codes.has(code));
     const rule = ["FREQ=WEEKLY", ...(interval > 1 ? [`INTERVAL=${interval}`] : []), `BYDAY=${days.join(",")}`, ...(interval > 1 ? ["WKST=MO"] : []), `UNTIL=${utc(last, entry.start)}`];
     lines.push(`RRULE:${rule.join(";")}`);
-    const kept = new Set(dates);
-    const loose = loosened(routine);
-    const skipped = window.filter((date) => date > first && date < last && !kept.has(date) && days.includes(weekday(date)) && holds(entry, loose, date, []));
-    if (skipped.length > 0) lines.push(`EXDATE;TZID=${ZONE}:${skipped.map((date) => clock(date, entry.start)).join(",")}`);
+    const skipped: Day[] = [];
+    let loose: boolean[] | undefined;
+    window.forEach((day, at) => {
+      if (day.date > first && day.date < last && !hits[at] && codes.has(day.code) && (loose ??= loosely(routine))[at]) skipped.push(day);
+    });
+    if (skipped.length > 0) lines.push(`EXDATE;TZID=${ZONE}:${skipped.map((day) => clock(day.date, entry.start)).join(",")}`);
   }
   if (entry.where !== null) lines.push(`LOCATION:${escape(entry.where)}`);
   if (entry.end === null && entry.minutes === null) lines.push("DESCRIPTION:open end");
@@ -139,8 +152,23 @@ const ZONE_LINES = [
 export const calendarOf = (rows: readonly ItemRow[], side: Side, now: Date, holidays: readonly string[] = []) => {
   const today = routineDay(now);
   const window = range(plus(today, -BACK_DAYS), plus(today, AHEAD_DAYS));
+  const flags = (loose: boolean): Flags => {
+    const seen = new Map<string, boolean[]>();
+    return (routine) => {
+      let known = seen.get(routine.id);
+      if (known === undefined) {
+        const subject = loose ? loosened(routine) : routine;
+        const { days, from, until, paused_until } = (subject.data ?? {}) as Schedule;
+        known = window.map((day) => covers(days, day.code) && (from === undefined || day.date >= from) && (until === undefined || day.date <= until) && (paused_until === undefined || day.date >= paused_until) && occursOn(subject, day.date, loose ? [] : holidays));
+        seen.set(routine.id, known);
+      }
+      return known;
+    };
+  };
+  const held = flags(false);
+  const loosely = flags(true);
   const events = entriesOf(rows, side)
-    .flatMap((entry) => eventOf(entry, window, holidays) ?? [])
+    .flatMap((entry) => eventOf(entry, window, held, loosely) ?? [])
     .sort((a, b) => (a.key < b.key ? -1 : 1));
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wp//feed//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:wp", ...ZONE_LINES, ...events.flatMap((event) => event.lines), "END:VCALENDAR"];
   return lines.map((line) => `${fold(line)}\r\n`).join("");
