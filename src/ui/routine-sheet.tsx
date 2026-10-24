@@ -4,7 +4,7 @@ import type { Side } from "../../shared/api.ts";
 import { ACTION_KINDS, DAY_CODES, TIMETABLE } from "../../shared/routines.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { KIND_FIELDS, LIMITS, blankAction, savePlan } from "../domain/routine-draft.ts";
+import { KIND_FIELDS, LIMITS, blankAction, forTimetable, savePlan } from "../domain/routine-draft.ts";
 import type { ActionDraft, ActionKind, Current, Problem, RoutineDraft, Who } from "../domain/routine-draft.ts";
 import { MOMENTS } from "../domain/routines.ts";
 import { overlaps } from "../domain/timetable.ts";
@@ -197,7 +197,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     return once(async () => {
-      const plan = savePlan(draft, opened, current, () => crypto.randomUUID());
+      const plan = savePlan(forTimetable(draft, me), opened, current, () => crypto.randomUUID());
       if (!plan.ok) {
         const lost = draft.actions.filter((action) => plan.gone.includes(action.id));
         setFailure(lost.map((action) => form.gone(action.title.trim() || form.untitled)));
@@ -214,7 +214,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
 
   const own = errorsAt(null);
   const moments = [...MOMENTS.map(String), ...(draft.moment !== "" && !(MOMENTS as readonly string[]).includes(draft.moment) ? [draft.moment] : [])];
-  const clashes = overlaps(draft.actions, draft.days);
+  const clashes = overlaps(draft.actions, forTimetable(draft, me).days);
   const clashLine = (at: number) =>
     clashes[at].length === 0 ? null : form.overlaps(clashes[at].map((to) => draft.actions[to].title.trim() || `${form.kind.block} ${to + 1}`).join(", "));
   const everyChanged = (every: string) => set({ every, from: draft.from || (Number(every) > 1 ? today : "") });
@@ -251,7 +251,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
               type: "text",
               required: true,
               choice: true,
-              value: draft.who,
+              value: forTimetable(draft, me).who,
               options: [
                 { value: "a", label: label("a"), icon: <Avatar side="a" /> },
                 { value: "b", label: label("b"), icon: <Avatar side="b" /> },
@@ -270,7 +270,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
             choice: true,
             value: draft.moment,
             options: moments.map((value) => ({ value, label: momentLabel(value) })),
-            onChange: (moment) => set(moment === TIMETABLE ? { moment, days: [...DAY_CODES], who: draft.who === "both" ? me : draft.who } : { moment }),
+            onChange: (moment) => set({ moment }),
           }}
         />
         {!timetable && <DayChips label={form.days} days={draft.days} onChange={(days) => set({ days })} error={own.days} />}

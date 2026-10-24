@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { ACTION_KINDS, DAY_CODES } from "../../shared/routines.ts";
+import { ACTION_KINDS, DAY_CODES, TIMETABLE } from "../../shared/routines.ts";
 import { isTime, isUrl } from "../../shared/validate.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import { tables } from "../../shared/tables.ts";
@@ -139,6 +139,9 @@ const actionProblems = (action: ActionDraft, at: number): Problem[] => {
   if (action.kind === "block" && isTime(action.start) && isTime(action.end) && action.end <= action.start) found.push({ at, field: "end", code: "order" });
   return found;
 };
+
+export const forTimetable = (draft: RoutineDraft, me: Side): RoutineDraft =>
+  draft.moment === TIMETABLE ? { ...draft, who: draft.who === "both" ? me : draft.who, days: [...DAY_CODES] } : draft;
 
 export const problemsOf = (draft: RoutineDraft): Problem[] => [
   ...(empty(draft.title) ? [{ at: null, field: "title", code: "required" } as const] : []),

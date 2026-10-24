@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn, dayLabel, keyFor } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { clampTo, isOpen, pagesOf, placeOf, position, screenOf, settled } from "../domain/routine-start.ts";
+import { clampTo, follow, isOpen, pagesOf, placeOf, position, screenOf, settled } from "../domain/routine-start.ts";
 import type { Page } from "../domain/routine-start.ts";
 import { actionsOf } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -54,8 +54,9 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     timers.keep(me, routine.id, null);
     setPlace(placeOf(pages, position(pages, side, day)));
     setMessage(start.newDay);
-  } else if (place.id !== placeOf(pages, at).id) {
-    setPlace(placeOf(pages, at));
+  } else {
+    const followed = follow(pages, place);
+    if (followed !== place) setPlace(followed);
   }
 
   const exit = () => {

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY_CODES, weekDates } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { SETTLE_MS, clampTo, hasWork, isOpen, leadOf, openCount, pagesOf, placeAt, placeOf, position, screenOf, settled } from "../src/domain/routine-start.ts";
+import { SETTLE_MS, clampTo, follow, hasWork, isOpen, leadOf, openCount, pagesOf, placeAt, placeOf, position, screenOf, settled } from "../src/domain/routine-start.ts";
 import { ADD_MS, FRESH_MS, STALE_MS, begin, clock, extend, parse, phase, share, timerKey } from "../src/domain/routine-timer.ts";
 import { weekStrip } from "../src/domain/routines.ts";
 import { keepAwake } from "../src/domain/wake-lock.ts";
@@ -369,10 +369,10 @@ test("a place names the page by its first action and keeps the index as a fallba
   const r = routine();
   const rows = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3", "pack"), action(r, "item 4", "pack")];
   const pages = pagesOf(rows);
-  assert.deepEqual(placeOf(pages, 1), { id: rows[1].id, at: 1 });
-  assert.deepEqual(placeOf(pages, 2), { id: rows[2].id, at: 2 });
-  assert.deepEqual(placeOf(pages, 3), { id: null, at: 3 });
-  assert.deepEqual(placeOf([], 0), { id: null, at: 0 });
+  assert.deepEqual(placeOf(pages, 1), { id: rows[1].id, rest: [rows[1].id, rows[2].id, rows[3].id] });
+  assert.deepEqual(placeOf(pages, 2), { id: rows[2].id, rest: [rows[2].id, rows[3].id] });
+  assert.deepEqual(placeOf(pages, 3), { id: null, rest: [] });
+  assert.deepEqual(placeOf([], 0), { id: null, rest: [] });
 });
 
 test("a page found by its id stays current when an earlier action is removed, added or reordered elsewhere", () => {
@@ -390,26 +390,25 @@ test("a page found by its id stays current when an earlier action is removed, ad
 test("a page whose first item is removed is still found by another item of it, and a removed page falls back to its old position", () => {
   const r = routine();
   const pack = [action(r, "item 1", "pack"), action(r, "item 2", "pack")];
-  const place = { id: pack[1].id, at: 1 };
+  const place = { id: pack[1].id, rest: [pack[1].id] };
   const before = action(r, "item 0");
   assert.equal(placeAt(pagesOf([before, ...pack]), place), 1);
-  assert.equal(placeAt(pagesOf([before, ...pack]), { id: pack[1].id, at: 0 }), 1);
-  assert.equal(placeAt(pagesOf([before, action(r, "item 7"), ...pack]), { id: pack[1].id, at: 0 }), 2);
+  assert.equal(placeAt(pagesOf([before, action(r, "item 7"), ...pack]), place), 2);
   assert.equal(placeAt(pagesOf([before, pack[1]]), place), 1);
   const rows = [action(r, "item 3"), action(r, "item 4"), action(r, "item 5")];
-  const gone = { id: "00000000-0000-4000-8000-00000000ffff", at: 1 };
+  const gone = { id: "00000000-0000-4000-8000-00000000ffff", rest: [rows[1].id, rows[2].id] };
   assert.equal(placeAt(pagesOf(rows), gone), 1);
+  assert.equal(placeAt(pagesOf([rows[0], rows[2]]), gone), 1);
   assert.equal(placeAt(pagesOf(rows.slice(0, 1)), gone), 1);
-  assert.equal(placeAt(pagesOf(rows), { id: gone.id, at: 9 }), 3);
-  assert.equal(placeAt(pagesOf(rows), { id: gone.id, at: -4 }), 0);
+  assert.equal(placeAt(pagesOf(rows), { id: gone.id, rest: [] }), 3);
 });
 
 test("the end of the list stays the end when an action is added, and an empty list has only the end", () => {
   const r = routine();
   const rows = [action(r, "item 1"), action(r, "item 2")];
-  assert.equal(placeAt(pagesOf(rows), { id: null, at: 2 }), 2);
-  assert.equal(placeAt(pagesOf([...rows, action(r, "item 3")]), { id: null, at: 2 }), 3);
-  assert.equal(placeAt([], { id: "x", at: 0 }), 0);
+  assert.equal(placeAt(pagesOf(rows), { id: null, rest: [] }), 2);
+  assert.equal(placeAt(pagesOf([...rows, action(r, "item 3")]), { id: null, rest: [] }), 3);
+  assert.equal(placeAt([], { id: "x", rest: ["x"] }), 0);
 });
 
 test("the screen is the page at the place, the end when the place is past the last page, and idle when nothing can be ticked", () => {
@@ -437,7 +436,66 @@ test("an earlier page removed while a later one is current leaves the screen on 
   const screen = screenOf(after, place, "a", DAY);
   assert.equal(screen.kind === "page" && screen.page[0].id, rows[1].id);
   assert.equal(screen.at, 0);
-  assert.deepEqual(placeOf(after, screen.at), { id: rows[1].id, at: 0 });
+  assert.deepEqual(placeOf(after, screen.at), { id: rows[1].id, rest: [rows[1].id, rows[2].id] });
+});
+
+const stepsOn = (place: ReturnType<typeof placeOf>, rows: readonly ItemRow[], ticks: ReadonlySet<string> = new Set()) => {
+  const shown = rows.map((row) => (ticks.has(row.id) ? ticked(row) : row));
+  const pages = pagesOf(shown);
+  const screen = screenOf(pages, place, "a", DAY);
+  return { title: screen.kind === "page" ? screen.page[0].title : null, at: screen.at, open: screen.open, next: follow(pages, place) };
+};
+
+test("deleting an earlier action and then the current one lands on the action that followed it, never one further", () => {
+  const r = routine();
+  const rows = ["item 1", "item 2", "item 3", "item 4", "item 5"].map((title) => action(r, title));
+  const [one, two, three, four, five] = rows;
+  const start = placeOf(pagesOf(rows), 2);
+  const ticks = new Set([one.id, five.id]);
+  const asked = (kept: readonly ItemRow[], place: typeof start) => stepsOn(place, kept, ticks);
+
+  const earlier = asked([two, three, four, five], start);
+  assert.deepEqual([earlier.title, earlier.at, earlier.open], ["item 3", 1, 3]);
+  const gone = asked([two, four, five], earlier.next);
+  assert.deepEqual([gone.title, gone.at, gone.open], ["item 4", 1, 2]);
+
+  const swapped = asked([one, two, four, five], start);
+  assert.deepEqual([swapped.title, swapped.at], ["item 4", 2]);
+  const then = asked([two, four, five], swapped.next);
+  assert.deepEqual([then.title, then.at, then.open], ["item 4", 1, 2]);
+
+  const together = asked([two, four, five], start);
+  assert.deepEqual([together.title, together.at, together.open], ["item 4", 1, 2]);
+  const last = asked([two, three, four], placeOf(pagesOf([two, three, four]), 2));
+  assert.equal(asked([two, three], last.next).title, null);
+  assert.equal(asked([two, three], last.next).at, 2);
+});
+
+test("following a place keeps the very same place while nothing changed, and renews it when the later pages or the current one changed", () => {
+  const r = routine();
+  const [one, two, three] = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3")];
+  const pages = pagesOf([one, two, three]);
+  for (const at of [0, 1, 2, 3]) {
+    const place = placeOf(pages, at);
+    assert.equal(follow(pages, place), place);
+    assert.equal(placeAt(pages, place), at);
+  }
+  const place = placeOf(pages, 1);
+  assert.deepEqual(follow(pagesOf([one, two]), place), { id: two.id, rest: [two.id] });
+  assert.deepEqual(follow(pagesOf([three, two, one]), place), { id: two.id, rest: [two.id, one.id] });
+  assert.deepEqual(follow(pagesOf([one, three]), place), { id: three.id, rest: [three.id] });
+  assert.deepEqual(follow(pagesOf([one]), place), { id: null, rest: [] });
+});
+
+test("a moved current action is found where it went, and a pack that loses its first item stays on the rest of it", () => {
+  const r = routine();
+  const [one, two, three] = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3")];
+  const moved = stepsOn(placeOf(pagesOf([one, two, three]), 1), [one, three, two]);
+  assert.deepEqual([moved.title, moved.at], ["item 2", 2]);
+  const pack = [action(r, "item 4", "pack"), action(r, "item 5", "pack")];
+  const place = placeOf(pagesOf([one, ...pack, three]), 1);
+  const rest = stepsOn(place, [one, pack[1], three]);
+  assert.deepEqual([rest.title, rest.at], ["item 5", 1]);
 });
 
 test("the button that leads a page is Done for something to tick, Next once it is ticked or when it cannot be ticked, and +1 for a counter below its target", () => {

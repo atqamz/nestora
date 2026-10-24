@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY_CODES, TIMETABLE, isTimetable, routineDay, routineMinutes } from "../shared/routines.ts";
+import type { DayCode } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { blankAction, blankDraft, planOf, problemsOf } from "../src/domain/routine-draft.ts";
+import { blankAction, blankDraft, forTimetable, planOf, problemsOf } from "../src/domain/routine-draft.ts";
 import type { ActionDraft } from "../src/domain/routine-draft.ts";
 import { todayBlocks } from "../src/domain/routines.ts";
 import { inTimeOrder, marks, minutes, overlaps, slotsOn, stateOf, themToday, weekOf } from "../src/domain/timetable.ts";
@@ -292,4 +293,21 @@ test("a block with no valid start, and anything that is not a block, is never fl
   assert.deepEqual(overlaps([span("bad", ""), span("09:00", "10:00")], all), [[], []]);
   assert.deepEqual(overlaps([span("09:00", "10:00", [], "step"), span("09:00", "10:00")], all), [[], []]);
   assert.deepEqual(overlaps([], all), []);
+});
+
+test("an open-end block runs to the end of the day, so it overlaps a block that starts at any time after it, even in the last minute", () => {
+  const block = (start: string, end: string): { kind: string; start: string; end: string; days: DayCode[] } => ({ kind: "block", start, end, days: ["MO"] });
+  assert.deepEqual(overlaps([block("23:00", ""), block("23:40", "23:50")], DAY_CODES), [[1], [0]]);
+  assert.deepEqual(overlaps([block("23:00", ""), block("23:59", "")], DAY_CODES), [[1], [0]]);
+  assert.deepEqual(overlaps([block("23:00", ""), block("22:00", "23:00")], DAY_CODES), [[], []]);
+});
+
+test("a timetable is saved owned by one side on every day, but the draft keeps the owner and days it had until then", () => {
+  const both = { ...blankDraft("a"), who: "both" as const, days: ["MO", "TH"] as DayCode[], moment: "evening" };
+  const toggled = { ...both, moment: TIMETABLE };
+  assert.deepEqual([toggled.who, toggled.days], ["both", ["MO", "TH"]]);
+  assert.deepEqual([forTimetable(toggled, "b").who, forTimetable(toggled, "b").days], ["b", DAY_CODES]);
+  assert.deepEqual(forTimetable({ ...toggled, who: "a" }, "b").who, "a");
+  assert.equal(forTimetable(both, "b"), both);
+  assert.deepEqual({ ...toggled, moment: "evening" }, both);
 });

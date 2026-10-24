@@ -29,13 +29,10 @@ test("them today is read-only: no checkbox, no button, no write flow, only a lin
   assert.match(files, /<a href=/);
 });
 
-test("the clock hook reads the minute of the routine day from one state and refreshes every minute and when the page is shown", () => {
+test("the clock hook reads the minute of the routine day from one state and watches the clock through one helper", () => {
   const hook = read("hooks/use-routines.ts");
-  assert.match(hook, /const MINUTE_MS = 60_000;/);
-  assert.match(hook, /const REFRESH_MS = MINUTE_MS;/);
-  assert.match(hook, /setInterval\(refresh, REFRESH_MS\)/);
-  assert.match(hook, /document\.addEventListener\("visibilitychange", refresh\)/);
-  assert.match(hook, /return \{ day: routineDay\(now\), elapsed: routineMinutes\(now\) \};/);
+  assert.match(hook, /useEffect\(\(\) => watch\(\(\) => setValue\(read\(\)\)\), \[\]\);/);
+  assert.match(hook, /useRoutineClock = \(\) => clockAt\(useReading\(\(\) => minuteOf\(new Date\(\)\)\)\);/);
   assert.match(hook, /export const useRoutineDay = \(\) => useReading\(\(\) => routineDay\(new Date\(\)\)\);/);
 });
 
@@ -104,7 +101,8 @@ test("the sheet in the timetable moment offers only blocks, only one owner at a 
   assert.match(sheet, /const KINDS_IN_TIMETABLE: readonly ActionKind\[\] = \["block"\];/);
   assert.match(sheet, /\.\.\.\(timetable \? \[\] : \[\{ value: "both", label: text\.both, icon: <Pair \/> \}\]\)/);
   assert.match(sheet, /\{!timetable && <DayChips label=\{form\.days\}/);
-  assert.match(sheet, /onChange: \(moment\) => set\(moment === TIMETABLE \? \{ moment, days: \[\.\.\.DAY_CODES\], who: draft\.who === "both" \? me : draft\.who \} : \{ moment \}\)/);
+  assert.match(sheet, /onChange: \(moment\) => set\(\{ moment \}\)/);
+  assert.match(sheet, /savePlan\(forTimetable\(draft, me\), opened/);
   assert.match(sheet, /\{slot && <DayChips label=\{form\.days\} days=\{action\.days\} hint=\{form\.blockDaysHint\}/);
   assert.match(sheet, /\{clash !== null && <p className="hint rt-clash">\{clash\}<\/p>\}/);
   assert.match(sheet, /hint: slot && field === "end" \? form\.endHint : undefined/);
