@@ -31,7 +31,7 @@ const dateOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export const routineDay = (now: Date) => dateOf(now.getTime() + (UTC_OFFSET_HOURS - DAY_START_HOUR) * HOUR);
 
-export const weekday = (date: string): DayCode => DAY_CODES[(epochDay(date) + 3) % 7];
+export const weekday = (date: string): DayCode => DAY_CODES[(((epochDay(date) + 3) % 7) + 7) % 7];
 
 const weekIndex = (date: string) => Math.floor((epochDay(date) + 3) / 7);
 

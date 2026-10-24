@@ -49,6 +49,22 @@ test("weekday agrees with the calendar for every date from 2020 to 2035", () => 
   assert.equal(weekday("1970-01-01"), "TH");
 });
 
+test("weekday agrees with the calendar before 1970 and far after it", () => {
+  for (let ms = Date.UTC(1900, 0, 1); ms < Date.UTC(1971, 0, 1); ms += DAY) {
+    assert.equal(weekday(iso(ms)), DAY_CODES[(new Date(ms).getUTCDay() + 6) % 7], iso(ms));
+  }
+  assert.equal(weekday("1969-12-28"), "SU");
+  assert.equal(weekday("1969-12-29"), "MO");
+  assert.equal(weekday("0001-01-01"), "MO");
+  assert.equal(weekday("9999-12-31"), "FR");
+});
+
+test("the routine day is fixed to UTC+7 and does not follow another time zone", () => {
+  assert.equal(routineDay(new Date("2026-10-24T22:30:00Z")), "2026-10-25");
+  assert.equal(routineDay(new Date("2026-10-24T21:30:00Z")), "2026-10-25");
+  assert.equal(routineDay(new Date("2026-10-24T20:59:59Z")), "2026-10-24");
+});
+
 test("the routine day starts at 04:00 in Jakarta, which is 21:00 UTC", () => {
   const cases: [string, string][] = [
     ["2026-10-23T20:59:59Z", "2026-10-23"],
@@ -277,6 +293,33 @@ test("scheduled orders equal sorts by creation and id and never mixes routines",
   const third = step(r, null, { sort: 1, created_at: "2026-10-02T00:00:00Z", id: "00000000-0000-4000-8000-0000000000a0" });
   const [entry] = scheduled([r, third, first, second], "2026-10-19");
   assert.deepEqual(entry.actions.map((a) => a.id), [second.id, first.id, third.id]);
+});
+
+const permutations = <T>(items: readonly T[]): T[][] =>
+  items.length <= 1 ? [[...items]] : items.flatMap((item, index) => permutations([...items.slice(0, index), ...items.slice(index + 1)]).map((rest) => [item, ...rest]));
+
+test("equal sort and creation order by id whatever the input order", () => {
+  const r = routine();
+  const same = ["a1", "b2", "c3", "d4", "e5", "f6"].map((tail) => step(r, null, { sort: 2, created_at: "2026-10-01T00:00:00Z", id: `00000000-0000-4000-8000-0000000000${tail}` }));
+  for (const input of permutations(same)) {
+    assert.deepEqual(scheduled([r, ...input], "2026-10-19")[0].actions.map((a) => a.id), same.map((a) => a.id));
+  }
+});
+
+test("a later creation time never sorts before an earlier one when ids run the other way", () => {
+  const r = routine();
+  const days = ["01", "02", "03", "04", "05", "06"];
+  const created = days.map((tail, index) => step(r, null, { sort: 2, created_at: `2026-10-${tail}T00:00:00Z`, id: `00000000-0000-4000-8000-0000000000f${5 - index}` }));
+  for (const input of permutations(created)) {
+    assert.deepEqual(scheduled([r, ...input], "2026-10-19")[0].actions.map((a) => a.id), created.map((a) => a.id));
+  }
+});
+
+test("sort outranks creation time and creation time outranks id across routines too", () => {
+  const early = routine({}, { sort: 1, created_at: "2026-10-05T00:00:00Z", id: "00000000-0000-4000-8000-0000000000f1" });
+  const late = routine({}, { sort: 1, created_at: "2026-10-06T00:00:00Z", id: "00000000-0000-4000-8000-0000000000a1" });
+  const first = routine({}, { sort: 0, created_at: "2026-10-09T00:00:00Z", id: "00000000-0000-4000-8000-0000000000f2" });
+  assert.deepEqual(scheduled([late, early, first], "2026-10-19").map((s) => s.routine.id), [first.id, early.id, late.id]);
 });
 
 test("a routine belongs to its owner and to both", () => {

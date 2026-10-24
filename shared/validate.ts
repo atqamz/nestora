@@ -238,6 +238,13 @@ const checkData = (variant: Variant, data: unknown, mode: Mode, errors: string[]
   }
 };
 
+const checkSchedule = (data: unknown, errors: string[]) => {
+  if (!isPlain(data)) return;
+  const { every_weeks, from, until } = data;
+  if (every_weeks != null && from == null) errors.push("data.from: required with data.every_weeks");
+  if (typeof from === "string" && typeof until === "string" && until < from) errors.push("data.until: must not be before data.from");
+};
+
 const checkVariant = (
   table: Table,
   variantName: string,
@@ -260,6 +267,7 @@ const checkVariant = (
   }
   if (mode === "patch" && input.data === null) errors.push("data: must be an object, set a key to null to remove it");
   if (input.data !== undefined && input.data !== null) checkData(variant, input.data, mode, errors);
+  if (mode === "create" && table.by === "kind" && variantName === "routine") checkSchedule(input.data, errors);
   if (variant.doneOnStatus && input.done_on != null && input.status !== undefined && input.status !== variant.doneOnStatus) {
     errors.push(`done_on: only allowed when status is ${variant.doneOnStatus}`);
   }
@@ -349,7 +357,12 @@ export const validateChange = (tableName: unknown, stored: unknown, patch: unkno
   if (!isPlain(stored)) return ["row: must be an object"];
   const errors = validatePatch(tableName, stored[table.by ?? table.key], patch);
   if (errors.length > 0) return errors;
-  return validateRow(tableName, applyPatch(stored, patch as Plain));
+  const merged = applyPatch(stored, patch as Plain);
+  const rows = validateRow(tableName, merged);
+  const sent = isPlain(patch) ? patch.data : undefined;
+  const schedule = isPlain(sent) && ["every_weeks", "from", "until"].some((key) => Object.hasOwn(sent, key));
+  if (rows.length === 0 && schedule && merged.kind === "routine") checkSchedule(merged.data, rows);
+  return rows;
 };
 
 const mutationFields = ["id", "table", "op", "row_id", "patch"];

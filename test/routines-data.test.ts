@@ -111,8 +111,42 @@ test("typed data keys are checked", () => {
   rejects(action(2, 1, "counter", { data: { done_b: "2026-13-01" } }), /data\.done_b: must be a date/);
 });
 
+test("a cadence needs a start and until cannot come before from", () => {
+  rejects(routine(1, { data: { every_weeks: "2" } }), /data\.from: required with data\.every_weeks/);
+  rejects(routine(1, { data: { every_weeks: "2", until: "2026-12-31" } }), /data\.from: required with data\.every_weeks/);
+  accepts(routine(1, { data: { every_weeks: "2", from: "2026-10-05" } }));
+  accepts(routine(1, { data: { until: "2026-12-31" } }));
+  accepts(routine(1, { data: { from: "2026-10-05" } }));
+  accepts(routine(1, { data: { from: "2026-10-05", until: "2026-10-05" } }));
+  accepts(routine(1, { data: { from: "2026-10-05", until: "2026-10-06" } }));
+  rejects(routine(1, { data: { from: "2026-10-05", until: "2026-10-04" } }), /data\.until: must not be before data\.from/);
+  rejects(routine(1, { data: { every_weeks: "2", from: "2026-12-31", until: "2026-01-01" } }), /data\.until: must not be before data\.from/);
+});
+
+test("a stored routine that was valid before keeps working, and a patch is checked only when it touches the schedule", () => {
+  const row = (data: Obj | null) => ({ id: id(1), kind: "routine", who: "a", title: "Morning routine", currency: "IDR", sort: 0, rev: 1, data, ...stamps, updated_by: "a", deleted_at: null });
+  const legacy = row({ every_weeks: "2", from: "2026-10-05", until: "2026-10-01" });
+  const noStart = row({ every_weeks: "2" });
+  for (const stored of [legacy, noStart]) {
+    assert.deepEqual(validateChange("items", stored, { title: "Renamed" }), []);
+    assert.deepEqual(validateChange("items", stored, { data: { remind: true } }), []);
+  }
+  assert.deepEqual(validateChange("items", noStart, { data: { every_weeks: null } }), []);
+  assert.deepEqual(validateChange("items", legacy, { data: { until: null } }), []);
+  assert.deepEqual(validateChange("items", legacy, { data: { until: "2026-10-05" } }), []);
+  assert.deepEqual(validateChange("items", noStart, { data: { from: "2026-10-05" } }), []);
+  assert.match(validateChange("items", legacy, { data: { until: "2026-10-04" } }).join(), /data\.until: must not be before data\.from/);
+  assert.match(validateChange("items", legacy, { data: { from: "2026-10-06" } }).join(), /data\.until: must not be before data\.from/);
+  assert.match(validateChange("items", noStart, { data: { every_weeks: "3" } }).join(), /data\.from: required with data\.every_weeks/);
+  assert.match(validateChange("items", row({ every_weeks: "2", from: "2026-10-05" }), { data: { from: null } }).join(), /data\.from: required with data\.every_weeks/);
+  assert.match(validateChange("items", row(null), { data: { every_weeks: "2" } }).join(), /data\.from: required with data\.every_weeks/);
+  assert.deepEqual(validateChange("items", row(null), { data: { every_weeks: "2", from: "2026-10-05" } }), []);
+  const step = { id: id(2), kind: "step", parent_id: id(1), title: "item 1", currency: "IDR", sort: 0, rev: 1, data: null, ...stamps, updated_by: "a", deleted_at: null };
+  assert.deepEqual(validateChange("items", step, { data: { done_a: "2026-10-24" } }), []);
+});
+
 test("the time type is HH:MM from 00:00 to 23:59", () => {
-  for (const good of ["00:00", "07:30", "09:05", "12:00", "19:59", "23:59"]) {
+  for (const good of ["00:00", "07:30", "09:05", "12:00", "19:59", "20:00", "20:30", "21:00", "21:45", "22:00", "22:59", "23:00", "23:59"]) {
     accepts(routine(1, { data: { start_time: good } }));
     accepts(action(2, 1, "block", { data: { start_time: good, end_time: good } }));
   }
