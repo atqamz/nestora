@@ -1,10 +1,11 @@
 import type { Side } from "../../shared/api.ts";
-import { actionOccursOn, dayLabel, isRoutineKind, keyFor, mine, occursOn, progress, scheduled, visible, weekDates, weeklyPattern } from "../../shared/routines.ts";
+import { actionOccursOn, dayLabel, isRoutineKind, isTimetable, keyFor, mine, occursOn, progress, scheduled, TIMETABLE, visible, weekDates, weeklyPattern } from "../../shared/routines.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { bySort, compare } from "./order.ts";
+import { inTimeOrder } from "./timetable.ts";
 
-export const MOMENTS = ["morning", "on_demand", "evening"] as const;
+export const MOMENTS = ["morning", "on_demand", "evening", TIMETABLE] as const;
 
 export type Owner = "mine" | "both" | "theirs";
 
@@ -48,7 +49,7 @@ export const todayBlocks = (rows: readonly ItemRow[], me: Side | null, day: stri
         .filter(({ routine }) => mine(routine, me))
         .map(({ routine, actions }) => {
           const side = keyFor(routine.who, me);
-          return { routine, actions, side, label: dayLabel(actions, day), progress: progress(actions, side, day) };
+          return { routine, actions: isTimetable(routine) ? inTimeOrder(actions) : actions, side, label: dayLabel(actions, day), progress: progress(actions, side, day) };
         })
         .sort((a, b) => byMoment(momentOf(a.routine), momentOf(b.routine)));
 

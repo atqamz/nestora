@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY_CODES, weekDates } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { SETTLE_MS, clampTo, hasWork, isOpen, openCount, pagesOf, position, settled } from "../src/domain/routine-start.ts";
+import { SETTLE_MS, clampTo, hasWork, isOpen, leadOf, openCount, pagesOf, placeAt, placeOf, position, screenOf, settled } from "../src/domain/routine-start.ts";
 import { ADD_MS, FRESH_MS, STALE_MS, begin, clock, extend, parse, phase, share, timerKey } from "../src/domain/routine-timer.ts";
 import { weekStrip } from "../src/domain/routines.ts";
 import { keepAwake } from "../src/domain/wake-lock.ts";
@@ -361,4 +361,97 @@ test("the lock listens for the browser's own release event, and a release that f
   finish(stuck);
   await pending;
   assert.deepEqual(late.seen, ["idle"]);
+});
+
+const places = (pages: ItemRow[][]) => pages.map((page) => page[0].id);
+
+test("a place names the page by its first action and keeps the index as a fallback", () => {
+  const r = routine();
+  const rows = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3", "pack"), action(r, "item 4", "pack")];
+  const pages = pagesOf(rows);
+  assert.deepEqual(placeOf(pages, 1), { id: rows[1].id, at: 1 });
+  assert.deepEqual(placeOf(pages, 2), { id: rows[2].id, at: 2 });
+  assert.deepEqual(placeOf(pages, 3), { id: null, at: 3 });
+  assert.deepEqual(placeOf([], 0), { id: null, at: 0 });
+});
+
+test("a page found by its id stays current when an earlier action is removed, added or reordered elsewhere", () => {
+  const r = routine();
+  const [one, two, three] = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3")];
+  const place = placeOf(pagesOf([one, two, three]), 1);
+  assert.equal(placeAt(pagesOf([two, three]), place), 0);
+  assert.equal(placeAt(pagesOf([one, two, three]), place), 1);
+  assert.equal(placeAt(pagesOf([action(r, "item 4"), one, two, three]), place), 2);
+  assert.equal(placeAt(pagesOf([three, two, one]), place), 1);
+  assert.equal(placeAt(pagesOf([three, one, two]), place), 2);
+  assert.equal(places(pagesOf([two, three]))[placeAt(pagesOf([two, three]), place)], two.id);
+});
+
+test("a page whose first item is removed is still found by another item of it, and a removed page falls back to its old position", () => {
+  const r = routine();
+  const pack = [action(r, "item 1", "pack"), action(r, "item 2", "pack")];
+  const place = { id: pack[1].id, at: 1 };
+  const before = action(r, "item 0");
+  assert.equal(placeAt(pagesOf([before, ...pack]), place), 1);
+  assert.equal(placeAt(pagesOf([before, ...pack]), { id: pack[1].id, at: 0 }), 1);
+  assert.equal(placeAt(pagesOf([before, action(r, "item 7"), ...pack]), { id: pack[1].id, at: 0 }), 2);
+  assert.equal(placeAt(pagesOf([before, pack[1]]), place), 1);
+  const rows = [action(r, "item 3"), action(r, "item 4"), action(r, "item 5")];
+  const gone = { id: "00000000-0000-4000-8000-00000000ffff", at: 1 };
+  assert.equal(placeAt(pagesOf(rows), gone), 1);
+  assert.equal(placeAt(pagesOf(rows.slice(0, 1)), gone), 1);
+  assert.equal(placeAt(pagesOf(rows), { id: gone.id, at: 9 }), 3);
+  assert.equal(placeAt(pagesOf(rows), { id: gone.id, at: -4 }), 0);
+});
+
+test("the end of the list stays the end when an action is added, and an empty list has only the end", () => {
+  const r = routine();
+  const rows = [action(r, "item 1"), action(r, "item 2")];
+  assert.equal(placeAt(pagesOf(rows), { id: null, at: 2 }), 2);
+  assert.equal(placeAt(pagesOf([...rows, action(r, "item 3")]), { id: null, at: 2 }), 3);
+  assert.equal(placeAt([], { id: "x", at: 0 }), 0);
+});
+
+test("the screen is the page at the place, the end when the place is past the last page, and idle when nothing can be ticked", () => {
+  const r = routine();
+  const rows = [action(r, "item 1"), action(r, "item 2"), action(r, "item 3", "text")];
+  const pages = pagesOf(rows);
+  const first = screenOf(pages, placeOf(pages, 0), "a", DAY);
+  assert.deepEqual([first.kind, first.at, first.open], ["page", 0, 2]);
+  assert.equal(first.kind === "page" && first.page[0].id, rows[0].id);
+  const end = screenOf(pages, placeOf(pages, 3), "a", DAY);
+  assert.deepEqual([end.kind, end.at, end.open], ["end", 3, 2]);
+  const ticks = rows.map((row, index) => (index < 2 ? ticked(row) : row));
+  const finished = screenOf(pagesOf(ticks), placeOf(pagesOf(ticks), 3), "a", DAY);
+  assert.deepEqual([finished.kind, finished.open], ["end", 0]);
+  const notes = pagesOf([action(r, "item 4", "text"), action(r, "item 5", "day_type")]);
+  assert.deepEqual([screenOf(notes, placeOf(notes, 0), "a", DAY).kind, screenOf(notes, placeOf(notes, 2), "a", DAY).kind], ["idle", "idle"]);
+  assert.deepEqual(screenOf([], placeOf([], 0), "a", DAY), { kind: "idle", at: 0, open: 0 });
+});
+
+test("an earlier page removed while a later one is current leaves the screen on the same page", () => {
+  const r = routine();
+  const rows = [action(r, "item 1"), action(r, "item 2", "timer", { data: { minutes: 5 } }), action(r, "item 3")];
+  const place = placeOf(pagesOf(rows), 1);
+  const after = pagesOf(rows.slice(1));
+  const screen = screenOf(after, place, "a", DAY);
+  assert.equal(screen.kind === "page" && screen.page[0].id, rows[1].id);
+  assert.equal(screen.at, 0);
+  assert.deepEqual(placeOf(after, screen.at), { id: rows[1].id, at: 0 });
+});
+
+test("the button that leads a page is Done for something to tick, Next once it is ticked or when it cannot be ticked, and +1 for a counter below its target", () => {
+  const r = routine();
+  const step = action(r, "item 1");
+  const timer = action(r, "item 2", "timer", { data: { minutes: 5 } });
+  const counter = action(r, "item 3", "counter", { qty: 2 });
+  const lead = (row: ItemRow, side: "a" | "b" = "a") => leadOf(row, side, DAY);
+  assert.deepEqual([lead(step), lead(timer), lead(counter)], ["done", "done", "plus"]);
+  assert.deepEqual([lead(ticked(step)), lead(ticked(timer))], ["next", "next"]);
+  assert.equal(lead(ticked(step), "b"), "done");
+  assert.equal(lead(ticked(step, "2026-10-25")), "done");
+  assert.equal(lead({ ...counter, data: { done_a: DAY, value_a: 1 } }), "plus");
+  assert.equal(lead({ ...counter, data: { done_a: DAY, value_a: 2 } }), "next");
+  assert.equal(lead({ ...counter, data: { done_a: "2026-10-25", value_a: 2 } }), "plus");
+  for (const kind of ["text", "day_type", "pack", "block"]) assert.equal(lead(action(r, "item 4", kind)), "next");
 });

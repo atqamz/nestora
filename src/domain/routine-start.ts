@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { progress } from "../../shared/routines.ts";
+import { isDone, progress } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 
 export type Page = ItemRow[];
@@ -37,4 +37,30 @@ export const position = (pages: readonly Page[], side: Side, day: string, runnin
   if (at < 0) return pages.length;
   while (at > 0 && progress(pages[at - 1], side, day).total === 0) at--;
   return at;
+};
+
+export type Place = { id: string | null; at: number };
+
+export type Screen = { at: number; open: number } & ({ kind: "page"; page: Page } | { kind: "end" | "idle" });
+
+export type Lead = "done" | "next" | "plus";
+
+export const placeOf = (pages: readonly Page[], at: number): Place => ({ id: pages[at]?.[0].id ?? null, at });
+
+export const placeAt = (pages: readonly Page[], place: Place) => {
+  if (place.id === null) return pages.length;
+  const found = pages.findIndex((page) => page.some((row) => row.id === place.id));
+  return found >= 0 ? found : clampTo(place.at, pages.length);
+};
+
+export const screenOf = (pages: readonly Page[], place: Place, side: Side, day: string): Screen => {
+  const at = placeAt(pages, place);
+  const open = openCount(pages, side, day);
+  if (!hasWork(pages, side, day)) return { kind: "idle", at, open };
+  return pages[at] === undefined ? { kind: "end", at, open } : { kind: "page", at, open, page: pages[at] };
+};
+
+export const leadOf = (action: ItemRow, side: Side, day: string): Lead => {
+  if (isDone(action, side, day) || !["step", "timer", "counter"].includes(action.kind)) return "next";
+  return action.kind === "counter" ? "plus" : "done";
 };

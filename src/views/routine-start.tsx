@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn, dayLabel, keyFor } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { clampTo, hasWork, isOpen, openCount, pagesOf, position, settled } from "../domain/routine-start.ts";
+import { clampTo, isOpen, pagesOf, placeOf, position, screenOf, settled } from "../domain/routine-start.ts";
 import type { Page } from "../domain/routine-start.ts";
 import { actionsOf } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -13,6 +13,7 @@ import { chime } from "../ui/chime.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
 import type { Flows } from "../ui/routine-flows.ts";
+import { press } from "../ui/press.ts";
 import { StartPage } from "../ui/start-page.tsx";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
@@ -31,7 +32,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const actions = useMemo(() => actionsOf(items, routine).filter((action) => actionOccursOn(routine, action, day)), [items, routine, day]);
   const pages = useMemo(() => pagesOf(actions), [actions]);
   const side = keyFor(routine.who, me);
-  const [index, setIndex] = useState(() => position(pages, side, day, timers.running(me, routine.id)));
+  const [place, setPlace] = useState(() => placeOf(pages, position(pages, side, day, timers.running(me, routine.id))));
   const [shown, setShown] = useState(day);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState<string[]>([]);
@@ -40,9 +41,10 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const root = useRef<HTMLElement>(null);
   const moved = useRef(false);
   const since = useRef(performance.now());
-  const idle = !hasWork(pages, side, day);
-  const at = Math.min(index, pages.length);
-  const page = idle ? undefined : (pages[at] as Page | undefined);
+  const screen = screenOf(pages, place, side, day);
+  const { at, open } = screen;
+  const idle = screen.kind === "idle";
+  const page = screen.kind === "page" ? screen.page : undefined;
   const current = page?.[0].id ?? null;
   const total = pages.length;
   const dayName = dayLabel(actions, day);
@@ -50,8 +52,10 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   if (shown !== day) {
     setShown(day);
     timers.keep(me, routine.id, null);
-    setIndex(position(pages, side, day));
+    setPlace(placeOf(pages, position(pages, side, day)));
     setMessage(start.newDay);
+  } else if (place.id !== placeOf(pages, at).id) {
+    setPlace(placeOf(pages, at));
   }
 
   const exit = () => {
@@ -64,7 +68,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     moved.current = true;
     since.current = performance.now();
     setFailure([]);
-    setIndex(clamped);
+    setPlace(placeOf(pages, clamped));
     setMessage(clamped >= total ? "" : start.announce(clamped + 1, total, heading(pages[clamped])));
   };
 
@@ -79,7 +83,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   useEffect(() => {
     if (!moved.current) return;
     root.current?.querySelector<HTMLElement>("[data-primary]")?.focus();
-  }, [at]);
+  }, [current]);
 
   const write = (work: () => ReturnType<Flows["toggle"]>, then?: () => void) =>
     once(async () => {
@@ -112,7 +116,6 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     if (wake.state !== "held") wake.again();
   };
 
-  const open = openCount(pages, side, day);
   const ending = open === 0 ? start.finished : start.left(open);
   const upcoming = pages[at + 1];
 
@@ -127,6 +130,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
         if (settled(since.current, performance.now())) return;
         event.preventDefault();
         event.stopPropagation();
+        press(event.target);
       }}
       onKeyDown={(event) => {
         if (event.repeat) event.preventDefault();
@@ -151,7 +155,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
         </ol>
       )}
       {dayName !== null && <p className="start-meta">{copy.dayLabel(dayName)}</p>}
-      <div className="start-page" key={`${day}:${at}`}>
+      <div className="start-page" key={`${day}:${current ?? "end"}`}>
         {page !== undefined ? (
           <>
             <StartPage {...moves} page={page} />

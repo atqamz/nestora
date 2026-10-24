@@ -34,14 +34,15 @@ test("a tick goes through the same flows as the list, with the displayed day, an
   assert.match(start, /const result = await work\(\);\s*setFailure\(failureOf\(result\)\);\s*if \(result\.ok\) then\?\.\(\);/);
   assert.match(start, /const write = \(work: \(\) => ReturnType<Flows\["toggle"\]>, then\?: \(\) => void\) =>\s*once\(/);
   assert.doesNotMatch(start, /actions\.|hooks\/use-store|new Date|Date\.now/);
-  assert.match(page, /finished \? next\(\) : done\(action\)/);
+  assert.match(page, /lead === "next" \? next\(\) : done\(action\)/);
   assert.doesNotMatch(page, /flows\./);
 });
 
 test("the position derives from the ticks and is read again when the routine day changes", () => {
-  assert.match(start, /useState\(\(\) => position\(pages, side, day, timers\.running\(me, routine\.id\)\)\)/);
-  assert.match(start, /if \(shown !== day\) \{\s*setShown\(day\);\s*timers\.keep\(me, routine\.id, null\);\s*setIndex\(position\(pages, side, day\)\);\s*setMessage\(start\.newDay\);\s*\}/);
-  assert.match(start, /const at = Math\.min\(index, pages\.length\);/);
+  assert.match(start, /useState\(\(\) => placeOf\(pages, position\(pages, side, day, timers\.running\(me, routine\.id\)\)\)\)/);
+  assert.match(start, /if \(shown !== day\) \{\s*setShown\(day\);\s*timers\.keep\(me, routine\.id, null\);\s*setPlace\(placeOf\(pages, position\(pages, side, day\)\)\);\s*setMessage\(start\.newDay\);\s*\}/);
+  assert.match(start, /const screen = screenOf\(pages, place, side, day\);\s*const \{ at, open \} = screen;/);
+  assert.match(start, /\} else if \(place\.id !== placeOf\(pages, at\)\.id\) \{\s*setPlace\(placeOf\(pages, at\)\);\s*\}/);
 });
 
 test("the countdown is derived from the stored end instant on every render, and nothing counts ticks", () => {
@@ -54,7 +55,7 @@ test("the countdown is derived from the stored end instant on every render, and 
   assert.match(hook, /const refresh = \(\) => setNow\(Date\.now\(\)\);/);
   for (const event of ["visibilitychange", "pageshow", "focus"]) assert.match(hook, new RegExp(`${event}", refresh`));
   assert.match(hook, /return \(\) => \{\s*clearInterval\(timer\);/);
-  assert.equal([...read("hooks/use-routines.ts").matchAll(/new Date\(/g)].length, 2);
+  assert.equal([...read("hooks/use-routines.ts").matchAll(/new Date\(/g)].length, 3);
 });
 
 test("the timer ends with a sound made after a tap, a vibration where there is one and a visual change, and the sound is honest about autoplay", () => {
@@ -83,7 +84,7 @@ test("the countdown is not announced every second: it is a timer with live off, 
 });
 
 test("focus moves to the new primary button on an advance, Escape exits, and a held key never repeats a button", () => {
-  assert.match(start, /useEffect\(\(\) => \{\s*if \(!moved\.current\) return;\s*root\.current\?\.querySelector<HTMLElement>\("\[data-primary\]"\)\?\.focus\(\);\s*\}, \[at\]\);/);
+  assert.match(start, /useEffect\(\(\) => \{\s*if \(!moved\.current\) return;\s*root\.current\?\.querySelector<HTMLElement>\("\[data-primary\]"\)\?\.focus\(\);\s*\}, \[current\]\);/);
   assert.match(start, /event\.key === "Escape" && !event\.defaultPrevented && exit\(\)/);
   assert.match(start, /const exit = \(\) => \{\s*timers\.keep\(me, routine\.id, null\);\s*location\.replace\(`#\/routines\/\$\{routine\.id\}`\);\s*\};/);
   assert.match(start, /onKeyDown=\{\(event\) => \{\s*if \(event\.repeat\) event\.preventDefault\(\);\s*\}\}/);
@@ -163,20 +164,20 @@ test("a save that edits an action removed on another device is refused with a pl
 });
 
 test("a move clamps the target, focuses the new primary button, starts the settle time and announces the page by its place", () => {
-  assert.match(start, /const clamped = clampTo\(to, total\);\s*moved\.current = true;\s*since\.current = performance\.now\(\);\s*setFailure\(\[\]\);\s*setIndex\(clamped\);/);
+  assert.match(start, /const clamped = clampTo\(to, total\);\s*moved\.current = true;\s*since\.current = performance\.now\(\);\s*setFailure\(\[\]\);\s*setPlace\(placeOf\(pages, clamped\)\);/);
   assert.match(start, /start\.announce\(clamped \+ 1, total, heading\(pages\[clamped\]\)\)/);
 });
 
 test("each timer action gets its own countdown: the component is keyed by the action, and the page by the day and the position", () => {
   assert.match(page, /<Timing key=\{action\.id\} \{\.\.\.props\} action=\{action\}/);
-  assert.match(start, /<div className="start-page" key=\{`\$\{day\}:\$\{at\}`\}>/);
+  assert.match(start, /<div className="start-page" key=\{`\$\{day\}:\$\{current \?\? "end"\}`\}>/);
   assert.equal([...page.matchAll(/useState\(/g)].length, 1);
 });
 
 test("a tap within the settle time of a page change is cancelled for the whole screen, and the clock is the monotonic one", () => {
   assert.match(start, /const since = useRef\(performance\.now\(\)\);/);
   assert.match(start, /since\.current = performance\.now\(\);\s*setFailure\(\[\]\);/);
-  assert.match(start, /onClickCapture=\{\(event\) => \{\s*if \(settled\(since\.current, performance\.now\(\)\)\) return;\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*\}\}/);
+  assert.match(start, /onClickCapture=\{\(event\) => \{\s*if \(settled\(since\.current, performance\.now\(\)\)\) return;\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*press\(event\.target\);\s*\}\}/);
   assert.doesNotMatch(start, /setTimeout|Date\.now/);
 });
 
@@ -192,8 +193,8 @@ test("the status line and the screen read the end of the list from one value, an
   assert.equal([...start.matchAll(/start\.finished\b/g)].length, 1);
   assert.equal([...start.matchAll(/start\.left\(/g)].length, 1);
   assert.match(start, /<h2 className="start-title">\{ending\}<\/h2>/);
-  assert.match(start, /const idle = !hasWork\(pages, side, day\);/);
-  assert.match(start, /const page = idle \? undefined : \(pages\[at\] as Page \| undefined\);/);
+  assert.match(start, /const idle = screen\.kind === "idle";/);
+  assert.match(start, /const page = screen\.kind === "page" \? screen\.page : undefined;/);
   assert.match(start, /\) : idle \? \(\s*<>\s*<h2 className="start-title">\{start\.nothing\}<\/h2>/);
   assert.match(start, /\{!idle && <span className="start-pos">/);
 });

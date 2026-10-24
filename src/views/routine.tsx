@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { actionOccursOn, dayLabel, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
+import { actionOccursOn, dayLabel, isTimetable, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
 import { copyDraft, draftOf } from "../domain/routine-draft.ts";
 import { pagesOf } from "../domain/routine-start.ts";
 import { actionsOf, momentOf, runs, weekStrip } from "../domain/routines.ts";
+import { weekOf } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { Who } from "../ui/avatar.tsx";
@@ -13,6 +14,7 @@ import { RoutineWeek } from "../ui/routine-week.tsx";
 import { momentLabel, scheduleLine, whenLine } from "../ui/routine-label.ts";
 import { PauseSheet, RoutineSheet } from "../ui/routine-sheet.tsx";
 import { text } from "../ui/text.ts";
+import { Timetable } from "../ui/timetable.tsx";
 import { Title } from "../ui/title.tsx";
 
 const copy = text.routines;
@@ -47,6 +49,8 @@ export function RoutineDetail({ id }: { id: string }) {
   const { done, total } = progress(todays, keyFor(routine.who, me), day);
   const strip = weekStrip(routine, actions, day, keyFor(routine.who, me));
   const label = today ? dayLabel(todays, day) : null;
+  const table = isTimetable(routine);
+  const listed = table ? actions.filter((action) => action.kind !== "block") : actions;
   return (
     <>
       <p className="trail">
@@ -68,6 +72,7 @@ export function RoutineDetail({ id }: { id: string }) {
         {today && total > 0 && ` · ${copy.progress(done, total)}`}
       </p>
       {strip !== null && <RoutineWeek strip={strip} />}
+      {table && <Timetable days={weekOf(routine, actions, day)} today={day} />}
       <div className="rt-tools">
         {today && !away && pagesOf(todays).length > 0 && (
           <a className="button" href={`#/routines/${routine.id}/start`}>
@@ -97,10 +102,10 @@ export function RoutineDetail({ id }: { id: string }) {
           {failure.join(" ")}
         </p>
       )}
-      {actions.length === 0 ? (
-        <p className="empty">{copy.noActions}</p>
+      {listed.length === 0 ? (
+        table ? null : <p className="empty">{copy.noActions}</p>
       ) : (
-        runs(actions).map(({ heading, actions: group }, index) => (
+        runs(listed).map(({ heading, actions: group }, index) => (
           <section key={`${index}-${heading ?? ""}`} className="rt-run" aria-label={heading ?? undefined}>
             {heading !== null && <h2>{heading}</h2>}
             <ul className="rows">

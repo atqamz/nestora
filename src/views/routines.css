@@ -167,6 +167,106 @@
   font-weight: 500;
 }
 
+.rt-tt {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  align-items: start;
+  gap: var(--s3);
+  margin: 0 0 var(--s5);
+}
+
+.rt-tt-day {
+  min-width: 0;
+  padding: var(--s3) var(--s4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--surface);
+}
+
+.rt-tt-day[data-today] {
+  border-color: var(--ink);
+  background: var(--surface-2);
+}
+
+.rt-tt-day h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  min-height: var(--target-min);
+  font-size: var(--fs-station);
+}
+
+.rt-tt-day h2 span:not(.rt-tag) {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 500;
+}
+
+.rt-tt-none {
+  margin: 0 0 var(--s2);
+}
+
+.rt-slots {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rt-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+  min-height: var(--target-min);
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.rt-slot-t {
+  flex: none;
+  min-width: 5.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 650;
+}
+
+.rt-slot-b {
+  display: grid;
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rt-slot[data-state="done"],
+.rt-slot[data-state="done"] .rt-slot-title {
+  color: var(--ink-2);
+}
+
+.rt-slot[data-state="done"] .rt-slot-b {
+  text-decoration: line-through;
+}
+
+.rt-slot[data-tag] {
+  padding-inline-start: var(--s3);
+  box-shadow: inset var(--route-w) 0 0 var(--signal);
+}
+
+.rt-tag {
+  flex: none;
+  padding: 0 var(--s2);
+  border-radius: 999px;
+  background: var(--signal);
+  color: var(--on-signal);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.rt-clash {
+  margin: 0;
+}
+
 .rt-form {
   max-width: none;
   margin-top: var(--s2);
@@ -598,4 +698,10 @@
 
 .start-box input:checked + svg {
   color: var(--bg);
+}
+
+.start [data-held] {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  transform: scale(0.97);
 }

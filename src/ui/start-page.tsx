@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Side } from "../../shared/api.ts";
 import { count, isDone } from "../../shared/routines.ts";
+import { leadOf } from "../domain/routine-start.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { FRESH_MS, begin, clock, extend, phase, share } from "../domain/routine-timer.ts";
 import type { Timer } from "../domain/routine-timer.ts";
@@ -175,6 +176,7 @@ export function StartPage(props: Props) {
 
   const title = action.kind === "day_type" ? start.today(action.title) : action.title;
   const finished = isDone(action, side, day);
+  const lead = leadOf(action, side, day);
   const head = <h2 className="start-title">{title}</h2>;
 
   if (action.kind === "text" || action.kind === "day_type") {
@@ -192,7 +194,6 @@ export function StartPage(props: Props) {
 
   if (action.kind === "counter") {
     const unit = word(action, "unit");
-    const reached = finished;
     return (
       <>
         {head}
@@ -200,10 +201,10 @@ export function StartPage(props: Props) {
           {copy.count(count(action, side, day), action.qty, unit)}
         </p>
         <div className="start-do">
-          <button type="button" className={reached ? "secondary start-alt" : "start-main"} data-primary={!reached || undefined} aria-label={copy.plus(action.title)} onClick={() => plus(action)}>
+          <button type="button" className={lead === "plus" ? "start-main" : "secondary start-alt"} data-primary={lead === "plus" || undefined} aria-label={copy.plus(action.title)} onClick={() => plus(action)}>
             {copy.plusLabel}
           </button>
-          <button type="button" className={reached ? "start-main" : "secondary start-alt"} data-primary={reached || undefined} onClick={next}>
+          <button type="button" className={lead === "next" ? "start-main" : "secondary start-alt"} data-primary={lead === "next" || undefined} onClick={next}>
             {start.next}
           </button>
         </div>
@@ -240,8 +241,8 @@ export function StartPage(props: Props) {
         </p>
       )}
       <div className="start-do">
-        <button type="button" className="start-main" data-primary onClick={() => (finished ? next() : done(action))}>
-          {finished ? start.next : start.done}
+        <button type="button" className="start-main" data-primary onClick={() => (lead === "next" ? next() : done(action))}>
+          {lead === "next" ? start.next : start.done}
         </button>
         {open}
       </div>
