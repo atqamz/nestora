@@ -39,7 +39,7 @@ const epochDay = (date: string) => Date.parse(`${date}T00:00:00Z`) / DAY;
 
 const dateOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-const plus = (date: string, days: number) => dateOf((epochDay(date) + days) * DAY);
+export const plus = (date: string, days: number) => dateOf((epochDay(date) + days) * DAY);
 
 const NEXT_LOOKAHEAD_DAYS = 400;
 

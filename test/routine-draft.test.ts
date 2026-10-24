@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTION_KINDS, DAY_CODES } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { KIND_FIELDS, LIMITS, blankAction, blankDraft, copyDraft, draftOf, planOf, problemsOf, savePlan } from "../src/domain/routine-draft.ts";
+import { KIND_FIELDS, LIMITS, blankAction, blankDraft, copyDraft, draftOf, forTimetable, planOf, problemsOf, savePlan } from "../src/domain/routine-draft.ts";
 import type { ActionDraft, RoutineDraft } from "../src/domain/routine-draft.ts";
 import { text } from "../src/ui/text.ts";
 import { client } from "./store-client.ts";
@@ -458,7 +458,7 @@ test("an action removed in the sheet and edited elsewhere is still deleted, and 
 
 test("a new draft and a new action start empty, and Save refuses them until each is named", () => {
   assert.deepEqual(blankAction("step", "id-1"), { id: "id-1", kind: "step", title: "", heading: "", days: [], note: "", url: "", minutes: "", qty: "", unit: "", start: "", end: "", where: "" });
-  assert.deepEqual(blankDraft("b"), { title: "", who: "b", moment: "morning", days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", private: false, actions: [] });
+  assert.deepEqual(blankDraft("b"), { title: "", who: "b", moment: "morning", days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", start: "", duration: "", private: false, actions: [] });
   assert.deepEqual(problemsOf({ ...blankDraft("a"), actions: [blankAction("step", "id-1")] }).map((problem) => [problem.at, problem.field, problem.code]), [[null, "title", "required"], [0, "title", "required"]]);
   assert.deepEqual(problemsOf({ ...blankDraft("a"), title: "x", actions: [blankAction("timer", "id-1"), blankAction("counter", "id-2"), blankAction("block", "id-3")] }).map((problem) => [problem.at, problem.field]), [[0, "title"], [0, "minutes"], [1, "title"], [1, "qty"], [2, "title"], [2, "start"]]);
 });
@@ -586,4 +586,22 @@ test("the sheet's save is planned from the snapshot it opened with and the rows 
   const made = savePlan(everything(), null, null, newId);
   assert.ok(made.ok);
   assert.equal(made.steps.length, 8);
+});
+
+test("a calendar time survives a round trip through Timetable and is not stored for a Timetable", () => {
+  const timed = { ...blankDraft("a"), title: "Routine 1", who: "both" as const, days: ["MO", "TH"] as RoutineDraft["days"], start: "18:30", duration: "45" };
+  const toTimetable = { ...timed, moment: "timetable" };
+  const back = { ...toTimetable, moment: timed.moment };
+  assert.deepEqual([back.start, back.duration, back.who, back.days], ["18:30", "45", "both", ["MO", "TH"]]);
+  const dataOf = (draft: RoutineDraft) => {
+    const plan = savePlan(forTimetable(draft, "a"), null, null, newId);
+    assert.ok(plan.ok);
+    const step = plan.steps[0];
+    assert.ok(step.op === "create");
+    return step.draft as Record<string, unknown> & { data: Record<string, unknown> };
+  };
+  assert.deepEqual([dataOf(back).data.start_time, dataOf(back).data.duration], ["18:30", 45]);
+  const stored = dataOf(toTimetable);
+  assert.deepEqual([stored.group_key, stored.who, stored.data.start_time, stored.data.duration], ["timetable", "a", undefined, undefined]);
+  assert.deepEqual(problemsOf({ ...toTimetable, start: "25:99", duration: "x" }), []);
 });

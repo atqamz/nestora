@@ -27,11 +27,11 @@ export const PROBE_TIMEOUT_MS = 4_000;
 
 type Dict = Record<string, unknown>;
 
-const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
+export const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isSide = (value: unknown): value is Side => value === "a" || value === "b";
 
-const call = async (
+export const call = async (
   fetcher: Fetch,
   url: string,
   init: RequestInit,
@@ -56,7 +56,7 @@ const call = async (
   return { kind: "response", status: res.status, body };
 };
 
-const sided = (side?: Side): Record<string, string> => (side === undefined ? {} : { [SIDE_HEADER]: side });
+export const sided = (side?: Side): Record<string, string> => (side === undefined ? {} : { [SIDE_HEADER]: side });
 
 export const createApi = (fetcher: Fetch, side?: Side): Api => ({
   pull: async (since, timeout) => {

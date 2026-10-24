@@ -102,7 +102,7 @@ const isZone = (v: unknown) => {
   }
 };
 
-const isDates = (v: unknown) => {
+export const isDates = (v: unknown) => {
   if (typeof v !== "string") return false;
   try {
     const list: unknown = JSON.parse(v);

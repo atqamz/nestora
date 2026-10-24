@@ -1,12 +1,14 @@
 import { useSyncExternalStore } from "react";
 import { LOGIN_URL } from "../store/api.ts";
-import { store } from "../store/browser.ts";
+import { feedOf, store } from "../store/browser.ts";
 import type { TableName } from "../../shared/tables.ts";
 
 export type { Pending } from "../store/persistence.ts";
 export type { Written } from "../store/store.ts";
 
 export const openStore = store.open;
+
+export const feedFor = feedOf;
 
 export const actions = {
   create: store.create,

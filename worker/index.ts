@@ -4,13 +4,14 @@ import type { ErrorBody, SideMismatch } from "../shared/api.ts";
 import { createAuthenticator } from "./auth.ts";
 import type { AuthEnv } from "./auth.ts";
 import { exportData } from "./export.ts";
+import { feedStatus, revokeFeed, rotateFeed, serveFeed } from "./feed.ts";
 import { photoOf } from "./me.ts";
 import { getSync, json, postSync } from "./sync.ts";
 import type { Db } from "./sync.ts";
 
 export type Bindings = AuthEnv & { DB: Db; DESIGN: { get(key: string, type: "text"): Promise<string | null> } };
 
-const SIDED = new Set(["/api/sync", "/api/export"]);
+const SIDED = new Set(["/api/sync", "/api/export", "/api/feed"]);
 
 const DESIGN_NAME = /^\/design\/([a-z0-9][a-z0-9-]{0,39})\/?$/;
 
@@ -49,6 +50,7 @@ export const createWorker = (authenticate = createAuthenticator(), fetcher: type
   async fetch(request: Request, env: Bindings): Promise<Response> {
     try {
       const url = new URL(request.url);
+      if (url.pathname.startsWith("/feed/")) return await serveFeed(request, env.DB, url.pathname);
       const design = url.pathname.startsWith("/design/");
       if (!design && !url.pathname.startsWith("/api/")) return fail("not_found", 404);
       const verified: { payload: JWTPayload | null } = { payload: null };
@@ -69,6 +71,10 @@ export const createWorker = (authenticate = createAuthenticator(), fetcher: type
           return method === "GET" ? await exportData(url, env.DB, who) : notAllowed("GET");
         case "/api/me":
           return method === "GET" ? json({ photo: await photoOf(request, env, verified.payload, fetcher) }, 200, { "cache-control": "private, no-store" }) : notAllowed("GET");
+        case "/api/feed":
+          if (method === "GET") return json(await feedStatus(env.DB, who));
+          if (method !== "POST" && method !== "DELETE") return notAllowed("GET, POST, DELETE");
+          return refuseUnsafe(request, url.origin) ?? (method === "POST" ? json(await rotateFeed(env.DB, who)) : (await revokeFeed(env.DB, who), json({ active: false })));
         case "/api/sync":
           if (method === "GET") return await getSync(url, env.DB, who);
           if (method !== "POST") return notAllowed("GET, POST");

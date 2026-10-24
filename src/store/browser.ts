@@ -1,5 +1,7 @@
+import type { Side } from "../../shared/api.ts";
 import { createApi } from "./api.ts";
 import { indexedDbDisk } from "./db.ts";
+import { createFeed } from "./feed.ts";
 import { createSession, sideHint } from "./partition.ts";
 import { timerStore } from "./timers.ts";
 
@@ -12,6 +14,8 @@ export const timers = timerStore(
     }
   })(),
 );
+
+export const feedOf = (side: Side) => createFeed((url, init) => fetch(url, init), side);
 
 export const store = createSession({
   disk: indexedDbDisk(),

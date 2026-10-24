@@ -6,6 +6,7 @@ import { useSettings } from "../hooks/use-plan.ts";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
 import { Avatar } from "../ui/avatar.tsx";
 import { failureOf } from "../ui/failure.ts";
+import { FeedSection } from "../ui/feed-section.tsx";
 import { Field } from "../ui/field.tsx";
 import { formatLong } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
@@ -144,6 +145,8 @@ export function Settings() {
             },
           }}
         />
+
+        {me !== null && <FeedSection side={me} zone={settings.timezone} />}
 
         <h2>{text.settings.data}</h2>
         <p className="hint">{text.settings.exportBody}</p>

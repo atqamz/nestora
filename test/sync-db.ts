@@ -1,18 +1,20 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { SQLInputValue } from "node:sqlite";
 import type { Mutation, Side } from "../shared/api.ts";
 import { applyMutations } from "../worker/sync.ts";
 import type { Db } from "../worker/sync.ts";
 
-const migration = readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8");
+const migrations = readdirSync(new URL("../migrations/", import.meta.url))
+  .sort()
+  .map((name) => readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
 
 const MAX_PARAMS = 100;
 
 export function createDb() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON");
-  sqlite.exec(migration);
+  for (const migration of migrations) sqlite.exec(migration);
   const calls: string[][] = [];
   let inBatch = false;
   const statement = (sql: string, params: SQLInputValue[] = []) => ({

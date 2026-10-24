@@ -288,6 +288,10 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
         />
         {Number(draft.every) > 1 && <Field control={{ name: "routine-from", label: form.from, type: "date", value: draft.from, onChange: (from) => set({ from }) }} error={own.from} />}
         <Field control={{ name: "routine-paused", label: form.pausedUntil, type: "date", value: draft.pausedUntil, onChange: (pausedUntil) => set({ pausedUntil }) }} />
+        {!timetable && <Field control={{ name: "routine-start", label: form.calendarStart, type: "time", value: draft.start, hint: form.calendarHint, onChange: (start) => set({ start }) }} error={own.start} />}
+        {!timetable && draft.start.trim() !== "" && (
+          <Field control={{ name: "routine-duration", label: form.duration, type: "int", value: draft.duration, hint: form.durationHint, onChange: (duration) => set({ duration }) }} error={own.duration} />
+        )}
         {duplicate && !locked && <p className="hint">{form.makePrivate}</p>}
 
         <h3 className="rt-h">{form.actions}</h3>

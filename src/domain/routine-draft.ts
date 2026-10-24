@@ -35,11 +35,13 @@ export type RoutineDraft = {
   every: string;
   from: string;
   pausedUntil: string;
+  start: string;
+  duration: string;
   private: boolean;
   actions: ActionDraft[];
 };
 
-export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url"; code: "required" | "number" | "days" | "from" | "order" | "time" | "url" };
+export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url" | "duration"; code: "required" | "number" | "days" | "from" | "order" | "time" | "url" };
 
 export type Current = { routine: ItemRow; actions: readonly ItemRow[] };
 
@@ -79,7 +81,7 @@ const daysString = (days: readonly DayCode[]) => (days.length === 0 || days.leng
 
 export const blankAction = (kind: ActionKind, id: string): ActionDraft => ({ id, kind, title: "", heading: "", days: [], note: "", url: "", minutes: "", qty: "", unit: "", start: "", end: "", where: "" });
 
-export const blankDraft = (me: Side, moment = "morning"): RoutineDraft => ({ title: "", who: me, moment, days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", private: false, actions: [] });
+export const blankDraft = (me: Side, moment = "morning"): RoutineDraft => ({ title: "", who: me, moment, days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", start: "", duration: "", private: false, actions: [] });
 
 const actionDraft = (row: ItemRow): ActionDraft => {
   const data = row.data ?? {};
@@ -110,6 +112,8 @@ export const draftOf = (routine: ItemRow, children: readonly ItemRow[]): Routine
     every: text(data.every_weeks) || "1",
     from: text(data.from),
     pausedUntil: text(data.paused_until),
+    start: text(data.start_time),
+    duration: data.duration === undefined ? "" : String(data.duration),
     private: data.private === true,
     actions: [...children].sort(bySort).map(actionDraft),
   };
@@ -140,6 +144,13 @@ const actionProblems = (action: ActionDraft, at: number): Problem[] => {
   return found;
 };
 
+const dated = (draft: RoutineDraft) => draft.moment.trim() !== TIMETABLE && !empty(draft.start);
+
+const calendarProblems = (draft: RoutineDraft): Problem[] => [
+  ...(dated(draft) && !isTime(draft.start) ? [{ at: null, field: "start", code: "time" } as const] : []),
+  ...(dated(draft) && !empty(draft.duration) && !(NUMBER.test(draft.duration.trim()) && Number(draft.duration) >= 1) ? [{ at: null, field: "duration", code: "number" } as const] : []),
+];
+
 export const forTimetable = (draft: RoutineDraft, me: Side): RoutineDraft =>
   draft.moment === TIMETABLE ? { ...draft, who: draft.who === "both" ? me : draft.who, days: [...DAY_CODES] } : draft;
 
@@ -147,6 +158,7 @@ export const problemsOf = (draft: RoutineDraft): Problem[] => [
   ...(empty(draft.title) ? [{ at: null, field: "title", code: "required" } as const] : []),
   ...(draft.days.length === 0 ? [{ at: null, field: "days", code: "days" } as const] : []),
   ...(Number(draft.every) > 1 && empty(draft.from) ? [{ at: null, field: "from", code: "from" } as const] : []),
+  ...calendarProblems(draft),
   ...draft.actions.flatMap(actionProblems),
 ];
 
@@ -157,6 +169,8 @@ const routineData = (draft: RoutineDraft): Dict => {
     every_weeks: every ? draft.every : null,
     from: every && !empty(draft.from) ? draft.from : null,
     paused_until: empty(draft.pausedUntil) ? null : draft.pausedUntil,
+    start_time: dated(draft) ? draft.start : null,
+    duration: dated(draft) && !empty(draft.duration) ? Number(draft.duration) : null,
   };
 };
 

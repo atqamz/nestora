@@ -215,6 +215,7 @@ export const tables = {
           until: "date",
           paused_until: "date",
           start_time: "time",
+          duration: "int",
           holidays: "bool",
           private: "bool",
           remind: "bool",

@@ -42,6 +42,8 @@ export type ErrorBody = { error: string };
 
 export type SideMismatch = { error: "side_mismatch"; me: Side };
 
+export type FeedStatus = { active: false } | { active: true; created_at: string; fetched_at: string | null };
+
 export const SIDE_HEADER = "x-wp-side";
 
 export const MAX_MUTATIONS = 20;
