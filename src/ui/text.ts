@@ -48,10 +48,19 @@ export const text = {
   nav: {
     label: "Main",
     home: "Home",
+    marriage: "Marriage",
+    routines: "Routines",
+    library: "Library",
     money: "Money",
     people: "People",
-    books: "Books",
     settings: "Settings",
+  },
+  home: {
+    allBooks: "All books",
+  },
+  marriage: {
+    label: "Marriage",
+    journey: "Journey",
   },
   owner: {
     label: "Show",
@@ -160,7 +169,6 @@ export const text = {
     open: (n: number) => `${n} still open`,
     progress: (done: number, total: number) => `${done} of ${total} done`,
     tasks: (n: number) => plural(n, "task"),
-    allTasks: "All tasks",
   },
   week: {
     heading: "Due soon and late",

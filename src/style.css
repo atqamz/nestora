@@ -261,7 +261,7 @@ main {
   padding: var(--s2) max(var(--s4), var(--safe-r)) calc(var(--tabs) + var(--safe-b) + var(--s6)) max(var(--s4), var(--safe-l));
 }
 
-main[data-page="home"] {
+main[data-page="journey"] {
   max-width: none;
   padding: 0 0 calc(var(--tabs) + var(--safe-b) + var(--s6));
 }
@@ -376,13 +376,13 @@ main:has(> [data-full]) {
   }
 
   main,
-  main[data-page="home"] {
+  main[data-page="journey"] {
     max-width: 52rem;
     margin: 0;
     padding: var(--s7) var(--s8) var(--s9);
   }
 
-  main[data-page="home"] {
+  main[data-page="journey"] {
     max-width: none;
     padding: 0 0 var(--s9);
   }

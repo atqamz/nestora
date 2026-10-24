@@ -73,7 +73,7 @@ test("the global Add sheet has no routine chip and the Settings exports list no 
 
 test("Home shows the Today block between the capture box and the due list, and the route is wired", () => {
   const home = read("views/home.tsx");
-  assert.match(home, /<Capture \/>\s*<Today \/>\s*<Them \/>\s*\{empty/);
+  assert.match(home, /<Capture \/>\s*<Today \/>\s*<Them \/>\s*<Week \/>/);
   assert.match(read("main.tsx"), /case "routines":\s*return <Routines id=\{id\} sub=\{sub\} \/>;/);
   assert.match(read("main.tsx"), /import "\.\/views\/routines\.css";/);
 });

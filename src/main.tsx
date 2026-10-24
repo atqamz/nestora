@@ -16,6 +16,7 @@ import { Connect } from "./views/connect.tsx";
 import { Denied, SignIn } from "./views/entry.tsx";
 import { GenericItem } from "./views/generic-item.tsx";
 import { Home } from "./views/home.tsx";
+import { Journey } from "./views/journey.tsx";
 import { MoneyView } from "./views/money.tsx";
 import { People } from "./views/people.tsx";
 import { Routines } from "./views/routines.tsx";
@@ -26,7 +27,7 @@ import "./tokens.css";
 import "./style.css";
 import "./ui/ui.css";
 import "./ui/sheet.css";
-import "./views/home.css";
+import "./views/journey.css";
 import "./views/money.css";
 import "./views/people.css";
 import "./views/books.css";
@@ -40,6 +41,8 @@ function Page({ section, id, sub }: { section: string; id?: string; sub?: string
   switch (screen) {
     case "home":
       return <Home />;
+    case "marriage":
+      return <Journey />;
     case "tasks":
       return id ? <GenericItem key={id} name="task" id={id} /> : <Tasks />;
     case "routines":

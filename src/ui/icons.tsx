@@ -1,17 +1,11 @@
 const paths = {
-  home: (
-    <>
-      <circle cx="6" cy="18" r="2.2" />
-      <circle cx="18" cy="6" r="2.2" />
-      <path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8" />
-    </>
-  ),
   money: (
     <>
       <rect x="3" y="6" width="18" height="13" rx="2" />
       <path d="M3 10h18M16 15h2" />
     </>
   ),
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
   people: (
     <>
       <circle cx="9" cy="8" r="3.5" />
