@@ -421,3 +421,104 @@ test("nothing else changed for the other routes: /api and /design still need a p
   assert.equal((await as("a")("/api/health")).status, 200);
   assert.equal((await as("a")("/design/round2/")).status, 404);
 });
+
+test("migration 0002 pins every constraint of feed_tokens, including the ones SQLite leaves open on a TEXT primary key", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  for (const name of readdirSync(new URL("../migrations/", import.meta.url)).sort()) sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  const stamp = "2026-10-24T00:00:00Z";
+  const put = (who: string | null, hash: string | null, created: string | null, fetched: string | null = null) =>
+    sqlite.prepare("INSERT INTO feed_tokens (who, hash, created_at, fetched_at) VALUES (?, ?, ?, ?)").run(who, hash, created, fetched);
+  assert.throws(() => put("a", null, stamp), /NOT NULL/);
+  assert.throws(() => put("a", sha("x"), null), /NOT NULL/);
+  assert.throws(() => put("a", sha("x"), stamp, "yesterday"), /CHECK/);
+  assert.throws(() => put("a", sha("x"), stamp, "2026-10-24"), /CHECK/);
+  assert.throws(() => put("a", "g".repeat(64), stamp), /CHECK/);
+  assert.throws(() => put("a", "a".repeat(65), stamp), /CHECK/);
+  assert.throws(() => put("a", "a".repeat(63), stamp), /CHECK/);
+  assert.throws(() => put("a", "", stamp), /CHECK/);
+  assert.throws(() => put("A", sha("x"), stamp), /CHECK/);
+  assert.throws(() => put("ab", sha("x"), stamp), /CHECK/);
+  assert.throws(() => put("a", sha("x"), "2026-10-24 00:00:00"), /CHECK/);
+  assert.equal((sqlite.prepare("SELECT count(*) AS n FROM feed_tokens").get() as { n: number }).n, 0);
+  put("a", sha("x"), stamp, null);
+  put("b", sha("y"), stamp, "2026-10-24T01:02:03Z");
+  assert.throws(() => put("a", sha("z"), stamp), /UNIQUE|PRIMARY/);
+});
+
+test("who is not declared NOT NULL: SQLite accepts a NULL who on a TEXT primary key, and no code path can write one", async () => {
+  const sqlite = new DatabaseSync(":memory:");
+  for (const name of readdirSync(new URL("../migrations/", import.meta.url)).sort()) sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  const stamp = "2026-10-24T00:00:00Z";
+  sqlite.prepare("INSERT INTO feed_tokens (who, hash, created_at) VALUES (NULL, ?, ?)").run(sha("one"), stamp);
+  sqlite.prepare("INSERT INTO feed_tokens (who, hash, created_at) VALUES (NULL, ?, ?)").run(sha("two"), stamp);
+  assert.equal((sqlite.prepare("SELECT count(*) AS n FROM feed_tokens WHERE who IS NULL").get() as { n: number }).n, 2);
+  const source = readFileSync(new URL("../worker/feed.ts", import.meta.url), "utf8");
+  assert.equal([...source.matchAll(/INSERT INTO feed_tokens/g)].length, 1);
+  assert.match(source, /export const rotateFeed = async \(db: Db, who: Side,/);
+  const { as, sqlite: live } = setup();
+  assert.equal((await as("a")("/api/feed", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 200);
+  assert.deepEqual(live.prepare("SELECT who FROM feed_tokens").all().map((row) => row.who), ["a"]);
+});
+
+test("rotation is one INSERT ... ON CONFLICT DO UPDATE statement, and with two rotations at once exactly the last writer's token is live", async () => {
+  const { rotate, anon, calls, sqlite } = setup();
+  calls.length = 0;
+  await rotate("a");
+  const writes = calls.filter(([sql]) => /feed_tokens/.test(sql) && !/^SELECT/.test(sql));
+  assert.equal(writes.length, 1);
+  assert.match(writes[0][0], /^INSERT INTO feed_tokens \(who, hash, created_at, fetched_at\) VALUES \(\?, \?, \?, NULL\) ON CONFLICT \(who\) DO UPDATE SET hash = excluded\.hash, created_at = excluded\.created_at, fetched_at = NULL$/);
+  for (let round = 0; round < 20; round++) {
+    const tokens = await Promise.all([rotate("a"), rotate("a"), rotate("a")]);
+    const live = (await Promise.all(tokens.map(async (token) => (await fetchFeed(anon, token)).status))).map((status, at) => (status === 200 ? at : -1)).filter((at) => at >= 0);
+    assert.equal(live.length, 1, `round ${round}`);
+    const rows = sqlite.prepare("SELECT hash FROM feed_tokens").all();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].hash, sha(tokens[live[0]]));
+  }
+  const first = await rotate("a");
+  const second = await rotate("a");
+  assert.equal((await fetchFeed(anon, first)).status, 404);
+  assert.equal((await fetchFeed(anon, second)).status, 200);
+});
+
+test("a length above one day is refused when a routine is saved, clamped to 1440 in the feed, and an older row above the cap neither blocks an edit nor breaks the feed", async () => {
+  const { push, as, anon, rotate, sqlite, json } = setup();
+  const sync = (who: Side, rows: Record<string, unknown>[]) => as(who)("/api/sync", { method: "POST", headers: json, body: JSON.stringify({ mutations: rows.map((row) => mutation("create", "items", row.id as string, row)) }) });
+  const refused = await sync("a", [routine(1, "Too long", "a", { start_time: "07:00", duration: 99999 })]);
+  assert.equal(refused.status, 400);
+  assert.match(JSON.stringify(await refused.json()), /data\.duration: must be at most 1440/);
+  assert.equal((await sync("a", [routine(2, "Day long", "a", { start_time: "07:00", duration: 1441 })])).status, 400);
+  await push("a", routine(3, "Edge", "a", { start_time: "07:00", duration: 1440 }));
+  sqlite.prepare("INSERT INTO items (id, kind, title, who, data, sort, rev, created_at, updated_at) VALUES (?, 'routine', 'Old row', 'a', ?, 0, 1, ?, ?)").run(id(4), JSON.stringify({ start_time: "08:00", duration: 99999 }), stamps.created_at, stamps.updated_at);
+  const token = await rotate("a");
+  const events = parse(await (await fetchFeed(anon, token)).text()).events;
+  assert.deepEqual(events.map((event) => [event.summary, event.minutes]).sort(), [["Edge", 1440], ["Old row", 1440]]);
+  const edit = await as("a")("/api/sync", { method: "POST", headers: json, body: JSON.stringify({ mutations: [mutation("update", "items", id(4), { title: "Renamed" })] }) });
+  assert.equal(edit.status, 200, await edit.clone().text());
+  const fix = await as("a")("/api/sync", { method: "POST", headers: json, body: JSON.stringify({ mutations: [mutation("update", "items", id(4), { data: { duration: 99999 } })] }) });
+  assert.equal(fix.status, 400);
+  const shorter = await as("a")("/api/sync", { method: "POST", headers: json, body: JSON.stringify({ mutations: [mutation("update", "items", id(4), { data: { duration: 45 } })] }) });
+  assert.equal(shorter.status, 200);
+  assert.deepEqual(parse(await (await fetchFeed(anon, token)).text()).events.map((event) => [event.summary, event.minutes]).sort(), [["Edge", 1440], ["Renamed", 45]]);
+});
+
+test("created_at and fetched_at accept a 9 and refuse a non-digit in every digit position of the date, and need the T and the Z", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  for (const name of readdirSync(new URL("../migrations/", import.meta.url)).sort()) sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  let n = 0;
+  const put = (created: string, fetched: string | null) => sqlite.prepare("INSERT INTO feed_tokens (who, hash, created_at, fetched_at) VALUES (?, ?, ?, ?)").run(n % 2 === 0 ? "a" : "b", sha(`k${++n}`), created, fetched);
+  const clear = () => void sqlite.exec("DELETE FROM feed_tokens");
+  put("9999-99-99T99:99:99Z", "9999-99-99T99:99:99Z");
+  clear();
+  for (const at of [0, 1, 2, 3, 5, 6, 8, 9]) {
+    const stamp = "2026-10-24T00:00:00Z";
+    const broken = `${stamp.slice(0, at)}x${stamp.slice(at + 1)}`;
+    assert.throws(() => put(broken, null), /CHECK/, `created_at position ${at}`);
+    assert.throws(() => put(stamp, broken), /CHECK/, `fetched_at position ${at}`);
+  }
+  for (const stamp of ["2026-10-24X00:00:00Z", "2026/10/24T00:00:00Z", "2026-10-24T00:00:00", "2026-10-24T"]) {
+    assert.throws(() => put(stamp, null), /CHECK/, stamp);
+    assert.throws(() => put("2026-10-24T00:00:00Z", stamp), /CHECK/, stamp);
+  }
+  assert.equal((sqlite.prepare("SELECT count(*) AS n FROM feed_tokens").get() as { n: number }).n, 0);
+});
