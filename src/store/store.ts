@@ -331,16 +331,18 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     return { id: crypto.randomUUID(), table, op: "delete", row_id: rowId, patch: {}, at: toInstant(new Date()) };
   };
 
+  const refused = () => held || !loaded || link === "mismatch";
+
   const create = async <T extends TableName>(table: T, draft: Draft<T>): Promise<Written> =>
-    held || !loaded ? paused : enqueue(preparedCreate(table, draft, table === "settings" ? String((draft as Dict).key) : crypto.randomUUID()));
+    refused() ? paused : enqueue(preparedCreate(table, draft, table === "settings" ? String((draft as Dict).key) : crypto.randomUUID()));
 
   const update = async <T extends TableName>(table: T, rowId: string, change: Patch<T>): Promise<Written> =>
-    held || !loaded ? paused : settle(preparedUpdate(table, rowId, change as Dict));
+    refused() ? paused : settle(preparedUpdate(table, rowId, change as Dict));
 
-  const remove = async (table: TableName, rowId: string): Promise<Written> => (held || !loaded ? paused : settle(preparedRemove(table, rowId)));
+  const remove = async (table: TableName, rowId: string): Promise<Written> => (refused() ? paused : settle(preparedRemove(table, rowId)));
 
   const many = async (steps: readonly Step[]): Promise<Written> => {
-    if (held || !loaded) return paused;
+    if (refused()) return paused;
     const prepared = steps.map((step) =>
       step.op === "create" ? preparedCreate(step.table, step.draft, step.id) : step.op === "update" ? preparedUpdate(step.table, step.id, step.change) : preparedRemove(step.table, step.id),
     );
@@ -358,7 +360,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     view.settings.has(key) ? update("settings", key, { value }) : create("settings", { key, value });
 
   const discard = async (seq: number): Promise<Written> => {
-    if (held || !loaded) return paused;
+    if (refused()) return paused;
     try {
       await persist({ outbox: { drop: [seq] } });
     } catch {

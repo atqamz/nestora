@@ -13,6 +13,13 @@ test("the shell shows the mismatch notice with a reload button, and the badge of
   assert.match(read("../src/hooks/use-store.ts"), /reload: \(\) => location\.reload\(\)/);
 });
 
+test("a mismatched tab disables the Add button and drops the Add sheet", () => {
+  const shell = read("../src/ui/shell.tsx");
+  assert.match(shell, /disabled=\{locked\}/);
+  assert.equal((shell.match(/locked=\{link === "mismatch"\}/g) ?? []).length, 2);
+  assert.match(shell, /\{link !== "mismatch" && <AddSheet \/>\}/);
+});
+
 test("every export link carries the side, since a link cannot set a header", () => {
   assert.match(read("../src/views/settings.tsx"), /href=\{`\/api\/export\?\$\{link\.query\}&side=\$\{me\}`\}/);
 });
@@ -31,6 +38,6 @@ test("the shell and the sync page say that changes are paused while the side is 
   assert.match(read("../src/ui/shell.tsx"), /paused && link !== "mismatch" && \(\s*<div className="notice" role="status">\s*<p>\{text\.paused\}<\/p>/);
   assert.match(read("../src/ui/shell.tsx"), /<main data-page=\{home \? "home" : undefined\}>\{link === "mismatch" \? null : children\}<\/main>/);
   assert.match(read("../src/views/sync.tsx"), /paused\s*\? text\.sync\.pausedExpiredBody\s*: text\.sync\.expiredBody/);
-  assert.match(read("../src/views/sync.tsx"), /paused\s*\? text\.paused\s*: text\.sync\.offlineBody/);
+  assert.match(read("../src/views/sync.tsx"), /link === "offline"\s*\? paused\s*\? text\.paused\s*: text\.sync\.offlineBody\s*: text\.sync\.onlineBody/);
   assert.match(read("../src/ui/failure.ts"), /result\.paused \? \[text\.paused\]/);
 });

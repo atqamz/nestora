@@ -57,6 +57,7 @@ export const createSession = ({ disk, hint, api, later = timer }: { disk: Disk; 
   let state: State = { at: "none" };
   let settling: Promise<void> | null = null;
   let tries = 0;
+  let first = true;
   let cancel = () => {};
   let bare: Snapshot = { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true };
   const listeners = new Set<() => void>();
@@ -88,7 +89,8 @@ export const createSession = ({ disk, hint, api, later = timer }: { disk: Disk; 
   };
 
   const settle = async () => {
-    const answer = await api().pull(PROBE, PROBE_TIMEOUT_MS);
+    const answer = await api().pull(PROBE, first ? PROBE_TIMEOUT_MS : undefined);
+    first = false;
     if (answer.kind === "ok") {
       const { me } = answer.body;
       if (state.at !== "open" || state.side !== me) return enter(me, null);

@@ -34,8 +34,11 @@ test("a held store starts paused and refuses every write, before and after it is
 
 test("an open store that is not held refuses writes only until it is loaded", async () => {
   const server = createServer();
-  const store = createStore({ persistence: memoryPersistence(), api: createApi(server.as("a"), "a") });
-  assert.deepEqual(await store.create("items", task("Too soon")), paused);
+  const persistence = memoryPersistence();
+  const empty = await persistence.load();
+  const store = createStore({ persistence, api: createApi(server.as("a"), "a") });
+  assert.deepEqual(await every(store), Array(6).fill(paused));
+  assert.deepEqual(await persistence.load(), empty);
   await store.open();
   idOf(await store.create("items", task("Loaded")));
 });

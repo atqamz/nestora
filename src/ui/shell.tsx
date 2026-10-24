@@ -10,12 +10,12 @@ import { overlay, useOverlay } from "./overlay.ts";
 import { SyncBadge } from "./sync-badge.tsx";
 import { text } from "./text.ts";
 
-function Nav({ className, section }: { className: "tabs" | "rail"; section: string }) {
+function Nav({ className, section, locked }: { className: "tabs" | "rail"; section: string; locked: boolean }) {
   return (
     <nav className={className} aria-label={text.nav.label}>
       {navEntries(className).map((entry) =>
         entry === "add" ? (
-          <button key="add" type="button" className={className === "tabs" ? "tab-add" : "rail-add"} aria-label={className === "tabs" ? text.add : undefined} onClick={() => overlay.openAdd()}>
+          <button key="add" type="button" className={className === "tabs" ? "tab-add" : "rail-add"} aria-label={className === "tabs" ? text.add : undefined} disabled={locked} onClick={() => overlay.openAdd()}>
             <Icon name="plus" />
             {className === "rail" && <span>{text.add}</span>}
           </button>
@@ -47,7 +47,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
             <Pair size={32} />
           </a>
         </header>
-        <Nav className="rail" section={section} />
+        <Nav className="rail" section={section} locked={link === "mismatch"} />
       </div>
       <div className="content">
         {link === "mismatch" && (
@@ -76,7 +76,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
         )}
         <main data-page={home ? "home" : undefined}>{link === "mismatch" ? null : children}</main>
       </div>
-      <Nav className="tabs" section={section} />
+      <Nav className="tabs" section={section} locked={link === "mismatch"} />
       <div className="toast" role="status">
         {toast && (
           <p key={toast.id}>
@@ -95,7 +95,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
           </p>
         )}
       </div>
-      <AddSheet />
+      {link !== "mismatch" && <AddSheet />}
     </div>
   );
 }

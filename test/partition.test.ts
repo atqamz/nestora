@@ -292,9 +292,11 @@ test("a tab loaded as Partner A cannot write under Partner B: it stops, shows th
   assert.deepEqual(await saved(p, "a"), before);
   const calls = server.calls.length;
   await tab1.sync();
-  idOf(await tab1.create("items", task("Typed after the mismatch")));
+  const refused = await everyWrite(tab1, crypto.randomUUID());
+  assert.deepEqual(refused, refused.map(() => paused));
   assert.equal(server.calls.length, calls);
-  assert.equal((await saved(p, "a")).outbox.length, 3);
+  assert.equal(JSON.stringify(await saved(p, "a")), JSON.stringify(before));
+  assert.equal(tab1.getSnapshot().pending, 2);
   assert.deepEqual([tab2.getSnapshot().pending, tab2.getSnapshot().rejected, tab2.getSnapshot().notice], [0, [], null]);
   const reload = p.tab();
   await reload.open();
@@ -830,6 +832,24 @@ test("a probe that hangs counts as a failed probe: the hint partition opens read
     assert.deepEqual([tab.getSnapshot().ready, tab.getSnapshot().me, tab.getSnapshot().link], [true, "a", "offline"]);
     assert.deepEqual(await tab.create("items", task("Typed")), paused);
     assert.deepEqual(p.due(), [5_000]);
+  } finally {
+    hung.mock.restore();
+  }
+});
+
+test("only the first probe is cut at 4 s: the retries wait the 15 s of the other requests", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  await work(p, "a");
+  p.state.hang = true;
+  const real = AbortSignal.timeout.bind(AbortSignal);
+  const hung = mock.method(AbortSignal, "timeout", () => real(1));
+  try {
+    const tab = p.tab();
+    await tab.open();
+    await p.fire();
+    await p.fire();
+    assert.deepEqual(hung.mock.calls.map((call) => call.arguments[0]), [4_000, 15_000, 15_000]);
   } finally {
     hung.mock.restore();
   }
