@@ -59,7 +59,7 @@ export const createWorker = (authenticate = createAuthenticator(), fetcher: type
         case "/api/login":
           return method === "GET" ? new Response(null, { status: 302, headers: { location: "/", "cache-control": "no-store" } }) : notAllowed("GET");
         case "/api/export":
-          return method === "GET" ? await exportData(url, env.DB) : notAllowed("GET");
+          return method === "GET" ? await exportData(url, env.DB, who) : notAllowed("GET");
         case "/api/me":
           return method === "GET" ? json({ photo: await photoOf(request, env, verified.payload, fetcher) }, 200, { "cache-control": "private, no-store" }) : notAllowed("GET");
         case "/api/sync":

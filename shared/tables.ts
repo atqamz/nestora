@@ -22,6 +22,8 @@ export type Type =
   | "photo"
   | "isbn"
   | "cover"
+  | "time"
+  | "days"
   | readonly string[];
 
 export type Column = {
@@ -40,6 +42,7 @@ export type Variant = {
   status?: readonly string[];
   who?: readonly string[];
   doneOnStatus?: string;
+  caps?: Readonly<Record<string, number>>;
   data: Readonly<Record<string, Type>>;
 };
 
@@ -60,6 +63,11 @@ const immutable = <const C extends Column>(column: C) => ({ ...column, immutable
 const clearOnly = <const C extends Column>(column: C) => ({ ...column, clearOnly: true as const });
 
 const who = ["a", "b", "both"] as const;
+
+const days = { days: "days" } as const;
+const marks = { done_a: "date", done_b: "date" } as const;
+const action = ["parent_id", "group_key", "note"] as const;
+const caps = { title: 120, group_key: 60, note: 2000 } as const;
 
 const syncColumns = {
   rev: server(required("INTEGER", "int")),
@@ -196,6 +204,40 @@ export const tables = {
         required: [],
         data: {},
       },
+      routine: {
+        columns: ["who", "group_key", "note"],
+        required: ["who"],
+        caps,
+        data: {
+          ...days,
+          every_weeks: ["1", "2", "3", "4"],
+          from: "date",
+          until: "date",
+          paused_until: "date",
+          start_time: "time",
+          holidays: "bool",
+          private: "bool",
+          remind: "bool",
+          calendar: "bool",
+        },
+      },
+      step: { columns: action, required: ["parent_id"], caps, data: { ...days, ...marks, url: "url" } },
+      timer: { columns: action, required: ["parent_id"], caps, data: { ...days, ...marks, minutes: "int" } },
+      pack: { columns: action, required: ["parent_id"], caps, data: { ...days, ...marks } },
+      block: {
+        columns: action,
+        required: ["parent_id"],
+        caps: { ...caps, "data.where": 120 },
+        data: { ...days, start_time: "time", end_time: "time", where: "text" },
+      },
+      day_type: { columns: action, required: ["parent_id"], caps, data: { ...days } },
+      counter: {
+        columns: [...action, "qty"],
+        required: ["parent_id"],
+        caps: { ...caps, "data.unit": 24 },
+        data: { ...days, ...marks, unit: "text", value_a: "int", value_b: "int" },
+      },
+      text: { columns: action, required: ["parent_id"], caps, data: { ...days } },
     },
   },
   budget_entries: {
