@@ -41,7 +41,7 @@ export type RoutineDraft = {
   actions: ActionDraft[];
 };
 
-export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url" | "duration"; code: "required" | "number" | "days" | "from" | "order" | "time" | "url" };
+export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url" | "duration"; code: "required" | "number" | "days" | "from" | "order" | "time" | "url" | "long" };
 
 export type Current = { routine: ItemRow; actions: readonly ItemRow[] };
 
@@ -67,6 +67,7 @@ export const LIMITS = {
   note: caps.note,
   where: tables.items.variants.block.caps["data.where"],
   unit: tables.items.variants.counter.caps["data.unit"],
+  minutes: tables.items.variants.routine.caps["data.duration"],
 };
 
 const COPY_SUFFIX = " (copy)";
@@ -146,9 +147,12 @@ const actionProblems = (action: ActionDraft, at: number): Problem[] => {
 
 const dated = (draft: RoutineDraft) => draft.moment.trim() !== TIMETABLE && !empty(draft.start);
 
+const durationProblems = (minutes: string): Problem[] =>
+  !/^\d+$/.test(minutes) || Number(minutes) < 1 ? [{ at: null, field: "duration", code: "number" }] : Number(minutes) > LIMITS.minutes ? [{ at: null, field: "duration", code: "long" }] : [];
+
 const calendarProblems = (draft: RoutineDraft): Problem[] => [
   ...(dated(draft) && !isTime(draft.start) ? [{ at: null, field: "start", code: "time" } as const] : []),
-  ...(dated(draft) && !empty(draft.duration) && !(NUMBER.test(draft.duration.trim()) && Number(draft.duration) >= 1) ? [{ at: null, field: "duration", code: "number" } as const] : []),
+  ...(dated(draft) && !empty(draft.duration) ? durationProblems(draft.duration.trim()) : []),
 ];
 
 export const forTimetable = (draft: RoutineDraft, me: Side): RoutineDraft =>

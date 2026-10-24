@@ -221,6 +221,29 @@
   margin-left: 0;
 }
 
+.feed-confirm {
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  min-width: 0;
+}
+
+.feed-sure {
+  margin: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.feed-confirm .feed-acts {
+  margin-top: 0;
+}
+
+.feed-confirm .feed-acts > button {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .feed-secret {
   color: var(--ink);
 }

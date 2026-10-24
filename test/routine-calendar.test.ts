@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calendarOf } from "../shared/ics.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { blankDraft, draftOf, planOf, problemsOf } from "../src/domain/routine-draft.ts";
+import { LIMITS, blankDraft, draftOf, planOf, problemsOf } from "../src/domain/routine-draft.ts";
 import { text } from "../src/ui/text.ts";
 import { parse } from "./ics-parse.ts";
 import { client } from "./store-client.ts";
@@ -67,6 +67,41 @@ test("a bad calendar time or length is a problem on its own field, and a timetab
   assert.deepEqual(found({ start: "", duration: "abc" }), []);
   assert.deepEqual(found({ moment: "timetable", start: "99", duration: "abc" }), []);
   assert.ok(form.problem.time && form.problem.number);
+});
+
+test("a length above one day is a plain problem on the length field, 1440 is the largest accepted, and the field takes four digits", async () => {
+  const found = (duration: string) => problemsOf({ ...blankDraft("a"), title: "x", start: "07:15", duration }).map((problem) => [problem.at, problem.field, problem.code]);
+  assert.deepEqual(found("1440"), []);
+  assert.deepEqual(found(" 1440 "), []);
+  assert.deepEqual(found("1441"), [[null, "duration", "long"]]);
+  assert.deepEqual(found("99999"), [[null, "duration", "long"]]);
+  assert.deepEqual(found("123456789012"), [[null, "duration", "long"]]);
+  assert.deepEqual(found("0"), [[null, "duration", "number"]]);
+  assert.deepEqual(found("-5"), [[null, "duration", "number"]]);
+  assert.deepEqual(found("1e3"), [[null, "duration", "number"]]);
+  assert.deepEqual(problemsOf({ ...blankDraft("a"), title: "x", moment: "timetable", start: "07:15", duration: "99999" }), []);
+  assert.deepEqual(problemsOf({ ...blankDraft("a"), title: "x", start: "", duration: "99999" }), []);
+  assert.equal(LIMITS.minutes, 1440);
+  assert.match(form.problem.long, /1 to 1440 minutes/);
+  assert.match(form.durationHint, /At most 1440/);
+  const { readFileSync } = await import("node:fs");
+  const sheet = readFileSync(new URL("../src/ui/routine-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /name: "routine-duration", label: form\.duration, type: "int", value: draft\.duration, max: String\(LIMITS\.minutes\)\.length,/);
+});
+
+test("a routine that already holds a length above the cap opens in the sheet, says so, and saves once the length is fixed", async () => {
+  const { store, rows } = await world();
+  const made = planOf({ ...blankDraft("a"), title: "Long", start: "07:15", duration: "1440" }, null, [], newId);
+  assert.ok(made.ok);
+  await store.many(made.steps);
+  const old = { ...rows()[0], data: { ...rows()[0].data, duration: 99999 } } as ItemRow;
+  const draft = draftOf(old, []);
+  assert.equal(draft.duration, "99999");
+  assert.deepEqual(problemsOf(draft).map((problem) => [problem.field, problem.code]), [["duration", "long"]]);
+  assert.deepEqual(problemsOf({ ...draft, duration: "90" }), []);
+  const plan = planOf({ ...draft, duration: "90" }, { routine: old, actions: [] }, [], newId);
+  assert.ok(plan.ok);
+  assert.deepEqual(plan.steps, [{ op: "update", table: "items", id: old.id, change: { data: { duration: 90 } } }]);
 });
 
 test("a routine saved on a timetable keeps no calendar time even if the draft had one", async () => {

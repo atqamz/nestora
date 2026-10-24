@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { ACTION_KINDS, hides, isRoutineKind, nextOccurrence, occursOn, paused, visible } from "../shared/routines.ts";
 import type { Schedule } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
+import { DURATION_MAX } from "../shared/tables.ts";
+import { validateChange, validateCreate, validatePatch } from "../shared/validate.ts";
 import { hides as workerHides } from "../worker/private.ts";
 import { item } from "./domain-rows.ts";
 
@@ -112,4 +114,33 @@ test("the search for the next day reaches exactly 400 days and no further", () =
   const skipped = (count: number) => Array.from({ length: count }, (_, offset) => day(offset));
   assert.equal(nextOccurrence(routine({ holidays: true }), "2026-10-24", skipped(399)), day(399));
   assert.equal(nextOccurrence(routine({ holidays: true }), "2026-10-24", skipped(400)), null);
+});
+
+const stored = (duration: number) => ({ id: "00000000-0000-4000-8000-000000000001", kind: "routine", title: "Bag", who: "a", status: null, parent_id: null, group_key: null, due_on: null, done_on: null, amount: null, currency: "IDR", qty: null, note: null, sort: 0, rev: 1, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z", updated_by: "a", deleted_at: null, data: { start_time: "07:00", duration } });
+
+test("a routine length is capped at one day when a row is created or patched, and only then", () => {
+  assert.equal(DURATION_MAX, 1440);
+  const row = (duration: number) => {
+    const { rev, updated_by, ...client } = stored(duration);
+    return client;
+  };
+  assert.deepEqual(validateCreate("items", row(1440)), []);
+  assert.deepEqual(validateCreate("items", row(1)), []);
+  assert.deepEqual(validateCreate("items", row(0)), []);
+  assert.deepEqual(validateCreate("items", row(1441)), ["data.duration: must be at most 1440"]);
+  assert.deepEqual(validateCreate("items", row(99999)), ["data.duration: must be at most 1440"]);
+  assert.deepEqual(validatePatch("items", "routine", { data: { duration: 1440 } }), []);
+  assert.deepEqual(validatePatch("items", "routine", { data: { duration: 1441 } }), ["data.duration: must be at most 1440"]);
+  assert.deepEqual(validatePatch("items", "routine", { data: { duration: null } }), []);
+  assert.notDeepEqual(validatePatch("items", "routine", { data: { duration: -1 } }), []);
+  assert.notDeepEqual(validatePatch("items", "routine", { data: { duration: 1.5 } }), []);
+});
+
+test("a stored row above the cap still takes edits that leave the length alone, and a patch cannot set it again", () => {
+  assert.deepEqual(validateChange("items", stored(99999), { title: "Renamed" }), []);
+  assert.deepEqual(validateChange("items", stored(99999), { data: { start_time: "08:00" } }), []);
+  assert.deepEqual(validateChange("items", stored(99999), { data: { duration: 45 } }), []);
+  assert.deepEqual(validateChange("items", stored(99999), { data: { duration: null } }), []);
+  assert.deepEqual(validateChange("items", stored(99999), { data: { duration: 5000 } }), ["data.duration: must be at most 1440"]);
+  assert.deepEqual(validateChange("items", stored(45), { data: { duration: 1441 } }), ["data.duration: must be at most 1440"]);
 });

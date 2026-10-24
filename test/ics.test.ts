@@ -29,6 +29,20 @@ type Case = { name: string; side?: Side; now?: Date; holidays?: string[]; rows: 
 
 const longTitle = "Seminar on the quiet harbour, the lighthouse and the long road home ".repeat(3).trim();
 
+const crowd = (count: number) => {
+  const t = timetable();
+  const days = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+  const entries = Array.from({ length: count }, (_, n) => {
+    const time = `${String(6 + (n % 14)).padStart(2, "0")}:${n % 2 ? "30" : "00"}`;
+    if (n % 3 === 0) return block(t, `Class ${n}`, { days: days.filter((_, day) => (day + n) % 3 !== 0).join(","), start_time: time, end_time: "23:45", where: `Room ${n}` });
+    if (n % 3 === 1) return routine({ start_time: time, duration: 20, until: "2026-12-20" }, { title: `Daily ${n}` });
+    return routine({ days: "MO,TH,SA", every_weeks: "2", from: "2026-10-05", start_time: time, duration: 45, holidays: true }, { title: `Fortnight ${n}` });
+  });
+  return [t, ...entries];
+};
+
+const CROWD_HOLIDAYS = ["2026-10-30", "2026-11-09", "2026-11-23", "2026-12-07", "2026-12-25", "2027-01-04"];
+
 const cases: Case[] = [
   {
     name: "weekly-block",
@@ -204,6 +218,35 @@ const cases: Case[] = [
     has: ["SUMMARY:Kept"],
     lacks: ["Deleted", "Orphan"],
     events: 1,
+  },
+  {
+    name: "two-occurrences",
+    rows: () => [routine({ days: "MO", until: "2026-10-26", start_time: "08:00", duration: 30 }, { title: "Short series" })],
+    has: ["DTSTART;TZID=Asia/Jakarta:20261019T080000", "RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261026T010000Z"],
+    lacks: ["EXDATE", "RDATE", "COUNT"],
+    events: 1,
+  },
+  {
+    name: "two-occurrences-with-gap",
+    holidays: ["2026-10-26"],
+    rows: () => [routine({ days: "MO", until: "2026-11-02", holidays: true, start_time: "08:00", duration: 30 }, { title: "Short series with a holiday" })],
+    has: ["DTSTART;TZID=Asia/Jakarta:20261019T080000", "RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20261102T010000Z", "EXDATE;TZID=Asia/Jakarta:20261026T080000"],
+    lacks: ["RDATE", "COUNT"],
+    events: 1,
+  },
+  {
+    name: "eighty-entries",
+    holidays: CROWD_HOLIDAYS,
+    rows: () => crowd(80),
+    has: [],
+    events: 80,
+  },
+  {
+    name: "hundred-fifty-entries",
+    holidays: CROWD_HOLIDAYS,
+    rows: () => crowd(150),
+    has: [],
+    events: 150,
   },
   {
     name: "versions",
@@ -429,3 +472,156 @@ test("feeds with many scrambled entries come out in time order, then id, however
 });
 
 const DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+
+const counted = (rows: ItemRow[]) => {
+  const reads = new Map<string, number>();
+  const wrapped = rows.map((row) => {
+    const data = row.data;
+    return Object.defineProperty({ ...row }, "data", { get: () => (reads.set(row.id, (reads.get(row.id) ?? 0) + 1), data) });
+  });
+  return { wrapped, reads };
+};
+
+const DAYS_IN_WINDOW = BACK_DAYS + AHEAD_DAYS + 1;
+
+test("the cost does not grow with the blocks of one timetable: its schedule is read a bounded number of times, not once per block and day", () => {
+  next = 1;
+  const t = timetable();
+  const rows = [t, ...Array.from({ length: 150 }, (_, n) => block(t, `Slot ${n}`, { days: "MO,WE,FR", start_time: `${String(6 + (n % 16)).padStart(2, "0")}:00`, end_time: "23:30" }))];
+  const { wrapped, reads } = counted(rows);
+  assert.equal(parse(calendarOf(wrapped, "a", NOW, CROWD_HOLIDAYS)).events.length, 150);
+  assert.ok((reads.get(t.id) ?? 0) <= 2 * 150 + 3 * DAYS_IN_WINDOW, `timetable read ${reads.get(t.id)} times`);
+  for (const row of rows.slice(1)) assert.ok((reads.get(row.id) ?? 0) <= 10, `block read ${reads.get(row.id)} times`);
+});
+
+test("a routine's schedule is read about once per day of the window, whatever the number of entries", () => {
+  next = 1;
+  for (const count of [20, 80, 150]) {
+    const rows = crowd(count);
+    const { wrapped, reads } = counted(rows);
+    assert.equal(parse(calendarOf(wrapped, "a", NOW, CROWD_HOLIDAYS)).events.length, count);
+    const total = [...reads.values()].reduce((sum, n) => sum + n, 0);
+    assert.ok(total <= count * (DAYS_IN_WINDOW + 15), `${total} reads for ${count} entries`);
+    for (const [id, n] of reads) assert.ok(n <= 2 * DAYS_IN_WINDOW + 15, `${id} read ${n} times`);
+  }
+});
+
+test("the time per entry stays within a small multiple of one date parse per entry and day, at 22, 80 and 150 entries", () => {
+  next = 1;
+  const dates = windowDates(TODAY).map((date) => `${date}T00:00:00Z`);
+  const best = (work: () => void) =>
+    Math.min(
+      ...Array.from({ length: 7 }, () => {
+        const start = performance.now();
+        work();
+        return performance.now() - start;
+      }),
+    );
+  for (const count of [22, 80, 150]) {
+    const rows = crowd(count);
+    let sink = 0;
+    const loop = best(() => {
+      for (let entry = 0; entry < rows.length; entry++) for (const date of dates) sink += Date.parse(date);
+    });
+    const feed = best(() => void calendarOf(rows, "a", NOW, CROWD_HOLIDAYS));
+    assert.ok(sink > 0);
+    assert.ok(feed <= 4 * loop, `${count} entries: ${feed.toFixed(2)} ms against ${loop.toFixed(2)} ms of date parsing`);
+  }
+});
+
+test("a duration above one day is clamped to 1440 minutes in the feed, and 1440 and below are kept", () => {
+  next = 1;
+  const minutes = (duration: number) => parse(calendarOf([routine({ start_time: "10:00", duration })], "a", NOW, [])).events[0].minutes;
+  assert.equal(minutes(99999), 1440);
+  assert.equal(minutes(1441), 1440);
+  assert.equal(minutes(1440), 1440);
+  assert.equal(minutes(1439), 1439);
+  assert.equal(minutes(Number.MAX_SAFE_INTEGER), 1440);
+  assert.ok(!calendarOf([routine({ start_time: "10:00", duration: 99999 })], "a", NOW, []).includes("PT99999M"));
+});
+
+test("escape drops every C0 control except tab, turns every line break into \\n, and drops DEL", () => {
+  for (let code = 0; code < 0x20; code++) {
+    const char = String.fromCharCode(code);
+    const expected = code === 9 ? "\t" : code === 10 || code === 13 ? "\\n" : "";
+    assert.equal(escape(`a${char}b`), `a${expected}b`, `U+${code.toString(16).padStart(4, "0")}`);
+  }
+  assert.equal(escape("a\u007fb"), "ab");
+  assert.equal(escape("a\r\nb"), "a\\nb");
+  assert.equal(escape("a\n\rb"), "a\\n\\nb");
+});
+
+test("escape treats NEL, U+2028 and U+2029 as the line breaks they are, so a reader that splits on them cannot add a property", () => {
+  for (const char of ["\u0085", " ", " "]) {
+    assert.equal(escape(`a${char}b`), "a\\nb", `U+${char.charCodeAt(0).toString(16)}`);
+    next = 1;
+    const t = timetable();
+    const out = calendarOf([t, block(t, `Class${char}ATTENDEE:mailto:x@example.test`, { days: "MO", start_time: "09:00" })], "a", NOW, []);
+    assert.ok(!out.includes(char));
+    assert.deepEqual(parse(out).events.map((event) => event.summary), ["Class\nATTENDEE:mailto:x@example.test"]);
+  }
+  assert.equal(escape("Pläce Ä ☕ 🎓 ​"), "Pläce Ä ☕ 🎓 ​");
+});
+
+const octetsOf = (text: string) => new TextEncoder().encode(text).length;
+
+test("fold moves a straddling character whole to the next line, on the first line and on every continuation line", () => {
+  for (const [char, width] of [["é", 2], ["日", 3], ["🎓", 4]] as const) {
+    for (const lead of [0, 75, 75 + 74]) {
+      for (let fill = 75 - width - 1; fill <= 76; fill++) {
+        const room = lead === 0 ? fill : fill - 1;
+        const line = "x".repeat(lead === 0 ? room : lead + room) + char + "y".repeat(10);
+        const lines = fold(line).split("\r\n");
+        assert.equal(lines.map((part, at) => (at === 0 ? part : part.slice(1))).join(""), line);
+        for (const [at, part] of lines.entries()) {
+          assert.ok(octetsOf(part) <= 75, `${char} lead ${lead} fill ${fill}, line ${at}`);
+          if (at < lines.length - 1) assert.ok(octetsOf(part) + octetsOf([...lines[at + 1].slice(1)][0]) > 75, `${char} lead ${lead} fill ${fill}, line ${at} left room`);
+        }
+      }
+    }
+  }
+});
+
+test("fold keeps a line of exactly 75 octets whole, in ASCII and in multi-byte text, and folds at 76", () => {
+  assert.equal(fold("x".repeat(75)), "x".repeat(75));
+  assert.equal(fold(`${"x".repeat(73)}é`), `${"x".repeat(73)}é`);
+  assert.equal(fold(`${"x".repeat(72)}日`), `${"x".repeat(72)}日`);
+  assert.equal(fold(`${"x".repeat(71)}🎓`), `${"x".repeat(71)}🎓`);
+  assert.equal(fold("日".repeat(25)), "日".repeat(25));
+  assert.equal(fold("🎓".repeat(18) + "xxx"), "🎓".repeat(18) + "xxx");
+  assert.equal(fold(`${"x".repeat(74)}é`), `${"x".repeat(74)}\r\n é`);
+  assert.equal(fold(`${"x".repeat(73)}日`), `${"x".repeat(73)}\r\n 日`);
+  assert.equal(fold(`${"x".repeat(72)}🎓`), `${"x".repeat(72)}\r\n 🎓`);
+  assert.equal(fold("日".repeat(26)), `${"日".repeat(25)}\r\n 日`);
+  assert.equal(fold("日".repeat(25 + 24 + 1)), `${"日".repeat(25)}\r\n ${"日".repeat(24)}\r\n 日`);
+  assert.equal(fold("🎓".repeat(19)), `${"🎓".repeat(18)}\r\n 🎓`);
+  assert.equal(fold(`${"x".repeat(75)}${"é".repeat(37)}é`), `${"x".repeat(75)}\r\n ${"é".repeat(37)}\r\n é`);
+  assert.equal(fold(`${"x".repeat(75)}${"é".repeat(37)}`), `${"x".repeat(75)}\r\n ${"é".repeat(37)}`);
+  assert.equal(fold(`${"x".repeat(75)}${"x".repeat(73)}é`), `${"x".repeat(75)}\r\n ${"x".repeat(73)}\r\n é`);
+});
+
+test("fold counts a lone surrogate as one three-octet character and a pair as one four-octet character", () => {
+  assert.equal(fold(`${"x".repeat(72)}\ud800`), `${"x".repeat(72)}\ud800`);
+  assert.equal(fold(`${"x".repeat(73)}\ud800`), `${"x".repeat(73)}\r\n \ud800`);
+  assert.equal(fold(`${"x".repeat(73)}🎓`), `${"x".repeat(73)}\r\n 🎓`);
+  assert.equal(fold(`${"x".repeat(71)}🎓`), `${"x".repeat(71)}🎓`);
+});
+
+test("fold treats a pair as one four-octet character at both ends of the pair range, and any other neighbours as separate three-octet units", () => {
+  for (const pair of ["𐀀", "𐏿", "􏰀", "􏿿", "🎓"]) {
+    const name = pair.codePointAt(0)!.toString(16);
+    assert.equal(fold(`${"x".repeat(71)}${pair}`), `${"x".repeat(71)}${pair}`, name);
+    assert.equal(fold(`${"x".repeat(72)}${pair}`), `${"x".repeat(72)}\r\n ${pair}`, name);
+  }
+  for (const [first, second] of [["퟿", "\udc00"], ["\udc00", "\udc00"], ["\udbff", ""], ["\ud800", "\udbff"]]) {
+    assert.equal(fold(`${"x".repeat(70)}${first}${second}`), `${"x".repeat(70)}${first}\r\n ${second}`, first.codePointAt(0)!.toString(16));
+  }
+});
+
+test("a step or any other child of a routine is never an event, even with a start time in its data", () => {
+  next = 1;
+  const r = routine({ start_time: "07:00", duration: 15, days: "MO" }, { title: "Bag" });
+  const step = item({ id: uuid(next++), kind: "step", status: null, parent_id: r.id, title: "Child step", data: { start_time: "09:00" } });
+  const timer = item({ id: uuid(next++), kind: "timer", status: null, parent_id: r.id, title: "Child timer", data: { start_time: "09:30" } });
+  assert.deepEqual(parse(calendarOf([r, step, timer], "a", NOW, [])).events.map((event) => event.summary), ["Bag"]);
+});

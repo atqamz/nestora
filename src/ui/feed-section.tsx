@@ -1,66 +1,83 @@
-import { useEffect, useMemo, useState } from "react";
-import type { FeedStatus, Side } from "../../shared/api.ts";
-import { feedUrl } from "../store/feed.ts";
-import type { FeedResult } from "../store/feed.ts";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
+import type { Side } from "../../shared/api.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { feedFor } from "../hooks/use-store.ts";
-import { formatStamp } from "./format.ts";
+import { copyFailed, created, linkAfterCreate, linkAfterRevoke, loaded, LOADING, revoked, statusLine, sureText } from "./feed-flow.ts";
+import type { Ask, View } from "./feed-flow.ts";
 import { Icon } from "./icons.tsx";
 import { overlay } from "./overlay.ts";
 import { text } from "./text.ts";
 
 const copy = text.settings.feed;
 
-type State = { phase: "loading" } | { phase: "failed"; reason: keyof typeof copy.failed } | { phase: "ready"; status: FeedStatus };
-
 export function FeedSection({ side, zone }: { side: Side; zone: string }) {
   const feed = useMemo(() => feedFor(side), [side]);
-  const [state, setState] = useState<State>({ phase: "loading" });
+  const [view, setView] = useState<View>(LOADING);
   const [link, setLink] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [asking, setAsking] = useState<Ask | null>(null);
   const { busy, once } = useBusy();
-
-  const show = <T,>(result: FeedResult<T>, then: (value: T) => FeedStatus) => {
-    if (result.kind === "ok") {
-      setNote(null);
-      setState({ phase: "ready", status: then(result.value) });
-    } else if (state.phase === "ready") setNote(copy.failed[result.kind]);
-    else setState({ phase: "failed", reason: result.kind });
-  };
+  const acts = useRef<HTMLDivElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const last = useRef<Ask | null>(null);
+  const noted = useId();
+  const { state, note } = view;
 
   useEffect(() => {
     let current = true;
-    void feed.status().then((result) => current && show(result, (status) => status));
+    void feed.status().then((result) => current && setView((was) => loaded(was, result)));
     return () => {
       current = false;
       setLink(null);
+      setAsking(null);
     };
   }, [feed]);
+
+  useEffect(() => {
+    if (asking !== null) {
+      last.current = asking;
+      keep.current?.focus();
+    } else if (last.current !== null && !busy) {
+      const ask = last.current;
+      last.current = null;
+      (acts.current?.querySelector<HTMLButtonElement>(`[data-ask="${ask}"]`) ?? acts.current?.querySelector("button"))?.focus();
+    }
+  }, [asking, busy]);
 
   const create = () =>
     once(async () => {
       const result = await feed.create();
-      if (result.kind === "ok") setLink(feedUrl(location.origin, result.value.token));
-      show(result, ({ created_at }) => ({ active: true, created_at, fetched_at: null }));
+      setLink((was) => linkAfterCreate(was, result, location.origin));
+      setView((was) => created(was, result));
+      setAsking(null);
     });
 
   const revoke = () =>
     once(async () => {
       const result = await feed.revoke();
-      if (result.kind === "ok") setLink(null);
-      show(result, (status) => status);
+      setLink((was) => linkAfterRevoke(was, result));
+      setView((was) => revoked(was, result));
+      setAsking(null);
     });
+
+  const cancel = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && !busy) {
+      event.stopPropagation();
+      setAsking(null);
+    }
+  };
 
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(link ?? "");
       overlay.announce(copy.copied);
     } catch {
-      setNote(copy.copyFailed);
+      setView(copyFailed);
     }
   };
 
   const status = state.phase === "ready" ? state.status : null;
+  const sure = sureText(asking);
   return (
     <section className="feed" aria-labelledby="feed-title">
       <h2 id="feed-title">{copy.title}</h2>
@@ -73,7 +90,7 @@ export function FeedSection({ side, zone }: { side: Side; zone: string }) {
       )}
       {status !== null && (
         <p className="feed-status" role="status">
-          {status.active ? `${copy.since(formatStamp(status.created_at, zone))} ${status.fetched_at === null ? copy.neverFetched : copy.fetched(formatStamp(status.fetched_at, zone))}` : copy.none}
+          {statusLine(status, zone)}
         </p>
       )}
       {link !== null && (
@@ -94,16 +111,31 @@ export function FeedSection({ side, zone }: { side: Side; zone: string }) {
           {note}
         </p>
       )}
-      {status !== null && (
-        <div className="feed-acts">
-          <button type="button" className={status.active ? "secondary" : undefined} disabled={busy} onClick={create}>
+      {status !== null && asking === null && (
+        <div className="feed-acts" ref={acts}>
+          <button type="button" data-ask={status.active ? "rotate" : "create"} className={status.active ? "secondary" : undefined} disabled={busy} onClick={status.active ? () => setAsking("rotate") : create}>
             {status.active ? copy.rotate : copy.create}
           </button>
           {status.active && (
-            <button type="button" className="danger" disabled={busy} onClick={revoke}>
+            <button type="button" data-ask="revoke" className="danger" disabled={busy} onClick={() => setAsking("revoke")}>
               {copy.revoke}
             </button>
           )}
+        </div>
+      )}
+      {status !== null && sure !== null && (
+        <div className="feed-confirm" role="group" aria-labelledby={noted} onKeyDown={cancel}>
+          <p id={noted} className="feed-sure">
+            {sure}
+          </p>
+          <div className="feed-acts">
+            <button ref={keep} type="button" disabled={busy} onClick={() => setAsking(null)}>
+              {copy.keep}
+            </button>
+            <button type="button" className="danger" disabled={busy} onClick={asking === "rotate" ? create : revoke}>
+              {asking === "rotate" ? copy.rotate : copy.revoke}
+            </button>
+          </div>
         </div>
       )}
       {status?.active === true && <p className="hint">{copy.rotateHint}</p>}

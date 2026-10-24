@@ -69,6 +69,8 @@ const marks = { done_a: "date", done_b: "date" } as const;
 const action = ["parent_id", "group_key", "note"] as const;
 const caps = { title: 120, group_key: 60, note: 2000 } as const;
 
+export const DURATION_MAX = 1440;
+
 const syncColumns = {
   rev: server(required("INTEGER", "int")),
   created_at: immutable(required("TEXT", "instant")),
@@ -207,7 +209,7 @@ export const tables = {
       routine: {
         columns: ["who", "group_key", "note"],
         required: ["who"],
-        caps,
+        caps: { ...caps, "data.duration": DURATION_MAX },
         data: {
           ...days,
           every_weeks: ["1", "2", "3", "4"],
