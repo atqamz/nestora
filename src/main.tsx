@@ -35,7 +35,7 @@ import "./views/import.css";
 import "./views/settings.css";
 import "./views/entry.css";
 
-function Page({ section, id }: { section: string; id?: string }) {
+function Page({ section, id, sub }: { section: string; id?: string; sub?: string }) {
   const screen = screenOf(section);
   switch (screen) {
     case "home":
@@ -43,7 +43,7 @@ function Page({ section, id }: { section: string; id?: string }) {
     case "tasks":
       return id ? <GenericItem key={id} name="task" id={id} /> : <Tasks />;
     case "routines":
-      return <Routines id={id} />;
+      return <Routines id={id} sub={sub} />;
     case "money":
       return <MoneyView id={id} />;
     case "payments":
@@ -65,7 +65,7 @@ function Page({ section, id }: { section: string; id?: string }) {
 
 function App() {
   const route = useRoute();
-  const [section = "", id] = route.split("/").filter(Boolean);
+  const [section = "", id, sub] = route.split("/").filter(Boolean);
   const first = useRef(true);
   const last = useRef<{ section: string; id?: string; split: Element | null }>({ section, split: null });
 
@@ -98,7 +98,7 @@ function App() {
   if (screen === "connect") return <Connect />;
   return (
     <Shell section={section}>
-      <Page section={section} id={id} />
+      <Page section={section} id={id} sub={sub} />
     </Shell>
   );
 }

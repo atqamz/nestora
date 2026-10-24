@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { actionOccursOn, dayLabel, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
 import { copyDraft, draftOf } from "../domain/routine-draft.ts";
-import { actionsOf, momentOf, runs } from "../domain/routines.ts";
+import { pagesOf } from "../domain/routine-start.ts";
+import { actionsOf, momentOf, runs, weekStrip } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { Who } from "../ui/avatar.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
 import { RoutineAction } from "../ui/routine-action.tsx";
+import { RoutineWeek } from "../ui/routine-week.tsx";
 import { momentLabel, scheduleLine, whenLine } from "../ui/routine-label.ts";
 import { PauseSheet, RoutineSheet } from "../ui/routine-sheet.tsx";
 import { text } from "../ui/text.ts";
@@ -43,6 +45,7 @@ export function RoutineDetail({ id }: { id: string }) {
   const today = occursOn(routine, day);
   const todays = actions.filter((action) => actionOccursOn(routine, action, day));
   const { done, total } = progress(todays, keyFor(routine.who, me), day);
+  const strip = weekStrip(routine, actions, day, keyFor(routine.who, me));
   const label = today ? dayLabel(todays, day) : null;
   return (
     <>
@@ -64,8 +67,15 @@ export function RoutineDetail({ id }: { id: string }) {
         {label !== null && ` · ${copy.dayLabel(label)}`}
         {today && total > 0 && ` · ${copy.progress(done, total)}`}
       </p>
+      {strip !== null && <RoutineWeek strip={strip} />}
       <div className="rt-tools">
-        <button type="button" onClick={() => setSheet("edit")}>
+        {today && !away && pagesOf(todays).length > 0 && (
+          <a className="button" href={`#/routines/${routine.id}/start`}>
+            <Icon name="play" />
+            {copy.start.open}
+          </a>
+        )}
+        <button type="button" className="secondary" onClick={() => setSheet("edit")}>
           <Icon name="edit" />
           {copy.edit}
         </button>

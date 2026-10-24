@@ -43,7 +43,7 @@ export type Problem = { at: number | null; field: "title" | "days" | "from" | "m
 
 export type Current = { routine: ItemRow; actions: readonly ItemRow[] };
 
-export type Plan = { ok: true; id: string; steps: Step[]; names: string[] } | { ok: false; problems: Problem[] };
+export type Plan = { ok: true; id: string; steps: Step[]; names: string[] } | { ok: false; problems: Problem[]; gone: string[] };
 
 type Dict = Record<string, unknown>;
 
@@ -186,13 +186,17 @@ const routineChange = (draft: RoutineDraft, was: RoutineDraft): Dict =>
 const actionChange = (action: ActionDraft, was: ActionDraft): Dict => withData(changed(actionColumns(action), actionColumns(was)), changed(actionData(action), actionData(was)));
 
 export const planOf = (draft: RoutineDraft, opened: Current | null, live: readonly ItemRow[], newId: () => string): Plan => {
-  const problems = problemsOf(draft);
-  if (problems.length > 0) return { ok: false, problems };
-  const id = opened?.routine.id ?? newId();
-  const title = draft.title.trim();
   const was = opened === null ? null : draftOf(opened.routine, opened.actions);
   const before = new Map((was?.actions ?? []).map((action) => [action.id, action]));
   const alive = new Set(live.map((row) => row.id));
+  const problems = problemsOf(draft);
+  const gone = draft.actions.filter((action) => {
+    const prior = before.get(action.id);
+    return prior !== undefined && !alive.has(action.id) && Object.keys(actionChange(action, prior)).length > 0;
+  });
+  if (problems.length > 0 || gone.length > 0) return { ok: false, problems, gone: gone.map((action) => action.id) };
+  const id = opened?.routine.id ?? newId();
+  const title = draft.title.trim();
   const kept = new Set(draft.actions.map((action) => action.id));
   const moment = blank(draft.moment);
   const natural = [...(was?.actions ?? []).map((action) => action.id).filter((actionId) => kept.has(actionId)), ...draft.actions.map((action) => action.id).filter((actionId) => !before.has(actionId))];
@@ -217,15 +221,12 @@ export const planOf = (draft: RoutineDraft, opened: Current | null, live: readon
       continue;
     }
     const change = { ...actionChange(action, prior), ...(moved ? { sort: index } : {}) };
-    if (alive.has(action.id)) {
-      if (Object.keys(change).length > 0) push({ op: "update", table: "items", id: action.id, change }, name);
-    } else if (Object.keys(change).some((key) => key !== "sort")) {
-      push({ op: "update", table: "items", id: action.id, change: { deleted_at: null } }, name);
-      push({ op: "update", table: "items", id: action.id, change }, name);
-    }
+    if (alive.has(action.id) && Object.keys(change).length > 0) push({ op: "update", table: "items", id: action.id, change }, name);
   }
   for (const row of opened?.actions ?? []) {
     if (!kept.has(row.id) && alive.has(row.id)) push({ op: "delete", table: "items", id: row.id }, row.title);
   }
   return { ok: true, id, steps, names };
 };
+
+export const savePlan = (draft: RoutineDraft, opened: Current | null, current: Current | null, newId: () => string): Plan => planOf(draft, opened, current?.actions ?? [], newId);
