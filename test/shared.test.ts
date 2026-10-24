@@ -172,7 +172,7 @@ test("registry is internally consistent", () => {
       if (v.doneOnStatus) assert.ok(v.status?.includes(v.doneOnStatus), `${label} doneOnStatus`);
     }
   }
-  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest", "book", "copy", "place"]);
+  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest", "book", "copy", "place", "routine", "step", "timer", "pack", "block", "day_type", "counter", "text"]);
   assert.deepEqual(Object.keys(tables.budget_entries.variants), ["planned", "payment"]);
 });
 

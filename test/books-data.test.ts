@@ -22,8 +22,8 @@ const rejected = async (promise: ReturnType<typeof apply>, status: number, patte
   assert.match(result.errors.join("\n"), pattern);
 };
 
-test("the registry lists book, copy and place after the older kinds", () => {
-  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest", "book", "copy", "place"]);
+test("the registry lists the books and routines kinds after the older kinds", () => {
+  assert.deepEqual(Object.keys(tables.items.variants), ["task", "vendor", "guest", "book", "copy", "place", "routine", "step", "timer", "pack", "block", "day_type", "counter", "text"]);
 });
 
 test("a full book, copy and place pass the validator", () => {

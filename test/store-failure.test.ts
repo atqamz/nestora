@@ -13,6 +13,7 @@ const flaky = (real: Persistence) => {
   const persistence: Persistence = {
     load: () => real.load(),
     reset: (expected, meta) => real.reset(expected, meta),
+    adopt: (from) => real.adopt(from),
     write: async (write) => {
       if (control.failing) throw new Error("QuotaExceededError");
       control.writes.push(write);

@@ -40,6 +40,10 @@ export type Rejection = {
 
 export type ErrorBody = { error: string };
 
+export type SideMismatch = { error: "side_mismatch"; me: Side };
+
+export const SIDE_HEADER = "x-wp-side";
+
 export const MAX_MUTATIONS = 20;
 
 export const MAX_BODY_BYTES = 1048576;

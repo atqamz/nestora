@@ -1,5 +1,6 @@
 import { tables } from "./tables.ts";
 import { applyPatch } from "./api.ts";
+import { DAY_CODES } from "./routines.ts";
 import type { Column, Table, Type, Variant } from "./tables.ts";
 
 type Plain = Record<string, unknown>;
@@ -21,6 +22,7 @@ const INSTANT = /^(\d{4}-\d\d-\d\d)T(\d\d):(\d\d):(\d\d)Z$/;
 const ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)*$/;
 const DECIMAL = /^(0|[1-9]\d{0,5})(\.\d{1,4})?$/;
 const URL_SHAPE = /^https?:\/\/[^\s\p{Cc}\p{Cf}\p{Cs}/?#][^\s\p{Cc}\p{Cf}\p{Cs}]*$/iu;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
 const COVER_SHAPE = /^https:\/\/covers\.openlibrary\.org\/[\x21-\x7e]{1,200}$/;
 const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
@@ -108,6 +110,12 @@ const isDates = (v: unknown) => {
   }
 };
 
+const isDays = (v: unknown) => {
+  if (typeof v !== "string") return false;
+  const codes = v.split(",").map((code) => (DAY_CODES as readonly string[]).indexOf(code));
+  return codes.every((at, i) => at >= 0 && (i === 0 || at > codes[i - 1]));
+};
+
 const STAGE_FIELDS = ["key", "name", "from", "to"];
 
 const monthOk = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= MONTH_MIN && (v as number) <= MONTH_MAX;
@@ -167,6 +175,8 @@ const expected: Record<string, string> = {
   zone: "an IANA time zone such as Asia/Jakarta",
   decimal: "a positive decimal number such as 1.5",
   dates: "a JSON array of YYYY-MM-DD dates",
+  time: "a time as HH:MM from 00:00 to 23:59",
+  days: "weekday codes in order, separated by commas, from MO,TU,WE,TH,FR,SA,SU, such as MO,TH",
   isbn: "an ISBN-13 as 13 digits with no hyphens and a valid check digit",
   cover: "an https URL on covers.openlibrary.org",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
@@ -194,6 +204,8 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "dates" ? isDates(v)
     : type === "stages" ? isStages(v)
     : type === "photo" ? isPhoto(v)
+    : type === "time" ? typeof v === "string" && TIME.test(v)
+    : type === "days" ? isDays(v)
     : type === "isbn" ? isIsbn13(v)
     : type === "cover" ? isCover(v)
     : isPlain(v);
@@ -226,6 +238,13 @@ const checkData = (variant: Variant, data: unknown, mode: Mode, errors: string[]
   }
 };
 
+const checkSchedule = (data: unknown, errors: string[]) => {
+  if (!isPlain(data)) return;
+  const { every_weeks, from, until } = data;
+  if (every_weeks != null && from == null) errors.push("data.from: required with data.every_weeks");
+  if (typeof from === "string" && typeof until === "string" && until < from) errors.push("data.until: must not be before data.from");
+};
+
 const checkVariant = (
   table: Table,
   variantName: string,
@@ -248,8 +267,13 @@ const checkVariant = (
   }
   if (mode === "patch" && input.data === null) errors.push("data: must be an object, set a key to null to remove it");
   if (input.data !== undefined && input.data !== null) checkData(variant, input.data, mode, errors);
+  if (mode === "create" && table.by === "kind" && variantName === "routine") checkSchedule(input.data, errors);
   if (variant.doneOnStatus && input.done_on != null && input.status !== undefined && input.status !== variant.doneOnStatus) {
     errors.push(`done_on: only allowed when status is ${variant.doneOnStatus}`);
+  }
+  for (const [name, max] of Object.entries(variant.caps ?? {})) {
+    const value = name.startsWith("data.") && isPlain(input.data) ? input.data[name.slice(5)] : input[name];
+    if (typeof value === "string" && value.length > max) errors.push(`${name}: must be at most ${max} characters`);
   }
   for (const name of variant.required) {
     if (input[name] === null || (mode !== "patch" && input[name] === undefined)) {
@@ -333,7 +357,12 @@ export const validateChange = (tableName: unknown, stored: unknown, patch: unkno
   if (!isPlain(stored)) return ["row: must be an object"];
   const errors = validatePatch(tableName, stored[table.by ?? table.key], patch);
   if (errors.length > 0) return errors;
-  return validateRow(tableName, applyPatch(stored, patch as Plain));
+  const merged = applyPatch(stored, patch as Plain);
+  const rows = validateRow(tableName, merged);
+  const sent = isPlain(patch) ? patch.data : undefined;
+  const schedule = isPlain(sent) && ["every_weeks", "from", "until"].some((key) => Object.hasOwn(sent, key));
+  if (rows.length === 0 && schedule && merged.kind === "routine") checkSchedule(merged.data, rows);
+  return rows;
 };
 
 const mutationFields = ["id", "table", "op", "row_id", "patch"];

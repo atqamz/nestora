@@ -38,7 +38,7 @@ test("offline writes flush once the server is back, with server-owned columns fi
   assert.deepEqual([row.rev, row.updated_by], [1, "b"]);
   assert.equal(server.row("items", id)?.title, "Book a hall");
   const saved = await persistence.load();
-  assert.deepEqual([saved.outbox.length, saved.meta], [0, { rev: 1, me: "b", epoch: server.epoch, generation: null }]);
+  assert.deepEqual([saved.outbox.length, saved.meta], [0, { rev: 1, me: "b", epoch: server.epoch, generation: null, adopted: null }]);
   assert.equal(saved.rows.items.length, 1);
 });
 

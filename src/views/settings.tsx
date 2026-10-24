@@ -150,7 +150,7 @@ export function Settings() {
         <ul className="links">
           {exports.map((link) => (
             <li key={link.query}>
-              <a href={`/api/export?${link.query}`} download>
+              <a href={`/api/export?${link.query}&side=${me}`} download>
                 <Icon name="download" />
                 {link.label}
               </a>

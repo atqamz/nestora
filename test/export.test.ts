@@ -5,7 +5,7 @@ import { exportData } from "../worker/export.ts";
 import { pull } from "../worker/sync.ts";
 import { STAMP, apply, createDb, id, mutation, payment, planned, setting, task, vendor } from "./sync-db.ts";
 
-const get = (db: ReturnType<typeof createDb>["db"], query: string) => exportData(new URL(`https://wp.example.test/api/export?${query}`), db);
+const get = (db: ReturnType<typeof createDb>["db"], query: string) => exportData(new URL(`https://wp.example.test/api/export?${query}`), db, "a");
 
 const seeded = async () => {
   const env = createDb();
@@ -35,7 +35,7 @@ test("json export is a lossless dump of all three tables with tombstones", async
   assert.match(body.exported_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   assert.equal(body.rev, 2);
   assert.deepEqual(Object.keys(body.tables).sort(), ["budget_entries", "items", "settings"]);
-  assert.deepEqual(body.tables, (await pull(db, 0)).changes);
+  assert.deepEqual(body.tables, (await pull(db, 0, "a")).changes);
   assert.equal(body.tables.items.length, 3);
   assert.equal(body.tables.items.find((row) => row.id === id(5))?.deleted_at, STAMP);
   assert.deepEqual(body.tables.items.find((row) => row.id === id(20))?.data, { phone: "+628123456789", pic: "Sam" });

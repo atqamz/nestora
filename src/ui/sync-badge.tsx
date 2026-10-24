@@ -9,6 +9,7 @@ export function SyncBadge() {
   const labels = {
     storage: text.sync.storage,
     login: text.sync.login,
+    mismatch: text.notice.reload,
     rejected: text.sync.rejected(rejected.length),
     offline: text.sync.offline(pending),
     pending: text.sync.pending,
@@ -18,10 +19,10 @@ export function SyncBadge() {
     <div role="status" className="sync" data-state={state}>
       {state === "synced" ? (
         <span className="visually-hidden">{labels.synced}</span>
-      ) : state === "login" ? (
-        <button type="button" onClick={actions.logIn}>
+      ) : state === "login" || state === "mismatch" ? (
+        <button type="button" onClick={state === "login" ? actions.logIn : actions.reload}>
           <Icon name="late" />
-          {labels.login}
+          {labels[state]}
         </button>
       ) : (
         <a href="#/sync">

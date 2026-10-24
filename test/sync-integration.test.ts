@@ -54,6 +54,18 @@ test("the dev Worker serves health and an authenticated sync round trip", { time
     const pulled = (await (await call(`${base}/api/sync?since=${result.rev - 1}`)).json()) as { rev: number; me: string; changes: { items: { id: string }[] } };
     assert.equal(pulled.me, "a");
     assert.ok(pulled.changes.items.some((row) => row.id === taskId));
+    const routineId = crypto.randomUUID();
+    const stepId = crypto.randomUUID();
+    const private_ = await post({
+      mutations: [
+        create("items", { id: routineId, kind: "routine", title: "Morning routine", who: "a", data: { private: true }, created_at: now, updated_at: now }),
+        create("items", { id: stepId, kind: "step", parent_id: routineId, title: "item 1", created_at: now, updated_at: now }),
+      ],
+    });
+    assert.equal(private_.status, 200);
+    const own = (await (await call(`${base}/api/sync?since=0`)).json()) as { changes: { items: { id: string }[] } };
+    const made = new Set<string>([routineId, stepId]);
+    assert.deepEqual(own.changes.items.map((row) => row.id).filter((rowId) => made.has(rowId)).sort(), [routineId, stepId].sort());
     const rejected = await post({ mutations: [{ id: crypto.randomUUID(), table: "items", op: "delete", row_id: crypto.randomUUID(), patch: {} }] });
     assert.equal(rejected.status, 404);
     assert.equal((await call(`${base}/api/sync`, { method: "PUT" })).status, 405);

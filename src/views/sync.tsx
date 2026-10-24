@@ -9,7 +9,7 @@ import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 
 export function Sync() {
-  const { link, pending, rejected, storage, rows } = useSnapshot();
+  const { link, pending, rejected, storage, paused, rows } = useSnapshot();
   const { me, label } = usePartner();
 
   const nameOf = (entry: Pending) => {
@@ -40,11 +40,17 @@ export function Sync() {
       <p role="status">
         {storage === "failed"
           ? text.sync.storageBody
-          : link === "expired"
-            ? text.sync.expiredBody
-            : link === "offline"
-              ? text.sync.offlineBody
-              : text.sync.onlineBody}
+          : link === "mismatch"
+            ? text.notice.mismatch
+            : link === "expired"
+              ? paused
+                ? text.sync.pausedExpiredBody
+                : text.sync.expiredBody
+              : link === "offline"
+                ? paused
+                  ? text.paused
+                  : text.sync.offlineBody
+                : text.sync.onlineBody}
       </p>
       <p>{text.sync.waiting(pending)}</p>
       <div className="form-actions">

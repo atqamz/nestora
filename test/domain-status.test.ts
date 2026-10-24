@@ -10,7 +10,7 @@ import type { ViewName } from "../src/ui/registry.ts";
 
 const healthy: Health = { storage: "ok", link: "online", rejected: 0, pending: 0 };
 
-const state = (ready: boolean, me: "a" | null, link: "online" | "offline" | "expired") => ({ ready, me, link });
+const state = (ready: boolean, me: "a" | null, link: "online" | "offline" | "expired" | "mismatch") => ({ ready, me, link });
 
 test("the app opens once the server has been heard, with or without data, and never offers creation before that", () => {
   assert.equal(screenFor(state(false, null, "online")), "loading");
@@ -25,18 +25,22 @@ test("an empty device whose session is missing sees the sign-in screen, never th
   assert.equal(screenFor(state(true, null, "offline")), "connect");
 });
 
-test("a device that holds data keeps the app when the session expired, so nothing is hidden", () => {
+test("a device that holds data keeps the app when the session expired or the side changed, so nothing is hidden", () => {
   assert.equal(screenFor(state(true, "a", "expired")), "app");
+  assert.equal(screenFor(state(true, "a", "mismatch")), "app");
 });
 
 test("the badge shows the worst state first: storage, login, rejected, offline, pending, synced", () => {
   assert.equal(badgeFor(healthy), "synced");
   assert.equal(badgeFor({ ...healthy, pending: 2 }), "pending");
+  assert.equal(badgeFor({ ...healthy, pending: 1 }), "pending");
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "offline" }), "offline");
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "offline", rejected: 1 }), "rejected");
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "expired", rejected: 1 }), "login");
   assert.equal(badgeFor({ storage: "failed", link: "expired", rejected: 1, pending: 2 }), "storage");
   assert.equal(badgeFor({ ...healthy, storage: "failed" }), "storage");
+  assert.equal(badgeFor({ ...healthy, link: "mismatch", pending: 2, rejected: 1 }), "mismatch");
+  assert.equal(badgeFor({ storage: "failed", link: "mismatch", rejected: 0, pending: 0 }), "storage");
   assert.equal(badgeFor({ ...healthy, link: "offline" }), "offline");
 });
 

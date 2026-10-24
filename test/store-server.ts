@@ -1,9 +1,10 @@
-import { MAX_BODY_BYTES, MAX_MUTATIONS, applyPatch, toInstant } from "../shared/api.ts";
+import { MAX_BODY_BYTES, MAX_MUTATIONS, SIDE_HEADER, applyPatch, toInstant } from "../shared/api.ts";
 import type { Changes, Mutation, Side } from "../shared/api.ts";
 import { tableNames, tables } from "../shared/tables.ts";
 import type { Column, TableName } from "../shared/tables.ts";
 import { validateChange, validateMutation } from "../shared/validate.ts";
 import type { Fetch } from "../src/store/api.ts";
+import { hides } from "../worker/private.ts";
 
 type Dict = Record<string, unknown>;
 type State = Record<TableName, Map<string, Dict>>;
@@ -19,6 +20,7 @@ export type Seen = {
   origin: string | null;
   redirect: string | null;
   signal: boolean;
+  side: string | null;
 };
 
 const references = [
@@ -55,6 +57,7 @@ export const createServer = () => {
   const seen: Seen[] = [];
   const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
   const asked: Seen[] = [];
+  const mismatched: string[] = [];
 
   const pointers = (draft: State, table: TableName, row: Dict, columns: readonly string[]): Refusal | null => {
     const errors: string[] = [];
@@ -111,17 +114,23 @@ export const createServer = () => {
     return null;
   };
 
-  const changesSince = (since: number): Changes => {
+  const hidden = (table: TableName, row: Dict, side: Side) =>
+    table === "items" && hides(row, state.items.get(row.parent_id as string), side);
+
+  const changesSince = (since: number, side: Side): Changes => {
     const out = Object.fromEntries(tableNames.map((table) => [table, [] as Dict[]]));
     for (const table of tableNames) {
-      for (const row of state[table].values()) if ((row.rev as number) > since) out[table].push(structuredClone(row));
+      for (const row of state[table].values()) if ((row.rev as number) > since && !hidden(table, row, side)) out[table].push(structuredClone(row));
     }
     return out as unknown as Changes;
   };
 
-  const rowsOf = (mutations: readonly Mutation[]): Changes => {
+  const rowsOf = (mutations: readonly Mutation[], side: Side): Changes => {
     const out = Object.fromEntries(tableNames.map((table) => [table, new Map<string, Dict>()]));
-    for (const { table, row_id } of mutations) out[table].set(row_id, structuredClone(state[table].get(row_id)!));
+    for (const { table, row_id } of mutations) {
+      const row = state[table].get(row_id)!;
+      if (!hidden(table, row, side)) out[table].set(row_id, structuredClone(row));
+    }
     return Object.fromEntries(tableNames.map((table) => [table, [...out[table].values()]])) as unknown as Changes;
   };
 
@@ -154,14 +163,14 @@ export const createServer = () => {
     }
     state = draft;
     if (wrote.size > 0) rev += 1;
-    return json(200, { rev, epoch, rows: rowsOf(mutations) });
+    return json(200, { rev, epoch, rows: rowsOf(mutations, side) });
   };
 
   const get = (side: Side, url: URL, headers: Headers, init: RequestInit) => {
     const since = url.searchParams.get("since") ?? "0";
     if (!/^\d+$/.test(since) || !Number.isSafeInteger(Number(since))) return refuse(400, ["since: must be a non-negative integer"]);
     seen.push({ method: "GET", mutations: 0, bytes: 0, since: Number(since), ...meta(headers, init) });
-    return json(200, { rev, epoch, me: side, changes: changesSince(Number(since)) });
+    return json(200, { rev, epoch, me: side, changes: changesSince(Number(since), side) });
   };
 
   const meta = (headers: Headers, init: RequestInit) => ({
@@ -169,6 +178,7 @@ export const createServer = () => {
     origin: headers.get("origin"),
     redirect: init.redirect ?? null,
     signal: init.signal instanceof AbortSignal,
+    side: headers.get(SIDE_HEADER),
   });
 
   const as =
@@ -192,6 +202,11 @@ export const createServer = () => {
       if (failure !== undefined) return new Response("upstream error", { status: failure });
       if (url.pathname !== "/api/sync") return json(404, { error: "not_found" });
       const headers = new Headers(init.headers);
+      const claimed = headers.get(SIDE_HEADER);
+      if (claimed !== null && claimed !== side) {
+        mismatched.push(`${init.method} ${claimed}`);
+        return json(409, { error: "side_mismatch", me: side });
+      }
       const origin = headers.get("origin");
       if ((origin !== null && origin !== url.origin) || ["cross-site", "same-site"].includes(headers.get("sec-fetch-site") ?? "")) {
         return refuse(403, ["origin: cross-origin requests are refused"]);
@@ -207,6 +222,7 @@ export const createServer = () => {
     control,
     seen,
     asked,
+    mismatched,
     row: (table: TableName, id: string) => state[table].get(id),
     rows: (table: TableName) => [...state[table].values()],
     wipe: () => {

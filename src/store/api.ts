@@ -1,15 +1,16 @@
-import type { Mutation, Rejection, SyncResponse, SyncResult } from "../../shared/api.ts";
+import { SIDE_HEADER } from "../../shared/api.ts";
+import type { Mutation, Rejection, Side, SyncResponse, SyncResult } from "../../shared/api.ts";
 
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-export type Failure = { kind: "offline" } | { kind: "expired" };
+export type Failure = { kind: "offline" } | { kind: "expired" } | { kind: "mismatch"; me: Side };
 
 export type PullResult = { kind: "ok"; body: SyncResponse } | Failure;
 
 export type PushResult = { kind: "ok"; body: SyncResult } | { kind: "rejected"; rejection: Rejection } | Failure;
 
 export type Api = {
-  pull(since: number): Promise<PullResult>;
+  pull(since: number, timeout?: number): Promise<PullResult>;
   push(mutations: Mutation[]): Promise<PushResult>;
   me(): Promise<string | null>;
 };
@@ -22,44 +23,55 @@ export const LOGIN_URL = "/api/login";
 
 const TIMEOUT_MS = 15_000;
 
+export const PROBE_TIMEOUT_MS = 4_000;
+
 type Dict = Record<string, unknown>;
 
 const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isSide = (value: unknown): value is Side => value === "a" || value === "b";
 
 const call = async (
   fetcher: Fetch,
   url: string,
   init: RequestInit,
+  timeout = TIMEOUT_MS,
 ): Promise<Failure | { kind: "response"; status: number; body: unknown }> => {
   let res: Response;
   try {
-    res = await fetcher(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetcher(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(timeout) });
   } catch {
     return { kind: "offline" };
   }
   if ((res.status >= 300 && res.status < 400) || res.status === 401 || res.status === 403) return { kind: "expired" };
   if (res.status >= 500) return { kind: "offline" };
   if (!res.headers.get("content-type")?.includes("application/json")) return { kind: res.status < 300 ? "expired" : "offline" };
+  let body: unknown;
   try {
-    return { kind: "response", status: res.status, body: await res.json() };
+    body = await res.json();
   } catch {
     return { kind: "offline" };
   }
+  if (res.status === 409 && isDict(body) && body.error === "side_mismatch" && isSide(body.me)) return { kind: "mismatch", me: body.me };
+  return { kind: "response", status: res.status, body };
 };
 
-export const createApi = (fetcher: Fetch): Api => ({
-  pull: async (since) => {
-    const res = await call(fetcher, `${SYNC_URL}?since=${since}`, { method: "GET" });
+const sided = (side?: Side): Record<string, string> => (side === undefined ? {} : { [SIDE_HEADER]: side });
+
+export const createApi = (fetcher: Fetch, side?: Side): Api => ({
+  pull: async (since, timeout) => {
+    const res = await call(fetcher, `${SYNC_URL}?since=${since}`, { method: "GET", headers: sided(side) }, timeout);
     if (res.kind !== "response") return res;
     const { body } = res;
-    return res.status === 200 && isDict(body) && Number.isInteger(body.rev) && typeof body.epoch === "string" && isDict(body.changes)
-      ? { kind: "ok", body: body as unknown as SyncResponse }
-      : { kind: "offline" };
+    if (!(res.status === 200 && isDict(body) && Number.isInteger(body.rev) && typeof body.epoch === "string" && isSide(body.me) && isDict(body.changes))) {
+      return { kind: "offline" };
+    }
+    return side !== undefined && body.me !== side ? { kind: "mismatch", me: body.me } : { kind: "ok", body: body as unknown as SyncResponse };
   },
   push: async (mutations) => {
     const res = await call(fetcher, SYNC_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...sided(side) },
       body: JSON.stringify({ mutations }),
     });
     if (res.kind !== "response") return res;

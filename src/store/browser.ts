@@ -1,10 +1,11 @@
 import { createApi } from "./api.ts";
-import { indexedDbPersistence } from "./db.ts";
-import { createStore } from "./store.ts";
+import { indexedDbDisk } from "./db.ts";
+import { createSession, sideHint } from "./partition.ts";
 
-export const store = createStore({
-  persistence: indexedDbPersistence(),
-  api: createApi((url, init) => fetch(url, init)),
+export const store = createSession({
+  disk: indexedDbDisk(),
+  hint: sideHint(localStorage),
+  api: (side) => createApi((url, init) => fetch(url, init), side),
 });
 
 document.addEventListener("visibilitychange", () => {

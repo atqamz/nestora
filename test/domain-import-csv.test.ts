@@ -137,7 +137,7 @@ test("the CSV the app exports from Settings reads back, including the awkward ce
     mutation("create", "items", id(4), { id: id(4), kind: "copy", parent_id: id(1), title: "Copy", status: "here", ...stamps }),
   ]);
   assert.equal("errors" in result, false);
-  const csv = await (await exportData(new URL("https://wp.example.test/api/export?format=csv&table=items&kind=book"), db)).text();
+  const csv = await (await exportData(new URL("https://wp.example.test/api/export?format=csv&table=items&kind=book"), db, "a")).text();
   const { rows, skipped, problem } = parseBookCsv(csv);
   assert.deepEqual([problem, skipped, rows.length], [null, 0, 3]);
   const by = Object.fromEntries(rows.map((row) => [row.title, row]));
