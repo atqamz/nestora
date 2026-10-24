@@ -38,6 +38,13 @@ export const live = (maps: Maps): Rows =>
     tableNames.map((table) => [table, [...maps[table].values()].filter((row) => row.deleted_at === null)]),
   ) as unknown as Rows;
 
+const flagged = (row: Dict | undefined) => row?.kind === "routine" && (row.data as Dict | null)?.private === true;
+
+export const withoutPrivate = (maps: Maps): Maps => ({
+  ...maps,
+  items: new Map([...maps.items].filter(([, row]) => !flagged(row) && !flagged(maps.items.get(row.parent_id as string)))),
+});
+
 export const newer = (base: Maps, changes: Changes): Partial<Rows> => {
   const fresh: Record<string, Dict[]> = {};
   for (const table of tableNames) {

@@ -4,6 +4,7 @@ import { tableNames, tables } from "../shared/tables.ts";
 import type { Column, TableName } from "../shared/tables.ts";
 import { validateChange, validateMutation } from "../shared/validate.ts";
 import type { Fetch } from "../src/store/api.ts";
+import { hides } from "../worker/private.ts";
 
 type Dict = Record<string, unknown>;
 type State = Record<TableName, Map<string, Dict>>;
@@ -111,17 +112,23 @@ export const createServer = () => {
     return null;
   };
 
-  const changesSince = (since: number): Changes => {
+  const hidden = (table: TableName, row: Dict, side: Side) =>
+    table === "items" && hides(row, state.items.get(row.parent_id as string), side);
+
+  const changesSince = (since: number, side: Side): Changes => {
     const out = Object.fromEntries(tableNames.map((table) => [table, [] as Dict[]]));
     for (const table of tableNames) {
-      for (const row of state[table].values()) if ((row.rev as number) > since) out[table].push(structuredClone(row));
+      for (const row of state[table].values()) if ((row.rev as number) > since && !hidden(table, row, side)) out[table].push(structuredClone(row));
     }
     return out as unknown as Changes;
   };
 
-  const rowsOf = (mutations: readonly Mutation[]): Changes => {
+  const rowsOf = (mutations: readonly Mutation[], side: Side): Changes => {
     const out = Object.fromEntries(tableNames.map((table) => [table, new Map<string, Dict>()]));
-    for (const { table, row_id } of mutations) out[table].set(row_id, structuredClone(state[table].get(row_id)!));
+    for (const { table, row_id } of mutations) {
+      const row = state[table].get(row_id)!;
+      if (!hidden(table, row, side)) out[table].set(row_id, structuredClone(row));
+    }
     return Object.fromEntries(tableNames.map((table) => [table, [...out[table].values()]])) as unknown as Changes;
   };
 
@@ -154,14 +161,14 @@ export const createServer = () => {
     }
     state = draft;
     if (wrote.size > 0) rev += 1;
-    return json(200, { rev, epoch, rows: rowsOf(mutations) });
+    return json(200, { rev, epoch, rows: rowsOf(mutations, side) });
   };
 
   const get = (side: Side, url: URL, headers: Headers, init: RequestInit) => {
     const since = url.searchParams.get("since") ?? "0";
     if (!/^\d+$/.test(since) || !Number.isSafeInteger(Number(since))) return refuse(400, ["since: must be a non-negative integer"]);
     seen.push({ method: "GET", mutations: 0, bytes: 0, since: Number(since), ...meta(headers, init) });
-    return json(200, { rev, epoch, me: side, changes: changesSince(Number(since)) });
+    return json(200, { rev, epoch, me: side, changes: changesSince(Number(since), side) });
   };
 
   const meta = (headers: Headers, init: RequestInit) => ({
