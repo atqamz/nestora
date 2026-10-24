@@ -65,7 +65,7 @@ test("the routine day is fixed to UTC+7 and does not follow another time zone", 
   assert.equal(routineDay(new Date("2026-10-24T20:59:59Z")), "2026-10-24");
 });
 
-test("the routine day starts at 04:00 in Jakarta, which is 21:00 UTC", () => {
+test("the routine day starts at 04:00 UTC+7, which is 21:00 UTC", () => {
   const cases: [string, string][] = [
     ["2026-10-23T20:59:59Z", "2026-10-23"],
     ["2026-10-23T21:00:00Z", "2026-10-24"],
@@ -332,14 +332,14 @@ test("a routine belongs to its owner and to both", () => {
 test("the weekly pattern comes from the day types", () => {
   const r = routine();
   const actions = [
-    action("day_type", r, { days: "TU,FR" }, { title: "Upper", sort: 2 }),
-    action("day_type", r, { days: "MO,TH" }, { title: "Lower", sort: 1 }),
-    action("day_type", r, { days: "WE,SA,SU" }, { title: "Rest", sort: 3 }),
+    action("day_type", r, { days: "TU,FR" }, { title: "Day type 2", sort: 2 }),
+    action("day_type", r, { days: "MO,TH" }, { title: "Day type 1", sort: 1 }),
+    action("day_type", r, { days: "WE,SA,SU" }, { title: "Day type 3", sort: 3 }),
     step(r, { days: "MO" }),
   ];
-  assert.deepEqual(weeklyPattern(actions).map((e) => e.label), ["Lower", "Upper", "Rest", "Lower", "Upper", "Rest", "Rest"]);
+  assert.deepEqual(weeklyPattern(actions).map((e) => e.label), ["Day type 1", "Day type 2", "Day type 3", "Day type 1", "Day type 2", "Day type 3", "Day type 3"]);
   assert.deepEqual(weeklyPattern(actions).map((e) => e.day), [...DAY_CODES]);
-  assert.deepEqual([19, 20, 21, 22, 23, 24, 25].map((d) => dayLabel(actions, `2026-10-${d}`)), ["Lower", "Upper", "Rest", "Lower", "Upper", "Rest", "Rest"]);
+  assert.deepEqual([19, 20, 21, 22, 23, 24, 25].map((d) => dayLabel(actions, `2026-10-${d}`)), ["Day type 1", "Day type 2", "Day type 3", "Day type 1", "Day type 2", "Day type 3", "Day type 3"]);
 });
 
 test("the weekly pattern leaves gaps, lets the first by order win and skips deleted day types", () => {
