@@ -1,5 +1,6 @@
 import type { Side } from "../../shared/api.ts";
-import { dayLabel, isRoutineKind, keyFor, mine, progress, scheduled, visible } from "../../shared/routines.ts";
+import { actionOccursOn, dayLabel, isRoutineKind, keyFor, mine, occursOn, progress, scheduled, visible, weekDates, weeklyPattern } from "../../shared/routines.ts";
+import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { bySort, compare } from "./order.ts";
 
@@ -10,6 +11,8 @@ export type Owner = "mine" | "both" | "theirs";
 export type Listing = { owner: Owner; moments: { key: string | null; routines: ItemRow[] }[] }[];
 
 export type Block = { routine: ItemRow; actions: ItemRow[]; label: string | null; side: Side; progress: { done: number; total: number } };
+
+export type Strip = { date: string; day: DayCode; label: string | null; today: boolean; done: boolean }[];
 
 export type Run = { heading: string | null; actions: ItemRow[] };
 
@@ -62,4 +65,17 @@ export const runs = (actions: readonly ItemRow[]): Run[] => {
     else found.push({ heading, actions: [action] });
   }
   return found;
+};
+
+export const weekStrip = (routine: ItemRow, actions: readonly ItemRow[], day: string, side: Side): Strip | null => {
+  if (!actions.some((row) => row.kind === "day_type")) return null;
+  const pattern = weeklyPattern(actions);
+  const { done, total } = progress(actions.filter((action) => actionOccursOn(routine, action, day)), side, day);
+  return weekDates(day).map((date, index) => ({
+    date,
+    day: pattern[index].day,
+    label: occursOn(routine, date) ? pattern[index].label : null,
+    today: date === day,
+    done: date === day && total > 0 && done === total,
+  }));
 };

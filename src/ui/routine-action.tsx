@@ -104,7 +104,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
             )}
             {action.kind === "counter" && (
               <span className="rt-btns">
-                <button type="button" className="rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onClick={() => run(() => flows.plus(routine, action))}>
+                <button type="button" className="rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={() => run(() => flows.plus(routine, action))}>
                   {copy.plusLabel}
                 </button>
                 <button type="button" className="ib" aria-disabled={count(action, side, today) === 0 || undefined} aria-label={copy.reset(action.title)} onClick={() => count(action, side, today) > 0 && run(() => flows.reset(routine, action))}>

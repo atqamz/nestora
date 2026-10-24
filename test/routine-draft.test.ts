@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACTION_KINDS, DAY_CODES } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { KIND_FIELDS, LIMITS, blankAction, blankDraft, copyDraft, draftOf, planOf, problemsOf } from "../src/domain/routine-draft.ts";
+import { KIND_FIELDS, LIMITS, blankAction, blankDraft, copyDraft, draftOf, planOf, problemsOf, savePlan } from "../src/domain/routine-draft.ts";
 import type { ActionDraft, RoutineDraft } from "../src/domain/routine-draft.ts";
 import { text } from "../src/ui/text.ts";
 import { client } from "./store-client.ts";
@@ -130,7 +130,7 @@ test("a draft with problems reports each one by the action and the field and pla
     [9, "end", "order"],
   ];
   assert.deepEqual(problemsOf(draft).map((problem) => [problem.at, problem.field, problem.code]), expected);
-  assert.deepEqual(planOf(draft, null, [], newId), { ok: false, problems: problemsOf(draft) });
+  assert.deepEqual(planOf(draft, null, [], newId), { ok: false, problems: problemsOf(draft), gone: [] });
   assert.deepEqual(problemsOf({ ...draft, title: "x", days: ["MO"], every: "1", actions: [] }), []);
   assert.deepEqual(problemsOf({ ...draft, title: "x", days: ["MO"], every: "2", from: "2026-10-26", actions: [action("text", { title: " " })] }).map((problem) => [problem.at, problem.field]), [[0, "title"]]);
 });
@@ -273,7 +273,7 @@ test("the smallest values are valid: one minute, a target of one, and a start we
 
 test("one problem alone is enough to refuse the plan", () => {
   const plan = planOf({ ...blankDraft("a"), title: " " }, null, [], newId);
-  assert.deepEqual(plan, { ok: false, problems: [{ at: null, field: "title", code: "required" }] });
+  assert.deepEqual(plan, { ok: false, problems: [{ at: null, field: "title", code: "required" }], gone: [] });
 });
 
 test("reading a routine back fills every field of the form, including the ones the kind does not use", () => {
@@ -322,8 +322,9 @@ const concurrent = async (who: "a" | "both" = "both") => {
     const draft = draftOf(opened.routine, opened.actions);
     return {
       draft,
+      opened,
       save: async (next: RoutineDraft) => {
-        const saved = planOf(next, opened, actionsOf(mine), newId);
+        const saved = savePlan(next, opened, { routine: routineOf(mine), actions: actionsOf(mine) }, newId);
         assert.ok(saved.ok);
         assert.equal((await mine.many(saved.steps)).ok, true);
         return saved;
@@ -395,18 +396,33 @@ for (const [side, where] of [["a", "another device of the same partner"], ["b", 
     assert.deepEqual(now.actions.map((row) => [row.title, row.note]), [["item 1 elsewhere", "note 1 here"], ["item 2 elsewhere", "note 2 elsewhere"], ["item 3 here", "note 3"]]);
   });
 
-  test(`an action deleted on ${where} is brought back only when the user edited it`, async () => {
+  test(`an action deleted on ${where} stays deleted: saving an edit of it is refused with the action named, and the rest saves after it is dropped`, async () => {
     const w = await concurrent();
     const elsewhere = await open(w.server, side);
     const open_ = w.sheet();
     await elsewhere.many([{ op: "delete", table: "items", id: w.r2.id }, { op: "delete", table: "items", id: w.r3.id }]);
     await sync(elsewhere, w.mine);
     const [one, two, three] = open_.draft.actions;
-    const saved = await open_.save({ ...open_.draft, actions: [one, { ...two, title: "item 2 here" }, { ...three }] });
-    assert.deepEqual(saved.steps.map((step) => step.id), [w.r2.id, w.r2.id]);
+    const refused = planOf({ ...open_.draft, title: "Routine 2", actions: [one, { ...two, title: "item 2 here" }, { ...three }] }, open_.opened, w.actionsOf(w.mine), newId);
+    assert.deepEqual(refused, { ok: false, problems: [], gone: [w.r2.id] });
+    const saved = await open_.save({ ...open_.draft, title: "Routine 2", actions: [one, three] });
+    assert.deepEqual(saved.steps.map((step) => step.id), [w.routineOf(w.mine).id]);
     await sync(w.mine, elsewhere);
     const now = await w.truth();
-    assert.deepEqual(now.actions.map((row) => [row.id, row.title, row.note]), [[w.r1.id, "item 1", "note 1"], [w.r2.id, "item 2 here", "note 2"]]);
+    assert.deepEqual(now.actions.map((row) => [row.id, row.title]), [[w.r1.id, "item 1"]]);
+    assert.equal(now.routine.title, "Routine 2");
+  });
+
+  test(`an action deleted on ${where} and left untouched in the sheet is neither refused nor written`, async () => {
+    const w = await concurrent();
+    const elsewhere = await open(w.server, side);
+    const open_ = w.sheet();
+    await elsewhere.many([{ op: "delete", table: "items", id: w.r2.id }]);
+    await sync(elsewhere, w.mine);
+    const saved = await open_.save({ ...open_.draft, title: "Routine 2" });
+    assert.deepEqual(saved.steps.map((step) => step.id), [w.routineOf(w.mine).id]);
+    await sync(w.mine, elsewhere);
+    assert.deepEqual(titlesOf((await w.truth()).actions), ["item 1", "item 3"]);
   });
 
   test(`a reorder on ${where} survives a save that did not reorder, and a reorder in the sheet keeps what was added there`, async () => {
@@ -510,7 +526,7 @@ test("a step link is checked before anything is sent, with the problem on the li
   assert.deepEqual(found("   "), []);
   assert.deepEqual(found("not a url", "pack"), []);
   assert.match(text.routines.form.problem.url, /http/);
-  assert.deepEqual(planOf({ ...blankDraft("a"), title: "x", actions: [action("step", { title: "t", url: "not a url" })] }, null, [], newId), { ok: false, problems: [{ at: 0, field: "url", code: "url" }] });
+  assert.deepEqual(planOf({ ...blankDraft("a"), title: "x", actions: [action("step", { title: "t", url: "not a url" })] }, null, [], newId), { ok: false, problems: [{ at: 0, field: "url", code: "url" }], gone: [] });
 });
 
 test("a routine name is compared without the spaces around it, so a padded name that did not change writes nothing", () => {
@@ -542,4 +558,32 @@ test("removing or adding actions without moving any leaves the order of the othe
   assert.deepEqual(between.steps.map((step) => step.op), ["update", "create", "update", "update"]);
   await sync(w.mine);
   assert.deepEqual(titlesOf((await w.truth()).actions), ["item 2", "item 5", "item 3", "item 4"]);
+});
+
+test("the sheet's save is planned from the snapshot it opened with and the rows that are live now, and a creation has no live rows", async () => {
+  const w = await concurrent();
+  const elsewhere = await open(w.server, "b");
+  const open_ = w.sheet();
+  await elsewhere.update("items", w.r1.id, { title: "item 1 elsewhere" });
+  await elsewhere.many([{ op: "delete", table: "items", id: w.r2.id }]);
+  await sync(elsewhere, w.mine);
+  const live = { routine: w.routineOf(w.mine), actions: w.actionsOf(w.mine) };
+  const edited = { ...open_.draft, title: "Routine 2" };
+  const planned = savePlan(edited, open_.opened, live, newId);
+  assert.ok(planned.ok);
+  assert.deepEqual(planned.steps.map((step) => step.id), [live.routine.id]);
+  assert.deepEqual(planned, planOf(edited, open_.opened, live.actions, newId));
+  const wrongSnapshot = savePlan(edited, live, live, newId);
+  assert.ok(wrongSnapshot.ok);
+  assert.ok(wrongSnapshot.steps.length > planned.steps.length);
+  assert.ok(wrongSnapshot.steps.some((step) => step.id === w.r1.id));
+  const noLive = savePlan(edited, open_.opened, null, newId);
+  assert.ok(noLive.ok);
+  assert.deepEqual(noLive.steps.map((step) => step.id), [live.routine.id]);
+  const noRows = savePlan({ ...open_.draft, actions: open_.draft.actions.slice(0, 1) }, open_.opened, { routine: live.routine, actions: [] }, newId);
+  assert.ok(noRows.ok);
+  assert.deepEqual(noRows.steps, []);
+  const made = savePlan(everything(), null, null, newId);
+  assert.ok(made.ok);
+  assert.equal(made.steps.length, 8);
 });

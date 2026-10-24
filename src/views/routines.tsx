@@ -14,6 +14,7 @@ import { momentLabel, scheduleLine, whenLine } from "../ui/routine-label.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 import { RoutineDetail } from "./routine.tsx";
+import { RoutineStart } from "./routine-start.tsx";
 
 const copy = text.routines;
 
@@ -111,6 +112,8 @@ function RoutineList() {
   );
 }
 
-export function Routines({ id }: { id?: string }) {
-  return id === undefined ? <RoutineList /> : <RoutineDetail key={id} id={id} />;
+export function Routines({ id, sub }: { id?: string; sub?: string }) {
+  if (id === undefined) return <RoutineList />;
+  if (sub === undefined) return <RoutineDetail key={id} id={id} />;
+  return sub === "start" ? <RoutineStart key={id} id={id} /> : <Title>{text.notFound}</Title>;
 }

@@ -695,6 +695,52 @@ export const text = {
     pauseLater: "Pick a day after today.",
     deleted: (title: string) => `Deleted ${title}`,
     onlyYou: "Only you",
+    week: {
+      label: "This week",
+      day: (name: string, label: string | null, done: boolean) => `${name}: ${label ?? "no day label"}${done ? ", done" : ""}`,
+    },
+    start: {
+      open: "Start",
+      openNamed: (title: string) => `Start ${title}`,
+      exit: "Exit",
+      position: (at: number, total: number) => `${at} of ${total}`,
+      announce: (at: number, total: number, title: string) => `${at} of ${total}: ${title}`,
+      items: "Items",
+      next: "Next",
+      done: "Done",
+      back: "Back",
+      skip: "Skip",
+      up: (title: string) => `Next: ${title}`,
+      last: "Last one",
+      finished: "All done",
+      finishedBody: "Everything on this list is ticked.",
+      left: (n: number) => `${n} left open`,
+      toOpen: "Go to the first open one",
+      leave: "Back to the routine",
+      nothing: "Nothing to do in this routine today.",
+      newDay: "A new day started.",
+      today: (label: string) => `Today: ${label}`,
+      awake: "Screen stays on",
+      mayDim: "The screen may turn off on its own.",
+      locked: "Sound is off until you tap the screen.",
+      timer: {
+        start: (minutes: number) => `Start ${minutes} min`,
+        add: "Add 1 minute",
+        cancel: "Cancel",
+        ended: "Time is up",
+        began: (spoken: string) => `Timer started, ${spoken}`,
+        over: (title: string) => `Time is up: ${title}`,
+        ask: "Time left",
+        remaining: (spoken: string) => `${spoken} left`,
+        spoken: (ms: number) => {
+          const seconds = Math.ceil(ms / 1000);
+          const parts = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+            .map((n, at) => (n === 0 ? "" : plural(n, ["hour", "minute", "second"][at])))
+            .filter((part) => part !== "");
+          return parts.length === 0 ? "0 seconds" : parts.join(" ");
+        },
+      },
+    },
     form: {
       name: "Name",
       whose: "Whose",
@@ -744,6 +790,7 @@ export const text = {
         url: "Use a link that starts with http:// or https://, without spaces.",
       },
       problemAt: (title: string, message: string) => `${title}: ${message}`,
+      gone: (title: string) => `${title}: This action was removed on another device.`,
     },
   },
   connect: {

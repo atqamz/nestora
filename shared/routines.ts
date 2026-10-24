@@ -54,6 +54,8 @@ export const routineDay = (now: Date) => dateOf(now.getTime() + (UTC_OFFSET_HOUR
 
 export const weekday = (date: string): DayCode => DAY_CODES[(((epochDay(date) + 3) % 7) + 7) % 7];
 
+export const weekDates = (date: string) => DAY_CODES.map((_, step) => plus(date, step - DAY_CODES.indexOf(weekday(date))));
+
 const weekIndex = (date: string) => Math.floor((epochDay(date) + 3) / 7);
 
 const covers = (days: unknown, code: DayCode) => typeof days !== "string" || days.split(",").includes(code);

@@ -4,7 +4,7 @@ import type { Side } from "../../shared/api.ts";
 import { ACTION_KINDS, DAY_CODES } from "../../shared/routines.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { KIND_FIELDS, LIMITS, blankAction, planOf } from "../domain/routine-draft.ts";
+import { KIND_FIELDS, LIMITS, blankAction, savePlan } from "../domain/routine-draft.ts";
 import type { ActionDraft, ActionKind, Current, Problem, RoutineDraft, Who } from "../domain/routine-draft.ts";
 import { MOMENTS } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -183,10 +183,12 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     return once(async () => {
-      const plan = planOf(draft, opened, current?.actions ?? [], () => crypto.randomUUID());
+      const plan = savePlan(draft, opened, current, () => crypto.randomUUID());
       if (!plan.ok) {
-        setFailure([]);
-        return setProblems(plan.problems);
+        const lost = draft.actions.filter((action) => plan.gone.includes(action.id));
+        setFailure(lost.map((action) => form.gone(action.title.trim() || form.untitled)));
+        if (lost.length > 0) setDraft((was) => ({ ...was, actions: was.actions.filter((action) => !plan.gone.includes(action.id)) }));
+        return setProblems(lost.length > 0 ? [] : plan.problems);
       }
       setProblems([]);
       const result = await flows.save(plan.steps, creating ? plan.id : null);

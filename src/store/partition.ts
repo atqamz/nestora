@@ -53,7 +53,7 @@ const adoptLegacy = async (disk: Disk, side: Side) => {
   await old.write({ meta: { adopted: side } });
 };
 
-export const createSession = ({ disk, hint, api, later = timer }: { disk: Disk; hint: Hint; api: (side?: Side) => Api; later?: Later }): Omit<Store, "release"> => {
+export const createSession = ({ disk, hint, api, later = timer, purge = () => {} }: { disk: Disk; hint: Hint; api: (side?: Side) => Api; later?: Later; purge?: (side: Side) => void }): Omit<Store, "release"> => {
   let state: State = { at: "none" };
   let settling: Promise<void> | null = null;
   let tries = 0;
@@ -93,6 +93,7 @@ export const createSession = ({ disk, hint, api, later = timer }: { disk: Disk; 
     first = false;
     if (answer.kind === "ok") {
       const { me } = answer.body;
+      purge(me);
       if (state.at !== "open" || state.side !== me) return enter(me, null);
       state.down = null;
       state.store.release();
