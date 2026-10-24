@@ -27,15 +27,13 @@ export const useRoutines = () => {
   return { items, me, day };
 };
 
-export const useRoutineFlows = () => {
-  const { items, me } = useRoutines();
-  return routineFlows({
+export const useRoutineFlows = ({ items, me, day }: ReturnType<typeof useRoutines>) =>
+  routineFlows({
     items,
     actions,
     me,
-    now: () => new Date(),
+    day,
     go: (hash) => {
       location.hash = hash;
     },
   });
-};

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import type { Side } from "../shared/api.ts";
+import { routineDay } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
 import { blankAction, blankDraft, planOf } from "../src/domain/routine-draft.ts";
 import { createSession } from "../src/store/partition.ts";
@@ -27,7 +28,7 @@ const world = async (t: TestContext, me: Side = "a", server = createServer()) =>
   const clock = { now: NOW };
   const rows = () => store.getSnapshot().rows.items;
   const row = (id: string) => rows().find((candidate) => candidate.id === id)!;
-  const flows = () => routineFlows({ items: rows(), actions: store, me, now: () => clock.now, go: (hash) => hashes.push(hash) });
+  const flows = () => routineFlows({ items: rows(), actions: store, me, day: routineDay(clock.now), go: (hash) => hashes.push(hash) });
   const make = async (draft = blankDraft(me)) => {
     const plan = planOf(draft, null, [], newId);
     assert.ok(plan.ok);
@@ -93,6 +94,25 @@ test("the routine day starts at 04:00 in Jakarta, so a tick before then belongs 
   w.clock.now = new Date("2026-10-25T21:00:00Z");
   await w.flows().toggle(w.row(routine), w.row(step));
   assert.deepEqual(w.row(step).data, { done_a: "2026-10-26" });
+});
+
+test("the flows write the day the screen shows, so a tap just after 04:00 and the next tap agree with the checkbox", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-25T21:00:20Z") });
+  const w = await world(t);
+  const routine = await w.make(draftWith("a", "step"));
+  const [step] = ids(w.rows(), routine);
+  const shown = (day: string) => routineFlows({ items: w.rows(), actions: w.store, me: "a", day, go: () => undefined });
+  assert.equal(routineDay(new Date()), "2026-10-26");
+  await shown("2026-10-25").toggle(w.row(routine), w.row(step));
+  assert.deepEqual(w.row(step).data, { done_a: "2026-10-25" });
+  await shown("2026-10-25").toggle(w.row(routine), w.row(step));
+  assert.deepEqual(w.row(step).data, {});
+  await shown("2026-10-25").plus(w.row(routine), w.row(step));
+  assert.deepEqual(w.row(step).data, { done_a: "2026-10-25" });
+  await shown("2026-10-26").toggle(w.row(routine), w.row(step));
+  assert.deepEqual(w.row(step).data, { done_a: "2026-10-26" });
+  assert.deepEqual(await shown("2026-10-25").pause(w.row(routine), "2026-10-26"), { ok: true, id: routine });
+  assert.deepEqual(await shown("2026-10-26").pause(w.row(routine), "2026-10-26"), { ok: false, errors: [text.routines.pauseLater] });
 });
 
 test("yesterday's tick does not count today, so ticking again marks today and the day moves on without a write", async (t) => {
@@ -186,7 +206,7 @@ test("while the side is unconfirmed every write answers paused and changes nothi
     later: () => () => undefined,
   });
   await session.open();
-  const flows = routineFlows({ items: [], actions: session, me: "a", now: () => NOW, go: () => assert.fail("no navigation while paused") });
+  const flows = routineFlows({ items: [], actions: session, me: "a", day: routineDay(NOW), go: () => assert.fail("no navigation while paused") });
   const paused = { ok: false, errors: [], paused: true };
   assert.deepEqual(await flows.toggle(routine, step), paused);
   assert.deepEqual(await flows.plus(routine, step), paused);
@@ -203,7 +223,7 @@ test("without a confirmed side nothing is written", async (t) => {
   const w = await world(t);
   const routine = await w.make(draftWith("a", "step"));
   const [step] = ids(w.rows(), routine);
-  const blind = routineFlows({ items: w.rows(), actions: w.store, me: null, now: () => NOW, go: () => undefined });
+  const blind = routineFlows({ items: w.rows(), actions: w.store, me: null, day: routineDay(NOW), go: () => undefined });
   const before = w.store.getSnapshot().pending;
   for (const result of [await blind.toggle(w.row(routine), w.row(step)), await blind.plus(w.row(routine), w.row(step)), await blind.reset(w.row(routine), w.row(step))]) {
     assert.deepEqual(result, { ok: false, errors: [], paused: true });
@@ -224,7 +244,7 @@ test("an Undo that works says nothing, and an Undo that fails says why", async (
     items: w.rows(),
     actions: { update: w.store.update, many: async (steps) => (steps.every((step) => step.op === "update") ? { ok: false, errors: ["row: boom"] } : w.store.many(steps)) },
     me: "a",
-    now: () => NOW,
+    day: routineDay(NOW),
     go: () => undefined,
   });
   await failing.remove(w.row(routine));

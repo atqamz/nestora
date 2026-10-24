@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { isDone, keyFor, mark, routineDay, unmark } from "../../shared/routines.ts";
+import { isDone, keyFor, mark, unmark } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { actionsOf } from "../domain/routines.ts";
 import type { Store, Written } from "../store/store.ts";
@@ -12,16 +12,16 @@ type Deps = {
   items: readonly ItemRow[];
   actions: Pick<Store, "update" | "many">;
   me: Side | null;
-  now: () => Date;
+  day: string;
   go: (hash: string) => void;
 };
 
 const done: Written = { ok: true, id: "" };
 
-export const routineFlows = ({ items, actions, me, now, go }: Deps) => {
+export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
   const write = (routine: ItemRow, action: ItemRow, patch: (action: ItemRow, side: Side, day: string) => { data: Record<string, unknown> } | null) => {
     if (me === null) return Promise.resolve(paused);
-    const change = patch(action, keyFor(routine.who, me), routineDay(now()));
+    const change = patch(action, keyFor(routine.who, me), day);
     return change === null ? Promise.resolve(done) : actions.update("items", action.id, change);
   };
 
@@ -32,7 +32,7 @@ export const routineFlows = ({ items, actions, me, now, go }: Deps) => {
   const reset = (routine: ItemRow, action: ItemRow) => write(routine, action, unmark);
 
   const pause = async (routine: ItemRow, until: string): Promise<Written> =>
-    until <= routineDay(now()) ? { ok: false, errors: [text.routines.pauseLater] } : actions.update("items", routine.id, { data: { paused_until: until } });
+    until <= day ? { ok: false, errors: [text.routines.pauseLater] } : actions.update("items", routine.id, { data: { paused_until: until } });
 
   const resume = (routine: ItemRow) => actions.update("items", routine.id, { data: { paused_until: null } });
 

@@ -18,8 +18,9 @@ const copy = text.routines;
 type Sheet = "edit" | "copy" | "pause" | null;
 
 export function RoutineDetail({ id }: { id: string }) {
-  const { items, me, day } = useRoutines();
-  const flows = useRoutineFlows();
+  const rows = useRoutines();
+  const flows = useRoutineFlows(rows);
+  const { items, me, day } = rows;
   const { busy, once } = useBusy();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [failure, setFailure] = useState<string[]>([]);

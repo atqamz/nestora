@@ -10,11 +10,17 @@ import { text } from "../ui/text.ts";
 const copy = text.routines;
 
 export function Today() {
-  const { items, me, day } = useRoutines();
-  const flows = useRoutineFlows();
+  const rows = useRoutines();
+  const flows = useRoutineFlows(rows);
+  const { items, me, day } = rows;
   const blocks = useMemo(() => todayBlocks(items, me, day), [items, me, day]);
   const finished = allDone(blocks);
   const [open, setOpen] = useState(!finished);
+  const [shown, setShown] = useState(day);
+  if (shown !== day) {
+    setShown(day);
+    setOpen(!finished);
+  }
   if (me === null) return null;
   const owned = routinesOf(items).some((routine) => mine(routine, me));
   const { done, total } = tally(blocks);

@@ -19,7 +19,7 @@ const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string"
 
 export function RoutineAction({ routine, action, flows, me, today, active, full }: Props) {
   const { label } = usePartner();
-  const { busy, once } = useBusy();
+  const { once } = useBusy();
   const [failure, setFailure] = useState<string[]>([]);
   const side = keyFor(routine.who, me);
   const other = routine.who === "both" ? (me === "a" ? "b" : "a") : null;
@@ -57,7 +57,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
   const done = isDone(action, side, today);
   const theirs = other !== null && isDone(action, other, today);
   const meta = (
-    <span className="meta rt-nums">
+    <span className="meta rt-nums" aria-live={action.kind === "counter" ? "polite" : undefined}>
       {action.kind === "timer" && typeof action.data?.minutes === "number" && (
         <span className="rt-timer">
           <Icon name="clock" />
@@ -85,7 +85,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
           </span>
         ) : (
           <label className="check">
-            <input type="checkbox" checked={done} disabled={!active || busy} onChange={() => run(() => flows.toggle(routine, action))} />
+            <input type="checkbox" checked={done} disabled={!active} onChange={() => run(() => flows.toggle(routine, action))} />
             <Icon name="check" />
             <span className="visually-hidden">{done ? text.reopen(action.title) : text.complete(action.title)}</span>
           </label>
@@ -104,10 +104,10 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
             )}
             {action.kind === "counter" && (
               <span className="rt-btns">
-                <button type="button" className="rt-plus" disabled={!active || busy} aria-label={copy.plus(action.title)} onClick={() => run(() => flows.plus(routine, action))}>
+                <button type="button" className="rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onClick={() => run(() => flows.plus(routine, action))}>
                   {copy.plusLabel}
                 </button>
-                <button type="button" className="ib" disabled={busy || count(action, side, today) === 0} aria-label={copy.reset(action.title)} onClick={() => run(() => flows.reset(routine, action))}>
+                <button type="button" className="ib" aria-disabled={count(action, side, today) === 0 || undefined} aria-label={copy.reset(action.title)} onClick={() => count(action, side, today) > 0 && run(() => flows.reset(routine, action))}>
                   <Icon name="reset" />
                 </button>
               </span>

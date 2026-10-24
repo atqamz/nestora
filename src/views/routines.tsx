@@ -69,8 +69,9 @@ function Row({ routine, items, me, day, flows, onCopy, onPause }: { routine: Ite
 }
 
 function RoutineList() {
-  const { items, me, day } = useRoutines();
-  const flows = useRoutineFlows();
+  const rows = useRoutines();
+  const flows = useRoutineFlows(rows);
+  const { items, me, day } = rows;
   const [sheet, setSheet] = useState<Sheet>(null);
   const routines = useMemo(() => routinesOf(items), [items]);
   const sections = useMemo(() => (me === null ? [] : listing(routines, me)), [routines, me]);

@@ -24,8 +24,8 @@ test("the routine screens read rows only through the hook that applies the parti
 test("every routine screen takes its rows from useRoutines and its writes from the flows", () => {
   for (const file of ["views/routines.tsx", "views/routine.tsx", "views/today.tsx"]) {
     const source = read(file);
-    assert.match(source, /useRoutines\(\)/, file);
-    assert.match(source, /useRoutineFlows\(\)/, file);
+    assert.match(source, /const rows = useRoutines\(\)/, file);
+    assert.match(source, /useRoutineFlows\(rows\)/, file);
   }
   for (const file of [...screens, "ui/routine-flows.ts"]) assert.doesNotMatch(read(file), /fetch *\(|indexedDB|XMLHttpRequest|localStorage|sendBeacon/, file);
   assert.doesNotMatch(read("ui/routine-action.tsx"), /actions\.|hooks\/use-store/);
@@ -83,6 +83,34 @@ test("the Today block collapses by its own choice only, so a tick never moves th
   assert.match(today, /useState\(!finished\)/);
   assert.match(today, /<details open=\{open\} onToggle=\{\(event\) => setOpen\(event\.currentTarget\.open\)\}>/);
   assert.doesNotMatch(today, /useEffect/);
+});
+
+test("a tick or a tap leaves keyboard focus on its control: nothing is disabled while a write runs, and the guard refuses a second tap", () => {
+  const source = read("ui/routine-action.tsx");
+  assert.doesNotMatch(source, /disabled=\{[^}]*busy/);
+  assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} onChange=\{\(\) => run\(/);
+  assert.match(source, /className="rt-plus" disabled=\{!active\} aria-label/);
+  assert.match(source, /aria-disabled=\{count\(action, side, today\) === 0 \|\| undefined\}/);
+  assert.match(source, /onClick=\{\(\) => count\(action, side, today\) > 0 && run\(/);
+  assert.match(source, /const run = \(work: [^\n]*\) => once\(/);
+  assert.match(read("ui/ui.css"), /button:disabled,\s*button\[aria-disabled="true"\] \{\s*opacity: 0\.6;/);
+});
+
+test("the count of a counter is a polite live region, so a screen reader hears each change", () => {
+  assert.match(read("ui/routine-action.tsx"), /<span className="meta rt-nums" aria-live=\{action\.kind === "counter" \? "polite" : undefined\}>/);
+});
+
+test("the Today block opens again when the routine day changes", () => {
+  const today = read("views/today.tsx");
+  assert.match(today, /const \[shown, setShown\] = useState\(day\);\s*if \(shown !== day\) \{\s*setShown\(day\);\s*setOpen\(!finished\);\s*\}/);
+});
+
+test("the flows write the day the screens show: the clock is read in one place, the day hook, and handed down", () => {
+  const hook = read("hooks/use-routines.ts");
+  assert.equal([...hook.matchAll(/new Date\(/g)].length, 2);
+  assert.match(hook, /useRoutineFlows = \(\{ items, me, day \}: ReturnType<typeof useRoutines>\)/);
+  assert.match(hook, /routineFlows\(\{\s*items,\s*actions,\s*me,\s*day,/);
+  assert.doesNotMatch(read("ui/routine-flows.ts"), /new Date|Date\.now|\bnow\b|routineDay/);
 });
 
 test("long names, notes and many actions wrap inside the row and never push the page sideways", () => {
