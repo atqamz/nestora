@@ -18,6 +18,7 @@ import { GenericItem } from "./views/generic-item.tsx";
 import { Home } from "./views/home.tsx";
 import { MoneyView } from "./views/money.tsx";
 import { People } from "./views/people.tsx";
+import { Routines } from "./views/routines.tsx";
 import { Settings } from "./views/settings.tsx";
 import { Sync } from "./views/sync.tsx";
 import { Tasks } from "./views/tasks.tsx";
@@ -29,6 +30,7 @@ import "./views/home.css";
 import "./views/money.css";
 import "./views/people.css";
 import "./views/books.css";
+import "./views/routines.css";
 import "./views/import.css";
 import "./views/settings.css";
 import "./views/entry.css";
@@ -40,6 +42,8 @@ function Page({ section, id }: { section: string; id?: string }) {
       return <Home />;
     case "tasks":
       return id ? <GenericItem key={id} name="task" id={id} /> : <Tasks />;
+    case "routines":
+      return <Routines id={id} />;
     case "money":
       return <MoneyView id={id} />;
     case "payments":

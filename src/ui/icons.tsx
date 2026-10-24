@@ -97,6 +97,12 @@ const paths = {
   down: <path d="m6 9 6 6 6-6" />,
   trash: <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" />,
   reset: <path d="M4 12a8 8 0 1 1 2.6 5.9M4 20v-5h5" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
   settings: (
     <>
       <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />

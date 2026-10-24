@@ -1,12 +1,9 @@
 import type { Side } from "../shared/api.ts";
+import { flagged, hides } from "../shared/routines.ts";
+
+export { hides };
 
 type Raw = Record<string, unknown>;
-
-const flagged = (row: Raw | undefined) => row?.kind === "routine" && (row.data as Raw | null)?.private === true;
-
-const withheld = (row: Raw | undefined, side: Side) => flagged(row) && row?.who !== side;
-
-export const hides = (row: Raw, parent: Raw | undefined, side: Side) => withheld(row, side) || withheld(parent, side);
 
 const PRIVATE = "kind = 'routine' AND json_extract(data, '$.private') IS 1 AND who IS NOT ?";
 

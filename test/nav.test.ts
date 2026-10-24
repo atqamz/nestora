@@ -30,6 +30,7 @@ test("every route, old and new, opens one screen and highlights exactly one dest
   const expected: Record<string, [Screen, string]> = {
     "": ["home", ""],
     tasks: ["tasks", ""],
+    routines: ["routines", ""],
     money: ["money", "money"],
     budget: ["money", "money"],
     payments: ["payments", "money"],
@@ -58,7 +59,7 @@ test("every screen but Sync belongs to one destination, so the bar and the page 
 
 test("Sync and routes that do not exist highlight nothing and open nothing", () => {
   assert.deepEqual(current("sync"), []);
-  for (const section of ["nowhere", "constructor", "__proto__", "toString", "Money", "money/x"]) {
+  for (const section of ["nowhere", "constructor", "__proto__", "toString", "Money", "money/x", "routine", "Routines"]) {
     assert.equal(screenOf(section), null, section);
     assert.deepEqual(current(section), [], section);
   }

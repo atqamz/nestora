@@ -3,6 +3,10 @@ import type { ItemRow } from "./tables.ts";
 
 export const ACTION_KINDS = ["step", "timer", "pack", "block", "day_type", "counter", "text"] as const;
 
+export const ROUTINE_KINDS: readonly string[] = ["routine", ...ACTION_KINDS];
+
+export const isRoutineKind = (kind: string) => ROUTINE_KINDS.includes(kind);
+
 export const DAY_CODES = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const;
 
 const DAY_START_HOUR = 4;
@@ -29,6 +33,23 @@ const epochDay = (date: string) => Date.parse(`${date}T00:00:00Z`) / DAY;
 
 const dateOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
+const plus = (date: string, days: number) => dateOf((epochDay(date) + days) * DAY);
+
+const NEXT_LOOKAHEAD_DAYS = 400;
+
+type Raw = Record<string, unknown>;
+
+export const flagged = (row: Raw | undefined) => row?.kind === "routine" && (row.data as Raw | null)?.private === true;
+
+const withheld = (row: Raw | undefined, side: Side | null) => flagged(row) && row?.who !== side;
+
+export const hides = (row: Raw, parent: Raw | undefined, side: Side | null) => withheld(row, side) || withheld(parent, side);
+
+export const visible = <R extends ItemRow>(rows: readonly R[], side: Side | null): R[] => {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return rows.filter((row) => !hides(row, byId.get(row.parent_id ?? ""), side));
+};
+
 export const routineDay = (now: Date) => dateOf(now.getTime() + (UTC_OFFSET_HOURS - DAY_START_HOUR) * HOUR);
 
 export const weekday = (date: string): DayCode => DAY_CODES[(((epochDay(date) + 3) % 7) + 7) % 7];
@@ -47,6 +68,20 @@ export const occursOn = (routine: ItemRow, date: string, holidays: readonly stri
   if (paused_until !== undefined && date < paused_until) return false;
   if (from !== undefined && every_weeks !== undefined && (weekIndex(date) - weekIndex(from)) % Number(every_weeks) !== 0) return false;
   return skip !== true || !holidays.includes(date);
+};
+
+export const paused = (routine: ItemRow, today: string) => {
+  const until = dataOf(routine).paused_until;
+  return typeof until === "string" && today < until;
+};
+
+export const nextOccurrence = (routine: ItemRow, from: string, holidays: readonly string[] = []) => {
+  const { paused_until, until, from: starts } = dataOf(routine) as Schedule;
+  let date = [paused_until, starts].reduce<string>((latest, next) => (next !== undefined && next > latest ? next : latest), from);
+  for (let step = 0; step < NEXT_LOOKAHEAD_DAYS && (until === undefined || date <= until); step++, date = plus(date, 1)) {
+    if (occursOn(routine, date, holidays)) return date;
+  }
+  return null;
 };
 
 export const actionOccursOn = (routine: ItemRow, action: ItemRow, date: string, holidays: readonly string[] = []) =>

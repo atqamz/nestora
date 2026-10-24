@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { ACTION_KINDS } from "../shared/routines.ts";
 import { LATELY_COUNT, lately } from "../src/domain/lately.ts";
 import { entry, item, payment } from "./domain-rows.ts";
 
@@ -196,4 +197,16 @@ test("a move whose book is not in the list keeps the copy title", () => {
   const home = place("Home A");
   const { copy } = withMove({ moved_on: "2026-10-19", moved_by: "a" }, "a", "2026-10-19T09:00:00Z", home);
   assert.equal(lately([home, copy], [])[0].title, "Copy of the story");
+});
+
+test("routines and every kind of action are left out, and the other kinds are untouched", () => {
+  const kinds = ["routine", ...ACTION_KINDS];
+  const rows = [
+    ...kinds.map((kind, index) => item({ kind, title: kind, status: null, updated_by: "a", updated_at: `2026-10-05T0${index}:00:00Z`, ...edited })),
+    item({ kind: "task", title: "task", updated_by: "a", updated_at: "2026-10-05T09:00:00Z", ...edited }),
+    item({ kind: "vendor", title: "vendor", status: "option", updated_by: "b", updated_at: "2026-10-05T08:30:00Z", ...edited }),
+  ];
+  assert.deepEqual(lately(rows, [], 20).map((activity) => activity.title), ["task", "vendor"]);
+  const ticked = item({ kind: "step", title: "item 1", status: null, updated_by: "a", updated_at: "2026-10-05T10:00:00Z", data: { done_a: "2026-10-05" }, ...edited });
+  assert.deepEqual(lately([ticked], []), []);
 });
