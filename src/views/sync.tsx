@@ -40,11 +40,13 @@ export function Sync() {
       <p role="status">
         {storage === "failed"
           ? text.sync.storageBody
-          : link === "expired"
-            ? text.sync.expiredBody
-            : link === "offline"
-              ? text.sync.offlineBody
-              : text.sync.onlineBody}
+          : link === "mismatch"
+            ? text.notice.mismatch
+            : link === "expired"
+              ? text.sync.expiredBody
+              : link === "offline"
+                ? text.sync.offlineBody
+                : text.sync.onlineBody}
       </p>
       <p>{text.sync.waiting(pending)}</p>
       <div className="form-actions">

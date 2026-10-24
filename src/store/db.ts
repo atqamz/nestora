@@ -1,6 +1,6 @@
 import { tableNames, tables } from "../../shared/tables.ts";
 import { assemble } from "./persistence.ts";
-import type { Persistence } from "./persistence.ts";
+import type { Disk, Persistence } from "./persistence.ts";
 
 const wait = <T>(request: IDBRequest<T>) =>
   new Promise<T>((resolve, reject) => {
@@ -14,7 +14,7 @@ const finished = (tx: IDBTransaction) =>
     tx.onerror = tx.onabort = () => reject(tx.error);
   });
 
-export const indexedDbPersistence = (name = "wp"): Persistence => {
+export const indexedDbPersistence = (name: string): Persistence => {
   let opened: Promise<IDBDatabase> | undefined;
   const open = () =>
     (opened ??= (() => {
@@ -37,6 +37,7 @@ export const indexedDbPersistence = (name = "wp"): Persistence => {
         tx.objectStore("meta").get("me"),
         tx.objectStore("meta").get("epoch"),
         tx.objectStore("meta").get("generation"),
+        tx.objectStore("meta").get("adopted"),
       ];
       return assemble(await Promise.all(reads.map(wait)));
     },
@@ -53,6 +54,23 @@ export const indexedDbPersistence = (name = "wp"): Persistence => {
       await finished(tx);
       return generation;
     },
+    adopt: async (from) => {
+      const tx = (await open()).transaction(stores, "readwrite");
+      const held = stores.map((name) => tx.objectStore(name).count());
+      held[held.length - 1].onsuccess = () => {
+        if (held.some((count) => count.result > 0)) return;
+        const meta = Object.entries(from.meta).filter(([, value]) => value !== null);
+        for (const table of tableNames) for (const row of from.rows[table]) tx.objectStore(table).put(row);
+        for (const entry of from.outbox) tx.objectStore("outbox").put(entry);
+        for (const [key, value] of meta) tx.objectStore("meta").put(value, key);
+        const expected = [...tableNames.map((table) => from.rows[table].length), from.outbox.length, meta.length];
+        const copied = stores.map((name) => tx.objectStore(name).count());
+        copied[copied.length - 1].onsuccess = () => {
+          if (copied.some((count, index) => count.result !== expected[index])) tx.abort();
+        };
+      };
+      await finished(tx);
+    },
     write: async ({ rows, outbox, meta }) => {
       const tx = (await open()).transaction(stores, "readwrite");
       for (const table of tableNames) for (const row of rows?.[table] ?? []) tx.objectStore(table).put(row);
@@ -63,3 +81,26 @@ export const indexedDbPersistence = (name = "wp"): Persistence => {
     },
   };
 };
+
+const LEGACY = "wp";
+
+const existing = (name: string) =>
+  new Promise<IDBDatabase | null>((resolve, reject) => {
+    const opening = indexedDB.open(name);
+    let missing = false;
+    opening.onupgradeneeded = () => {
+      missing = true;
+      opening.transaction!.abort();
+    };
+    opening.onsuccess = () => resolve(opening.result);
+    opening.onerror = () => (missing ? resolve(null) : reject(opening.error));
+  });
+
+export const indexedDbDisk = (): Disk => ({
+  open: (side) => indexedDbPersistence(`wp-${side}`),
+  legacy: async () => {
+    const found = await existing(LEGACY);
+    found?.close();
+    return found === null ? null : indexedDbPersistence(LEGACY);
+  },
+});

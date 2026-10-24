@@ -236,6 +236,8 @@ export const text = {
     quote: "Quote",
   },
   notice: {
+    mismatch: "Signed in as someone else. Reload this page.",
+    reload: "Reload",
     reset: "The data on the server was reset, so this phone was reset to match.",
     discarded: (n: number) => `${plural(n, "change")} made on this phone could not be kept.`,
     dismiss: "Dismiss",

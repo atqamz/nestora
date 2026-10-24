@@ -18,6 +18,7 @@ export const actions = {
   dismissNotice: store.dismissNotice,
   sync: store.sync,
   logIn: () => location.assign(LOGIN_URL),
+  reload: () => location.reload(),
 };
 
 export const readItems = () => store.getSnapshot().rows.items;

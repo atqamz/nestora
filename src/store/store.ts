@@ -5,10 +5,10 @@ import { tableNames, tables } from "../../shared/tables.ts";
 import type { Patch, Row, TableName } from "../../shared/tables.ts";
 import { validateChange, validateMutation } from "../../shared/validate.ts";
 import type { Api } from "./api.ts";
-import { absorb, changedFields, live, newer, overlay, takeBatch, toMaps, wire, withoutPrivate } from "./outbox.ts";
+import { absorb, changedFields, live, newer, overlay, takeBatch, toMaps, wire } from "./outbox.ts";
 import type { Pending, Persistence, Rows, Write } from "./persistence.ts";
 
-export type Link = "online" | "offline" | "expired";
+export type Link = "online" | "offline" | "expired" | "mismatch";
 
 export type Snapshot = {
   ready: boolean;
@@ -36,7 +36,7 @@ export type Step =
 
 const notFound: Written = { ok: false, errors: ["row: not found"] };
 
-const unsaved: Written = { ok: false, errors: [], storage: true };
+export const unsaved: Written = { ok: false, errors: [], storage: true };
 
 class StorageFailure extends Error {}
 
@@ -68,9 +68,9 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     snapshot = {
       ready: loaded && (me !== null || attempted),
       me,
-      rows: live(verified ? view : withoutPrivate(view)),
+      rows: live(view),
       pending: sendable.length,
-      rejected: verified ? outbox.filter((entry) => entry.rejected) : [],
+      rejected: outbox.filter((entry) => entry.rejected),
       link,
       storage,
       notice,
@@ -78,7 +78,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     for (const listener of listeners) listener();
   };
 
-  const failed = (kind: "offline" | "expired") => {
+  const failed = (kind: Exclude<Link, "online">) => {
     link = kind;
     emit();
   };
@@ -104,8 +104,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
   const holdsServerData = () => rev > 0 || tableNames.some((table) => base[table].size > 0);
 
   const reconcile = async (served: { epoch: string; rev: number; me?: Side }, landed = 0): Promise<"same" | "reset"> => {
-    const switched = me !== null && served.me !== undefined && served.me !== me;
-    const differs = switched || (epoch === null ? holdsServerData() : epoch !== served.epoch);
+    const differs = epoch === null ? holdsServerData() : epoch !== served.epoch;
     if (!differs && served.rev >= rev) {
       if (epoch === null) {
         await persist({ meta: { epoch: served.epoch } });
@@ -114,7 +113,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
       return "same";
     }
     const discarded = outbox.length - landed;
-    const lost = !switched && (holdsServerData() || discarded > 0);
+    const lost = holdsServerData() || discarded > 0;
     const next = served.me ?? me;
     const renewed = await persisting(() => persistence.reset(generation, { epoch: served.epoch, rev: 0, me: next }));
     if (renewed !== null) {
@@ -178,6 +177,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
   };
 
   const cycle = async () => {
+    if (link === "mismatch") return;
     if (!verified && outbox.some((entry) => !entry.rejected) && !(await catchUp())) return;
     for (;;) {
       const queue = outbox.filter((entry) => !entry.rejected);

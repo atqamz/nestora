@@ -13,6 +13,7 @@ const recording = (real: Persistence) => {
   const persistence: Persistence = {
     load: () => real.load(),
     write: (write) => real.write(write),
+    adopt: (from) => real.adopt(from),
     reset: async (expected, meta) => {
       if (control.failing) throw new Error("QuotaExceededError");
       const applied = await real.reset(expected, meta);

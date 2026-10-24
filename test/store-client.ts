@@ -7,7 +7,7 @@ import type { Server } from "./store-server.ts";
 
 export const client = (server: Server, side: Side, persistence = memoryPersistence()) => ({
   persistence,
-  store: createStore({ persistence, api: createApi(server.as(side)) }),
+  store: createStore({ persistence, api: createApi(server.as(side), side) }),
 });
 
 export const task = (title: string) => ({ kind: "task", title, status: "todo" });

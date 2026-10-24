@@ -1,0 +1,28 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { text } from "../src/ui/text.ts";
+
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+test("the shell shows the mismatch notice with a reload button, and the badge offers the same reload", () => {
+  assert.equal(text.notice.mismatch, "Signed in as someone else. Reload this page.");
+  const shell = read("../src/ui/shell.tsx");
+  assert.match(shell, /link === "mismatch" && \(\s*<div className="notice" role="alert">\s*<p>\{text\.notice\.mismatch\}<\/p>\s*<button type="button" onClick=\{actions\.reload\}>/);
+  assert.match(read("../src/ui/sync-badge.tsx"), /state === "login" \? actions\.logIn : actions\.reload/);
+  assert.match(read("../src/hooks/use-store.ts"), /reload: \(\) => location\.reload\(\)/);
+});
+
+test("every export link carries the side, since a link cannot set a header", () => {
+  assert.match(read("../src/views/settings.tsx"), /href=\{`\/api\/export\?\$\{link\.query\}&side=\$\{me\}`\}/);
+});
+
+test("the browser store is a session over one database per side, with the side hint in localStorage", () => {
+  const browser = read("../src/store/browser.ts");
+  assert.match(browser, /createSession\(\{/);
+  assert.match(browser, /disk: indexedDbDisk\(\)/);
+  assert.match(browser, /hint: sideHint\(localStorage\)/);
+  assert.match(browser, /createApi\(\(url, init\) => fetch\(url, init\), side\)/);
+  assert.doesNotMatch(browser, /indexedDbPersistence/);
+  assert.match(read("../src/store/db.ts"), /open: \(side\) => indexedDbPersistence\(`wp-\$\{side\}`\)/);
+});

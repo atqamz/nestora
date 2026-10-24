@@ -1,5 +1,6 @@
 import type { JWTPayload } from "jose";
-import type { ErrorBody } from "../shared/api.ts";
+import { SIDE_HEADER } from "../shared/api.ts";
+import type { ErrorBody, SideMismatch } from "../shared/api.ts";
 import { createAuthenticator } from "./auth.ts";
 import type { AuthEnv } from "./auth.ts";
 import { exportData } from "./export.ts";
@@ -8,6 +9,8 @@ import { getSync, json, postSync } from "./sync.ts";
 import type { Db } from "./sync.ts";
 
 export type Bindings = AuthEnv & { DB: Db; DESIGN: { get(key: string, type: "text"): Promise<string | null> } };
+
+const SIDED = new Set(["/api/sync", "/api/export"]);
 
 const DESIGN_NAME = /^\/design\/([a-z0-9][a-z0-9-]{0,39})\/?$/;
 
@@ -52,6 +55,10 @@ export const createWorker = (authenticate = createAuthenticator(), fetcher: type
       const who = await authenticate(request, env, (payload) => void (verified.payload = payload));
       if (who === null) return fail("unauthorized", 401);
       if (design) return await designPage(request, env, url.pathname);
+      const claimed = request.headers.get(SIDE_HEADER) ?? url.searchParams.get("side");
+      if (SIDED.has(url.pathname) && claimed !== null && claimed !== who) {
+        return json({ error: "side_mismatch", me: who } satisfies SideMismatch, 409);
+      }
       const { method } = request;
       switch (url.pathname) {
         case "/api/health":

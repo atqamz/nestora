@@ -1,4 +1,4 @@
-import { MAX_BODY_BYTES, MAX_MUTATIONS, applyPatch, toInstant } from "../shared/api.ts";
+import { MAX_BODY_BYTES, MAX_MUTATIONS, SIDE_HEADER, applyPatch, toInstant } from "../shared/api.ts";
 import type { Changes, Mutation, Side } from "../shared/api.ts";
 import { tableNames, tables } from "../shared/tables.ts";
 import type { Column, TableName } from "../shared/tables.ts";
@@ -20,6 +20,7 @@ export type Seen = {
   origin: string | null;
   redirect: string | null;
   signal: boolean;
+  side: string | null;
 };
 
 const references = [
@@ -56,6 +57,7 @@ export const createServer = () => {
   const seen: Seen[] = [];
   const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
   const asked: Seen[] = [];
+  const mismatched: string[] = [];
 
   const pointers = (draft: State, table: TableName, row: Dict, columns: readonly string[]): Refusal | null => {
     const errors: string[] = [];
@@ -176,6 +178,7 @@ export const createServer = () => {
     origin: headers.get("origin"),
     redirect: init.redirect ?? null,
     signal: init.signal instanceof AbortSignal,
+    side: headers.get(SIDE_HEADER),
   });
 
   const as =
@@ -199,6 +202,11 @@ export const createServer = () => {
       if (failure !== undefined) return new Response("upstream error", { status: failure });
       if (url.pathname !== "/api/sync") return json(404, { error: "not_found" });
       const headers = new Headers(init.headers);
+      const claimed = headers.get(SIDE_HEADER);
+      if (claimed !== null && claimed !== side) {
+        mismatched.push(`${init.method} ${claimed}`);
+        return json(409, { error: "side_mismatch", me: side });
+      }
       const origin = headers.get("origin");
       if ((origin !== null && origin !== url.origin) || ["cross-site", "same-site"].includes(headers.get("sec-fetch-site") ?? "")) {
         return refuse(403, ["origin: cross-origin requests are refused"]);
@@ -214,6 +222,7 @@ export const createServer = () => {
     control,
     seen,
     asked,
+    mismatched,
     row: (table: TableName, id: string) => state[table].get(id),
     rows: (table: TableName) => [...state[table].values()],
     wipe: () => {
