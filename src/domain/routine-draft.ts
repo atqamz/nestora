@@ -151,6 +151,9 @@ const calendarProblems = (draft: RoutineDraft): Problem[] => [
   ...(dated(draft) && !empty(draft.duration) && !(NUMBER.test(draft.duration.trim()) && Number(draft.duration) >= 1) ? [{ at: null, field: "duration", code: "number" } as const] : []),
 ];
 
+export const forTimetable = (draft: RoutineDraft, me: Side): RoutineDraft =>
+  draft.moment === TIMETABLE ? { ...draft, who: draft.who === "both" ? me : draft.who, days: [...DAY_CODES] } : draft;
+
 export const problemsOf = (draft: RoutineDraft): Problem[] => [
   ...(empty(draft.title) ? [{ at: null, field: "title", code: "required" } as const] : []),
   ...(draft.days.length === 0 ? [{ at: null, field: "days", code: "days" } as const] : []),

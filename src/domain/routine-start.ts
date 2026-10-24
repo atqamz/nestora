@@ -39,18 +39,24 @@ export const position = (pages: readonly Page[], side: Side, day: string, runnin
   return at;
 };
 
-export type Place = { id: string | null; at: number };
+export type Place = { id: string | null; rest: string[] };
 
 export type Screen = { at: number; open: number } & ({ kind: "page"; page: Page } | { kind: "end" | "idle" });
 
 export type Lead = "done" | "next" | "plus";
 
-export const placeOf = (pages: readonly Page[], at: number): Place => ({ id: pages[at]?.[0].id ?? null, at });
+export const placeOf = (pages: readonly Page[], at: number): Place => ({ id: pages[at]?.[0].id ?? null, rest: pages.slice(at).flatMap((page) => page.map((row) => row.id)) });
+
+const pageOf = (pages: readonly Page[], id: string) => pages.findIndex((page) => page.some((row) => row.id === id));
 
 export const placeAt = (pages: readonly Page[], place: Place) => {
   if (place.id === null) return pages.length;
-  const found = pages.findIndex((page) => page.some((row) => row.id === place.id));
-  return found >= 0 ? found : clampTo(place.at, pages.length);
+  return place.rest.map((id) => pageOf(pages, id)).find((at) => at >= 0) ?? pages.length;
+};
+
+export const follow = (pages: readonly Page[], place: Place): Place => {
+  const next = placeOf(pages, placeAt(pages, place));
+  return next.id === place.id && next.rest.join() === place.rest.join() ? place : next;
 };
 
 export const screenOf = (pages: readonly Page[], place: Place, side: Side, day: string): Screen => {

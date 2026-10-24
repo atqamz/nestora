@@ -107,7 +107,7 @@ test("the Today block opens again when the routine day changes", () => {
 
 test("the flows write the day the screens show: the clock is read in one place, the day hook, and handed down", () => {
   const hook = read("hooks/use-routines.ts");
-  assert.equal([...hook.matchAll(/new Date\(/g)].length, 3);
+  assert.equal([...hook.matchAll(/new Date\(/g)].length, 2);
   assert.match(hook, /useRoutineFlows = \(\{ items, me, day \}: ReturnType<typeof useRoutines>\)/);
   assert.match(hook, /routineFlows\(\{\s*items,\s*actions,\s*me,\s*day,/);
   assert.doesNotMatch(read("ui/routine-flows.ts"), /new Date|Date\.now|\bnow\b|routineDay/);
