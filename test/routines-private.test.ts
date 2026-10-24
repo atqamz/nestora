@@ -161,6 +161,31 @@ test("a private row can be created or edited only by its owner, and the other si
   await ok(env, [patch(4, { note: "mine" })], "b");
 });
 
+test("accepted limit: the other partner's private write moves the served rev in a pull, a push response and the json export, and no row appears", async () => {
+  const env = await world();
+  const before = currentRev(env.sqlite);
+  await ok(env, [patch(1, { note: "private edit" })], "a");
+  assert.equal(currentRev(env.sqlite), before + 1);
+  const quiet = await pull(env.db, before, "b");
+  assert.deepEqual([quiet.rev, quiet.changes.items], [before + 1, []]);
+  const viaHttp = (await (await call("b", env.db, `/api/sync?since=${before}`)).json()) as { rev: number; changes: { items: unknown[] } };
+  assert.deepEqual([viaHttp.rev, viaHttp.changes.items], [before + 1, []]);
+  const exported = (await (await call("b", env.db, "/api/export?format=json")).json()) as { rev: number };
+  assert.equal(exported.rev, before + 1);
+  const pushed = await ok(env, [task(50)], "b");
+  assert.equal(pushed.rev, before + 2);
+  assert.deepEqual(ids(pushed.rows.items), [id(50)]);
+  assert.deepEqual(ids((await pull(env.db, before, "b")).changes.items), [id(50)]);
+});
+
+test("accepted limit: a create on a hidden id answers 404 while a create on an absent id succeeds", async () => {
+  const env = await world();
+  const absent = await ok(env, [task(60)], "b");
+  assert.deepEqual(ids(absent.rows.items), [id(60)]);
+  const hidden = await refused(env, [task(1)], "b", 404, /row_id: no such row/);
+  assert.deepEqual(hidden.errors, ["row_id: no such row"]);
+});
+
 test("a create that reuses the id of a hidden row is refused and changes nothing", async () => {
   const env = await world();
   await refused(env, [routine(1, { title: "overwrite" })], "b", 404, /row_id: no such row/);
