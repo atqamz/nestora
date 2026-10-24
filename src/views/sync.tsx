@@ -9,7 +9,7 @@ import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 
 export function Sync() {
-  const { link, pending, rejected, storage, rows } = useSnapshot();
+  const { link, pending, rejected, storage, paused, rows } = useSnapshot();
   const { me, label } = usePartner();
 
   const nameOf = (entry: Pending) => {
@@ -43,9 +43,13 @@ export function Sync() {
           : link === "mismatch"
             ? text.notice.mismatch
             : link === "expired"
-              ? text.sync.expiredBody
+              ? paused
+                ? text.sync.pausedExpiredBody
+                : text.sync.expiredBody
               : link === "offline"
-                ? text.sync.offlineBody
+                ? paused
+                  ? text.paused
+                  : text.sync.offlineBody
                 : text.sync.onlineBody}
       </p>
       <p>{text.sync.waiting(pending)}</p>

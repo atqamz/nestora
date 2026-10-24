@@ -19,9 +19,10 @@ export type Snapshot = {
   link: Link;
   storage: "ok" | "failed";
   notice: { discarded: number } | null;
+  paused: boolean;
 };
 
-export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; step?: number };
+export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; paused?: true; step?: number };
 
 export type Draft<T extends TableName> = Partial<
   Omit<Row<T>, "id" | "rev" | "updated_by" | "deleted_at" | "created_at" | "updated_at">
@@ -38,9 +39,13 @@ const notFound: Written = { ok: false, errors: ["row: not found"] };
 
 export const unsaved: Written = { ok: false, errors: [], storage: true };
 
+export const paused: Written = { ok: false, errors: [], paused: true };
+
+const nothing: Rows = { items: [], budget_entries: [], settings: [] };
+
 class StorageFailure extends Error {}
 
-export const createStore = ({ persistence, api }: { persistence: Persistence; api: Api }) => {
+export const createStore = ({ persistence, api, held = false }: { persistence: Persistence; api: Api; held?: boolean }) => {
   let base = toMaps({ items: [], budget_entries: [], settings: [] });
   let view = base;
   let outbox: Pending[] = [];
@@ -59,7 +64,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
   let sending: ReadonlySet<number> = new Set();
   let running: Promise<void> | null = null;
   let again = false;
-  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice };
+  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held };
   const listeners = new Set<() => void>();
 
   const emit = () => {
@@ -68,12 +73,13 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     snapshot = {
       ready: loaded && (me !== null || attempted),
       me,
-      rows: live(view),
+      rows: link === "mismatch" ? nothing : live(view),
       pending: sendable.length,
-      rejected: outbox.filter((entry) => entry.rejected),
+      rejected: link === "mismatch" ? [] : outbox.filter((entry) => entry.rejected),
       link,
       storage,
       notice,
+      paused: held,
     };
     for (const listener of listeners) listener();
   };
@@ -326,14 +332,15 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
   };
 
   const create = async <T extends TableName>(table: T, draft: Draft<T>): Promise<Written> =>
-    enqueue(preparedCreate(table, draft, table === "settings" ? String((draft as Dict).key) : crypto.randomUUID()));
+    held || !loaded ? paused : enqueue(preparedCreate(table, draft, table === "settings" ? String((draft as Dict).key) : crypto.randomUUID()));
 
   const update = async <T extends TableName>(table: T, rowId: string, change: Patch<T>): Promise<Written> =>
-    settle(preparedUpdate(table, rowId, change as Dict));
+    held || !loaded ? paused : settle(preparedUpdate(table, rowId, change as Dict));
 
-  const remove = async (table: TableName, rowId: string): Promise<Written> => settle(preparedRemove(table, rowId));
+  const remove = async (table: TableName, rowId: string): Promise<Written> => (held || !loaded ? paused : settle(preparedRemove(table, rowId)));
 
   const many = async (steps: readonly Step[]): Promise<Written> => {
+    if (held || !loaded) return paused;
     const prepared = steps.map((step) =>
       step.op === "create" ? preparedCreate(step.table, step.draft, step.id) : step.op === "update" ? preparedUpdate(step.table, step.id, step.change) : preparedRemove(step.table, step.id),
     );
@@ -351,6 +358,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     view.settings.has(key) ? update("settings", key, { value }) : create("settings", { key, value });
 
   const discard = async (seq: number): Promise<Written> => {
+    if (held || !loaded) return paused;
     try {
       await persist({ outbox: { drop: [seq] } });
     } catch {
@@ -359,6 +367,11 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     outbox = outbox.filter((entry) => entry.seq !== seq);
     emit();
     return { ok: true, id: String(seq) };
+  };
+
+  const release = () => {
+    held = false;
+    emit();
   };
 
   const dismissNotice = () => {
@@ -381,6 +394,7 @@ export const createStore = ({ persistence, api }: { persistence: Persistence; ap
     setSetting,
     discard,
     dismissNotice,
+    release,
   };
 };
 

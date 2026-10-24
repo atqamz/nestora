@@ -10,7 +10,7 @@ export type PullResult = { kind: "ok"; body: SyncResponse } | Failure;
 export type PushResult = { kind: "ok"; body: SyncResult } | { kind: "rejected"; rejection: Rejection } | Failure;
 
 export type Api = {
-  pull(since: number): Promise<PullResult>;
+  pull(since: number, timeout?: number): Promise<PullResult>;
   push(mutations: Mutation[]): Promise<PushResult>;
   me(): Promise<string | null>;
 };
@@ -23,6 +23,8 @@ export const LOGIN_URL = "/api/login";
 
 const TIMEOUT_MS = 15_000;
 
+export const PROBE_TIMEOUT_MS = 4_000;
+
 type Dict = Record<string, unknown>;
 
 const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -33,10 +35,11 @@ const call = async (
   fetcher: Fetch,
   url: string,
   init: RequestInit,
+  timeout = TIMEOUT_MS,
 ): Promise<Failure | { kind: "response"; status: number; body: unknown }> => {
   let res: Response;
   try {
-    res = await fetcher(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetcher(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(timeout) });
   } catch {
     return { kind: "offline" };
   }
@@ -56,8 +59,8 @@ const call = async (
 const sided = (side?: Side): Record<string, string> => (side === undefined ? {} : { [SIDE_HEADER]: side });
 
 export const createApi = (fetcher: Fetch, side?: Side): Api => ({
-  pull: async (since) => {
-    const res = await call(fetcher, `${SYNC_URL}?since=${since}`, { method: "GET", headers: sided(side) });
+  pull: async (since, timeout) => {
+    const res = await call(fetcher, `${SYNC_URL}?since=${since}`, { method: "GET", headers: sided(side) }, timeout);
     if (res.kind !== "response") return res;
     const { body } = res;
     if (!(res.status === 200 && isDict(body) && Number.isInteger(body.rev) && typeof body.epoch === "string" && isSide(body.me) && isDict(body.changes))) {

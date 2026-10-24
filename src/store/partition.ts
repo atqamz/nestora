@@ -1,14 +1,26 @@
 import type { Side } from "../../shared/api.ts";
+import { PROBE_TIMEOUT_MS } from "./api.ts";
 import type { Api } from "./api.ts";
 import type { Disk, Hint } from "./persistence.ts";
-import { createStore, unsaved } from "./store.ts";
+import { createStore, paused } from "./store.ts";
 import type { Snapshot, Store } from "./store.ts";
 
 const PROBE = Number.MAX_SAFE_INTEGER;
 
 const HINT_KEY = "wp-side";
 
-type Open = { at: "open"; side: Side; confirmed: boolean; store: Store };
+const BACKOFF_MS = [5_000, 15_000, 60_000];
+
+type Down = "offline" | "expired";
+
+type Open = { at: "open"; side: Side; down: Down | null; store: Store };
+
+type Later = (run: () => Promise<unknown>, ms: number) => () => void;
+
+const timer: Later = (run, ms) => {
+  const handle = setTimeout(() => void run(), ms);
+  return () => clearTimeout(handle);
+};
 
 type State = { at: "none" } | Open;
 
@@ -41,18 +53,20 @@ const adoptLegacy = async (disk: Disk, side: Side) => {
   await old.write({ meta: { adopted: side } });
 };
 
-export const createSession = ({ disk, hint, api }: { disk: Disk; hint: Hint; api: (side?: Side) => Api }): Store => {
+export const createSession = ({ disk, hint, api, later = timer }: { disk: Disk; hint: Hint; api: (side?: Side) => Api; later?: Later }): Omit<Store, "release"> => {
   let state: State = { at: "none" };
   let settling: Promise<void> | null = null;
-  let bare: Snapshot = { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null };
+  let tries = 0;
+  let cancel = () => {};
+  let bare: Snapshot = { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true };
   const listeners = new Set<() => void>();
 
   const emit = () => {
     for (const listener of listeners) listener();
   };
 
-  const enter = async (side: Side, confirmed: boolean) => {
-    if (confirmed) {
+  const enter = async (side: Side, down: Down | null) => {
+    if (down === null) {
       await adoptLegacy(disk, side);
       hint.set(side);
     }
@@ -60,10 +74,11 @@ export const createSession = ({ disk, hint, api }: { disk: Disk; hint: Hint; api
     const entry: Open = {
       at: "open",
       side,
-      confirmed,
+      down,
       store: createStore({
         persistence: disk.open(side),
-        api: { ...sided, pull: async (since) => (entry.confirmed ? sided.pull(since) : { kind: "offline" }) },
+        held: down !== null,
+        api: { ...sided, pull: async (since) => (entry.down === null ? sided.pull(since) : { kind: entry.down }) },
       }),
     };
     entry.store.subscribe(emit);
@@ -73,24 +88,40 @@ export const createSession = ({ disk, hint, api }: { disk: Disk; hint: Hint; api
   };
 
   const settle = async () => {
-    const answer = await api().pull(PROBE);
+    const answer = await api().pull(PROBE, PROBE_TIMEOUT_MS);
     if (answer.kind === "ok") {
       const { me } = answer.body;
-      if (state.at !== "open" || state.side !== me) return enter(me, true);
-      state.confirmed = true;
+      if (state.at !== "open" || state.side !== me) return enter(me, null);
+      state.down = null;
+      state.store.release();
       return state.store.sync();
     }
-    if (state.at === "open") return;
+    const down = answer.kind === "expired" ? "expired" : "offline";
+    if (state.at === "open") {
+      if (state.down === null) return;
+      state.down = down;
+      return state.store.sync();
+    }
     const side = hint.get();
-    if (side !== null) return enter(side, false);
-    bare = { ...bare, ready: true, link: answer.kind === "expired" ? "expired" : "offline" };
+    if (side !== null) return enter(side, down);
+    bare = { ...bare, ready: true, link: down };
     emit();
   };
 
-  const run = () => (settling ??= settle().finally(() => (settling = null)));
+  const reprobe = () => {
+    cancel();
+    if (state.at === "open" && state.down === null) return;
+    cancel = later(() => run().catch(() => undefined), BACKOFF_MS[Math.min(tries++, BACKOFF_MS.length - 1)]);
+  };
+
+  const run = () =>
+    (settling ??= settle().finally(() => {
+      settling = null;
+      reprobe();
+    }));
 
   const write = <K extends Write>(name: K) =>
-    ((...args: never[]) => (state.at === "open" ? (state.store[name] as (...rest: never[]) => Promise<unknown>)(...args) : Promise.resolve(unsaved))) as Store[K];
+    ((...args: never[]) => (state.at === "open" ? (state.store[name] as (...rest: never[]) => Promise<unknown>)(...args) : Promise.resolve(paused))) as Store[K];
 
   return {
     subscribe: (listener) => {
@@ -99,7 +130,7 @@ export const createSession = ({ disk, hint, api }: { disk: Disk; hint: Hint; api
     },
     getSnapshot: () => (state.at === "open" ? state.store.getSnapshot() : bare),
     open: run,
-    sync: () => (state.at === "open" && state.confirmed ? state.store.sync() : run().catch(() => undefined)),
+    sync: () => (state.at === "open" && state.down === null ? state.store.sync() : run().catch(() => undefined)),
     create: write("create"),
     update: write("update"),
     remove: write("remove"),

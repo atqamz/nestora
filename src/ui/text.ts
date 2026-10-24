@@ -3,6 +3,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export const text = {
   appName: "WP",
   loading: "Loading",
+  paused: "Sign-in not confirmed yet. Changes are paused. Try again when you are back online.",
   storageFailed: "This phone could not keep your change. Free some space or allow site data, then try again.",
   storageBrokenTitle: "Storage is blocked",
   storageBroken: "This browser blocked local storage, so WP cannot start. Allow site data for this page and reload.",
@@ -265,6 +266,7 @@ export const text = {
     login: "Log in again",
     onlineBody: "Connected. Changes are sent as soon as you make them.",
     offlineBody: "The server cannot be reached. Everything you enter is saved on this phone and sent later.",
+    pausedExpiredBody: "Your login expired. Log in again to confirm it. Changes are paused until then.",
     expiredBody: "Your login expired. Log in again to send your changes. Nothing is lost.",
     waiting: (n: number) => (n === 0 ? "Nothing waiting to sync." : `${n} ${n === 1 ? "change is" : "changes are"} waiting to sync.`),
     now: "Sync now",

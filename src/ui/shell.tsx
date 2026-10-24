@@ -31,7 +31,7 @@ function Nav({ className, section }: { className: "tabs" | "rail"; section: stri
 }
 
 export function Shell({ section, children }: { section: string; children: ReactNode }) {
-  const { link, notice, rows } = useSnapshot();
+  const { link, notice, paused, rows } = useSnapshot();
   const { toast } = useOverlay();
   useEffect(() => sweepUndone(rows.items, actions.many), [rows.items]);
   const home = section === "";
@@ -58,6 +58,11 @@ export function Shell({ section, children }: { section: string; children: ReactN
             </button>
           </div>
         )}
+        {paused && link !== "mismatch" && (
+          <div className="notice" role="status">
+            <p>{text.paused}</p>
+          </div>
+        )}
         {notice && (
           <div className="notice" role="status">
             <p>
@@ -69,7 +74,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
             </button>
           </div>
         )}
-        <main data-page={home ? "home" : undefined}>{children}</main>
+        <main data-page={home ? "home" : undefined}>{link === "mismatch" ? null : children}</main>
       </div>
       <Nav className="tabs" section={section} />
       <div className="toast" role="status">

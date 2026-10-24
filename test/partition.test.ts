@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Side } from "../shared/api.ts";
 import { createApi } from "../src/store/api.ts";
@@ -6,7 +6,10 @@ import type { Fetch } from "../src/store/api.ts";
 import { memoryDisk, memoryPersistence } from "../src/store/memory.ts";
 import { createSession, sideHint } from "../src/store/partition.ts";
 import type { Disk, Persisted } from "../src/store/persistence.ts";
+import { paused } from "../src/store/store.ts";
 import type { Snapshot } from "../src/store/store.ts";
+import { failureOf } from "../src/ui/failure.ts";
+import { text } from "../src/ui/text.ts";
 import { screenFor } from "../src/domain/status.ts";
 import { client, idOf, task, titles } from "./store-client.ts";
 import { createServer } from "./store-server.ts";
@@ -28,23 +31,44 @@ const watched = (tab: { subscribe(listener: () => void): () => void; getSnapshot
 
 type Source = { as(side: Side): Fetch };
 
+type Timer = { ms: number; run: () => Promise<unknown>; live: boolean };
+
 const profile = async (server: Source, who: Side, { legacy, hint = null }: { legacy?: Persisted; hint?: Side | null } = {}) => {
-  const state = { who, hint, down: false, hold: null as Promise<void> | null };
+  const state = { who, hint, down: false, hang: false, calls: 0, hold: null as Promise<void> | null };
   const raw = await memoryDisk(legacy);
   const opened: Side[] = [];
   const disk: Disk = { ...raw, open: (side) => (opened.push(side), raw.open(side)) };
   const fetcher: Fetch = async (url, init) => {
+    state.calls++;
     await state.hold;
+    if (state.hang) {
+      await new Promise<void>((resolve) => (init.signal?.aborted ? resolve() : init.signal?.addEventListener("abort", () => resolve())));
+      throw new TypeError("aborted");
+    }
     if (state.down) throw new TypeError("fetch failed");
     return server.as(state.who)(url, init);
   };
-  const tab = (over: Partial<Disk> = {}) =>
+  const timers: Timer[] = [];
+  const later = (run: () => Promise<unknown>, ms: number) => {
+    const timer = { ms, run, live: true };
+    timers.push(timer);
+    return () => void (timer.live = false);
+  };
+  const tab = (over: Partial<Disk> = {}, schedule: typeof later | null = later) =>
     createSession({
       disk: { ...disk, ...over },
       hint: { get: () => state.hint, set: (side) => void (state.hint = side) },
       api: (side) => createApi(fetcher, side),
+      ...(schedule ? { later: schedule } : {}),
     });
-  return { state, raw, opened, tab };
+  const due = () => timers.filter((timer) => timer.live).map((timer) => timer.ms);
+  const fire = async () => {
+    const timer = timers.findLast((entry) => entry.live);
+    assert.ok(timer, "no retry is waiting");
+    timer.live = false;
+    await timer.run();
+  };
+  return { state, raw, opened, tab, timers, due, fire };
 };
 
 type Profile = Awaited<ReturnType<typeof profile>>;
@@ -69,10 +93,10 @@ test("a fresh browser asks the server for the side with a bare probe, then opens
   const server = createServer();
   const p = await profile(server, "a");
   const tab = p.tab();
-  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null });
+  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true });
   await tab.open();
   const snap = tab.getSnapshot();
-  assert.deepEqual([snap.ready, snap.me, snap.link], [true, "a", "online"]);
+  assert.deepEqual([snap.ready, snap.me, snap.link, snap.paused], [true, "a", "online", false]);
   assert.deepEqual(p.opened, ["a"]);
   assert.equal(p.state.hint, "a");
   assert.deepEqual(server.seen.slice(0, 2).map((request) => [request.since, request.side]), [[Number.MAX_SAFE_INTEGER, null], [0, "a"]]);
@@ -152,14 +176,18 @@ test("an offline cold start opens the hint partition: the device's own last stat
   assert.deepEqual(titles(snap.rows.items), ["Queued offline", "Shared by a", MARK("a"), `${MARK("a")} step`].sort());
   await cold.sync();
   assert.deepEqual([p.opened, cold.getSnapshot().link], [["a"], "offline"]);
+  const kept = await saved(p, "a");
+  assert.deepEqual(await cold.create("items", task("Typed on the cold start")), paused);
+  assert.deepEqual(await saved(p, "a"), kept);
   p.state.down = false;
-  idOf(await cold.create("items", task("Typed on the cold start")));
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.deepEqual([posts(server).length, cold.getSnapshot().pending], [sent, 2]);
   await cold.sync();
   assert.deepEqual(p.opened, ["a"]);
   assert.deepEqual([cold.getSnapshot().link, cold.getSnapshot().pending], ["online", 0]);
-  assert.equal(server.rows("items").filter((row) => row.title === "Typed on the cold start" || row.title === "Queued offline").length, 2);
+  assert.deepEqual(server.rows("items").filter((row) => row.title === "Typed on the cold start"), []);
+  assert.equal(server.rows("items").filter((row) => row.title === "Queued offline").length, 1);
+  idOf(await cold.create("items", task("Typed after the answer")));
+  await cold.sync();
+  assert.equal(server.rows("items").filter((row) => row.title === "Typed after the answer").length, 1);
 });
 
 test("Partner B on Partner A's profile never sees Partner A's rows, on first paint or after", async () => {
@@ -258,6 +286,8 @@ test("a tab loaded as Partner A cannot write under Partner B: it stops, shows th
   await tab1.sync();
   const snap = tab1.getSnapshot();
   assert.deepEqual([snap.link, snap.pending, snap.rejected, snap.me], ["mismatch", 2, [], "a"]);
+  assert.deepEqual(snap.rows, { items: [], budget_entries: [], settings: [] });
+  assert.equal(leaks(JSON.stringify(snap), "a"), false);
   assert.deepEqual(server.sqlite.prepare("SELECT title FROM items").all(), []);
   assert.deepEqual(await saved(p, "a"), before);
   const calls = server.calls.length;
@@ -490,7 +520,7 @@ test("writes with no partition open are refused and nothing is sent", async () =
   const tab = p.tab();
   await tab.open();
   const written = await tab.create("items", task("Nowhere"));
-  assert.deepEqual(written, { ok: false, errors: [], storage: true });
+  assert.deepEqual(written, paused);
   assert.equal(tab.dismissNotice(), undefined);
   assert.deepEqual([server.seen.length, p.opened], [0, []]);
 });
@@ -563,4 +593,292 @@ test("a listener that unsubscribes is not called again", async () => {
   idOf(await tab.create("items", task("After")));
   await tab.sync();
   assert.equal(calls, during);
+});
+
+const nothing = { items: [], budget_entries: [], settings: [] };
+
+const strand = async (server: Source, who: Side) => {
+  const p = await profile(server, "a");
+  await work(p, "a");
+  p.state.who = who;
+  p.state.down = true;
+  const tab = p.tab();
+  await tab.open();
+  return { p, tab };
+};
+
+const everyWrite = async (tab: ReturnType<Profile["tab"]>, parent: string) => [
+  await tab.create("items", task("B shared")),
+  await tab.create("items", secret("b")),
+  await tab.update("items", parent, { title: "Renamed" }),
+  await tab.remove("items", parent),
+  await tab.many([{ op: "create", table: "items", id: crypto.randomUUID(), draft: task("B many") }]),
+  await tab.setSetting("timezone", "Asia/Jakarta"),
+  await tab.discard(1),
+];
+
+test("an unconfirmed start is read-only: every write is refused with the paused notice and the partition is byte-identical", async () => {
+  const server = createWorkerServer();
+  const { p, tab } = await strand(server, "b");
+  assert.deepEqual([tab.getSnapshot().me, tab.getSnapshot().paused], ["a", true]);
+  const parent = tab.getSnapshot().rows.items[0].id;
+  const kept = JSON.stringify(await saved(p, "a"));
+  const calls = server.calls.length;
+  const refused = await everyWrite(tab, parent);
+  assert.deepEqual(refused, refused.map(() => paused));
+  assert.deepEqual(failureOf(refused[0]), [text.paused]);
+  assert.equal(text.paused, "Sign-in not confirmed yet. Changes are paused. Try again when you are back online.");
+  assert.equal(JSON.stringify(await saved(p, "a")), kept);
+  assert.equal(JSON.stringify(await saved(p, "b")), JSON.stringify(await p.raw.open("b").load()));
+  assert.deepEqual([tab.getSnapshot().pending, server.calls.length], [0, calls]);
+  assert.deepEqual((await saved(p, "b")).outbox, []);
+});
+
+test("the probe that then names the other side opens that partition, and the writes of that person go out as that person", async () => {
+  const server = createWorkerServer();
+  const { p, tab } = await strand(server, "b");
+  const parent = tab.getSnapshot().rows.items[0].id;
+  const kept = JSON.stringify(await saved(p, "a"));
+  assert.ok((await everyWrite(tab, parent)).every((written) => !written.ok));
+  p.state.down = false;
+  await p.fire();
+  assert.deepEqual([tab.getSnapshot().me, tab.getSnapshot().link, p.state.hint, p.due()], ["b", "online", "b", []]);
+  assert.equal(leaks(everything(tab.getSnapshot()), "a"), false);
+  idOf(await tab.create("items", task("B shared")));
+  idOf(await tab.create("items", secret("b")));
+  await tab.sync();
+  assert.equal(tab.getSnapshot().pending, 0);
+  assert.deepEqual(
+    server.sqlite.prepare("SELECT title, updated_by FROM items WHERE title LIKE 'B %' OR title LIKE 'Partner B%'").all().map((row) => [row.title, row.updated_by]).sort(),
+    [["B shared", "b"], [MARK("b"), "b"]],
+  );
+  assert.equal(JSON.stringify(await saved(p, "a")), kept);
+  p.state.who = "a";
+  const back = p.tab();
+  await back.open();
+  const snap = back.getSnapshot();
+  assert.deepEqual([snap.pending, snap.rejected, leaks(everything(snap), "b")], [0, [], false]);
+  assert.deepEqual(server.sqlite.prepare(`SELECT title FROM items WHERE updated_by = 'a' AND title IN ('B shared', '${MARK("b")}')`).all(), []);
+});
+
+test("the probe that confirms the same side lifts the pause with no reload", async () => {
+  const server = createWorkerServer();
+  const { p, tab } = await strand(server, "a");
+  assert.deepEqual(await tab.create("items", task("Too early")), paused);
+  p.state.down = false;
+  await p.fire();
+  assert.deepEqual([tab.getSnapshot().link, tab.getSnapshot().paused, p.due()], ["online", false, []]);
+  idOf(await tab.create("items", task("In time")));
+  await tab.sync();
+  assert.deepEqual(server.sqlite.prepare("SELECT title, updated_by FROM items WHERE title IN ('In time', 'Too early')").all().map((row) => [row.title, row.updated_by]), [["In time", "a"]]);
+});
+
+test("a write attempted while the probe answer is in flight is refused, and the next one is accepted once the same side is confirmed", async () => {
+  const server = createWorkerServer();
+  const { p, tab } = await strand(server, "a");
+  p.state.down = false;
+  let release!: () => void;
+  p.state.hold = new Promise<void>((resolve) => (release = resolve));
+  const probing = tab.sync();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const kept = JSON.stringify(await saved(p, "a"));
+  assert.deepEqual(await tab.create("items", task("In flight")), paused);
+  release();
+  await probing;
+  assert.equal(JSON.stringify(await saved(p, "a")), kept);
+  idOf(await tab.create("items", task("After the answer")));
+  await tab.sync();
+  assert.deepEqual(server.sqlite.prepare("SELECT title FROM items WHERE title LIKE '%flight' OR title LIKE 'After%'").all().map((row) => row.title), ["After the answer"]);
+});
+
+test("a write attempted while the probe answer names the other side is refused, and lands in that side's partition afterwards", async () => {
+  const server = createWorkerServer();
+  const { p, tab } = await strand(server, "b");
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const cold = p.tab({ open: (side) => (side === "b" ? { ...p.raw.open(side), load: async () => (await gate, p.raw.open(side).load()) } : p.raw.open(side)) });
+  await cold.open();
+  p.state.down = false;
+  const kept = JSON.stringify(await saved(p, "a"));
+  const switching = cold.sync();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(await cold.create("items", secret("b")), paused);
+  release();
+  await switching;
+  assert.equal(JSON.stringify(await saved(p, "a")), kept);
+  assert.deepEqual([cold.getSnapshot().me, cold.getSnapshot().pending], ["b", 0]);
+  idOf(await cold.create("items", secret("b")));
+  assert.deepEqual([(await saved(p, "a")).outbox.length, (await saved(p, "b")).outbox.length], [0, 1]);
+  assert.equal(tab.getSnapshot().me, "a");
+});
+
+test("while unconfirmed the probe is retried after 5 s, 15 s, 60 s and then every 60 s, and stops once the side is confirmed", async () => {
+  const server = createServer();
+  const { p, tab } = await strand(server, "a");
+  assert.deepEqual(p.due(), [5_000]);
+  const delays: number[] = [];
+  for (let attempt = 0; attempt < 5; attempt++) {
+    delays.push(...p.due());
+    await p.fire();
+  }
+  assert.deepEqual(delays, [5_000, 15_000, 60_000, 60_000, 60_000]);
+  assert.deepEqual([tab.getSnapshot().link, p.due()], ["offline", [60_000]]);
+  const asked = server.seen.length;
+  p.state.down = false;
+  await p.fire();
+  assert.deepEqual([tab.getSnapshot().link, p.due()], ["online", []]);
+  assert.ok(server.seen.length > asked);
+  const timers = p.timers.length;
+  await tab.sync();
+  assert.equal(p.timers.length, timers);
+});
+
+test("a start with no hint keeps asking for the side on the same back-off", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  p.state.down = true;
+  const tab = p.tab();
+  await tab.open();
+  assert.deepEqual(p.due(), [5_000]);
+  await p.fire();
+  assert.deepEqual(p.due(), [15_000]);
+  p.state.down = false;
+  await p.fire();
+  assert.deepEqual([tab.getSnapshot().me, p.due()], ["a", []]);
+});
+
+test("online and visibility events probe at once while unconfirmed, and a probe already in flight is shared", async () => {
+  const server = createServer();
+  const { p, tab } = await strand(server, "a");
+  const asked = server.seen.length;
+  p.state.down = false;
+  await Promise.all([tab.sync(), tab.sync()]);
+  assert.equal(server.seen.slice(asked).filter((request) => request.side === null).length, 1);
+  assert.deepEqual([tab.getSnapshot().link, p.due()], ["online", []]);
+  assert.ok(server.seen.length > asked);
+});
+
+test("an expired login with a hint shows the log-in path, not offline, and stays read-only", async () => {
+  for (const session of ["unauthorized", "forbidden", "redirect", "html"] as const) {
+    const server = createServer();
+    const p = await profile(server, "a");
+    await work(p, "a");
+    server.control.session = session;
+    const tab = p.tab();
+    await tab.open();
+    const snap = tab.getSnapshot();
+    assert.deepEqual([snap.link, snap.me, screenFor(snap)], ["expired", "a", "app"], session);
+    assert.deepEqual(await tab.create("items", task("Typed")), paused, session);
+    await tab.sync();
+    assert.equal(tab.getSnapshot().link, "expired", session);
+    p.state.down = true;
+    await p.fire();
+    assert.equal(tab.getSnapshot().link, "offline", session);
+    p.state.down = false;
+    server.control.session = "ok";
+    await p.fire();
+    assert.deepEqual([tab.getSnapshot().link, p.due()], ["online", []], session);
+    idOf(await tab.create("items", task("Typed")));
+  }
+});
+
+test("a tab in mismatch renders no rows and no parked entries, and keeps them on disk", async () => {
+  const server = createWorkerServer();
+  const p = await profile(server, "a");
+  const tab = p.tab();
+  await tab.open();
+  idOf(await tab.create("items", secret("a")));
+  idOf(await tab.many([{ op: "create", table: "items", id: crypto.randomUUID(), draft: { kind: "step", title: `${MARK("a")} orphan`, parent_id: crypto.randomUUID() } }]));
+  await tab.sync();
+  assert.equal(tab.getSnapshot().rejected.length, 1);
+  assert.equal(leaks(everything(tab.getSnapshot()), "a"), true);
+  p.state.who = "b";
+  await tab.sync();
+  const snap = tab.getSnapshot();
+  assert.deepEqual([snap.link, snap.rows, snap.rejected, snap.paused], ["mismatch", nothing, [], false]);
+  assert.equal(leaks(JSON.stringify(snap), "a"), false);
+  assert.equal((await saved(p, "a")).outbox.length, 1);
+  assert.equal(p.due().length, 0);
+});
+
+test("the probe has its own 4 s timeout, shorter than the 15 s of the other requests", async () => {
+  const timeout = mock.method(AbortSignal, "timeout");
+  try {
+    const server = createServer();
+    const p = await profile(server, "a");
+    const tab = p.tab();
+    await tab.open();
+    await tab.sync();
+    const waits = timeout.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(waits[0], 4_000);
+    assert.ok(waits.slice(1).length > 0 && waits.slice(1).every((ms) => ms === 15_000));
+  } finally {
+    timeout.mock.restore();
+  }
+});
+
+test("a probe that hangs counts as a failed probe: the hint partition opens read-only and the probe is retried", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  await work(p, "a");
+  p.state.hang = true;
+  const real = AbortSignal.timeout.bind(AbortSignal);
+  const hung = mock.method(AbortSignal, "timeout", () => real(1));
+  try {
+    const tab = p.tab();
+    await tab.open();
+    assert.deepEqual([tab.getSnapshot().ready, tab.getSnapshot().me, tab.getSnapshot().link], [true, "a", "offline"]);
+    assert.deepEqual(await tab.create("items", task("Typed")), paused);
+    assert.deepEqual(p.due(), [5_000]);
+  } finally {
+    hung.mock.restore();
+  }
+});
+
+test("the default timer retries on the back-off, and a probe started by an event replaces the waiting retry", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const server = createServer();
+    const p = await profile(server, "a");
+    await work(p, "a");
+    p.state.down = true;
+    const tab = p.tab({}, null);
+    await tab.open();
+    const probes = () => p.state.calls;
+    const settled = () => new Promise((resolve) => setImmediate(resolve));
+    const asked = probes();
+    mock.timers.tick(4_999);
+    await settled();
+    assert.equal(probes(), asked);
+    mock.timers.tick(1);
+    await settled();
+    assert.equal(probes(), asked + 1);
+    await tab.sync();
+    assert.equal(probes(), asked + 2);
+    mock.timers.tick(59_999);
+    await settled();
+    assert.equal(probes(), asked + 2);
+    p.state.down = false;
+    mock.timers.tick(1);
+    await settled();
+    await settled();
+    assert.deepEqual([tab.getSnapshot().link, tab.getSnapshot().paused], ["online", false]);
+    const done = probes();
+    mock.timers.tick(600_000);
+    await settled();
+    assert.equal(probes(), done);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("opening a confirmed tab again while the network is down leaves it confirmed and writable", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  const tab = await work(p, "a");
+  p.state.down = true;
+  await tab.open();
+  assert.deepEqual([tab.getSnapshot().link, tab.getSnapshot().paused, p.due()], ["online", false, []]);
+  idOf(await tab.create("items", task("Still writable")));
+  assert.equal(tab.getSnapshot().pending, 1);
 });

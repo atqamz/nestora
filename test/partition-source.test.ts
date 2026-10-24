@@ -26,3 +26,11 @@ test("the browser store is a session over one database per side, with the side h
   assert.doesNotMatch(browser, /indexedDbPersistence/);
   assert.match(read("../src/store/db.ts"), /open: \(side\) => indexedDbPersistence\(`wp-\$\{side\}`\)/);
 });
+
+test("the shell and the sync page say that changes are paused while the side is unconfirmed", () => {
+  assert.match(read("../src/ui/shell.tsx"), /paused && link !== "mismatch" && \(\s*<div className="notice" role="status">\s*<p>\{text\.paused\}<\/p>/);
+  assert.match(read("../src/ui/shell.tsx"), /<main data-page=\{home \? "home" : undefined\}>\{link === "mismatch" \? null : children\}<\/main>/);
+  assert.match(read("../src/views/sync.tsx"), /paused\s*\? text\.sync\.pausedExpiredBody\s*: text\.sync\.expiredBody/);
+  assert.match(read("../src/views/sync.tsx"), /paused\s*\? text\.paused\s*: text\.sync\.offlineBody/);
+  assert.match(read("../src/ui/failure.ts"), /result\.paused \? \[text\.paused\]/);
+});
