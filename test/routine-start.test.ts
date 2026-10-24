@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekDates } from "../shared/routines.ts";
+import { DAY_CODES, weekDates } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { isOpen, openCount, pagesOf, position } from "../src/domain/routine-start.ts";
+import { SETTLE_MS, clampTo, hasWork, isOpen, openCount, pagesOf, position, settled } from "../src/domain/routine-start.ts";
 import { ADD_MS, FRESH_MS, STALE_MS, begin, clock, extend, parse, phase, share, timerKey } from "../src/domain/routine-timer.ts";
 import { weekStrip } from "../src/domain/routines.ts";
 import { keepAwake } from "../src/domain/wake-lock.ts";
@@ -72,6 +72,63 @@ test("the position is the first open page, backed up over the notes that lead in
   assert.equal(position(pagesOf([ticked(a), b]), "b", DAY), 0);
 });
 
+test("a routine that starts with a pack still pages, and the notes before the first open page all lead into it", () => {
+  const r = routine();
+  assert.deepEqual(pagesOf([action(r, "item 1", "pack"), action(r, "item 2", "pack")]).map((page) => page.length), [2]);
+  const a = action(r, "item 1");
+  const notes = [action(r, "item 2", "text"), action(r, "item 3", "day_type"), action(r, "item 4", "text")];
+  const b = action(r, "item 5");
+  assert.equal(position(pagesOf([ticked(a), ...notes, b]), "a", DAY), 1);
+  assert.equal(position(pagesOf([...notes, b]), "a", DAY), 0);
+  assert.equal(position(pagesOf([ticked(a), ...notes, ticked(b)]), "a", DAY), 5);
+});
+
+test("the position goes to the page whose timer is held, else to the first open page", () => {
+  const r = routine();
+  const a = action(r, "item 1");
+  const t = action(r, "item 2", "timer");
+  const b = action(r, "item 3");
+  const pages = pagesOf([a, t, b]);
+  assert.equal(position(pages, "a", DAY, [t.id]), 1);
+  assert.equal(position(pages, "a", DAY, [b.id, t.id]), 1);
+  assert.equal(position(pages, "a", DAY, ["gone"]), 0);
+  assert.equal(position(pages, "a", DAY, []), 0);
+  assert.equal(position(pagesOf([ticked(a), ticked(t), ticked(b)]), "a", DAY, [t.id]), 1);
+  const first = action(r, "item 4", "timer");
+  assert.equal(position(pagesOf([ticked(first), b]), "a", DAY, [first.id]), 0);
+  assert.equal(position(pagesOf([ticked(first), b]), "a", DAY), 1);
+  assert.equal(position(pagesOf([ticked(a), ticked(t), ticked(b)]), "a", DAY), 3);
+});
+
+test("a routine has work only when some page can be ticked", () => {
+  const r = routine();
+  const note = action(r, "item 1", "text");
+  const label = action(r, "item 2", "day_type");
+  const one = action(r, "item 3");
+  assert.equal(hasWork([], "a", DAY), false);
+  assert.equal(hasWork(pagesOf([note, label]), "a", DAY), false);
+  assert.equal(hasWork(pagesOf([note, one]), "a", DAY), true);
+  assert.equal(hasWork(pagesOf([ticked(one)]), "a", DAY), true);
+  assert.equal(hasWork(pagesOf([action(r, "item 4", "counter", { qty: 2 })]), "a", DAY), true);
+  assert.equal(hasWork(pagesOf([action(r, "item 5", "pack")]), "a", DAY), true);
+});
+
+test("a move goes to the page asked for, held between the first page and the end", () => {
+  assert.deepEqual([-3, 0, 2, 5, 9].map((to) => clampTo(to, 5)), [0, 0, 2, 5, 5]);
+  assert.equal(clampTo(0, 0), 0);
+  assert.equal(clampTo(1, 0), 0);
+});
+
+test("a tap is let through only 300 ms after the page changed", () => {
+  assert.equal(SETTLE_MS, 300);
+  assert.equal(settled(1_000, 1_000), false);
+  assert.equal(settled(1_000, 1_299), false);
+  assert.equal(settled(1_000, 1_300), true);
+  assert.equal(settled(1_000, 5_000), true);
+  assert.equal(settled(0, 40), false);
+  assert.equal(settled(0, 120), false);
+});
+
 test("the week is Monday to Sunday around any date, across a month and a year end", () => {
   assert.deepEqual(weekDates("2026-10-26"), ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"]);
   assert.deepEqual(weekDates("2026-11-01"), weekDates("2026-10-26"));
@@ -95,6 +152,21 @@ test("the strip shows the planned day label per weekday, marks today, and marks 
   assert.equal(weekStrip(r, [lower, upper, rest, ticked(step, "2026-10-26")], "2026-10-26", "a")!.filter((entry) => entry.done).length, 1);
   assert.equal(weekStrip(r, [lower, upper, rest, ticked(step, "2026-10-26")], "2026-10-27", "a")!.filter((entry) => entry.done).length, 0);
   assert.equal(weekStrip(r, [lower, upper, rest, ticked(step, "2026-10-26")], "2026-10-26", "b")!.filter((entry) => entry.done).length, 0);
+});
+
+test("the strip names the days in order and ticks today from the actions that occur today only", () => {
+  const r = routine();
+  const label = action(r, "Day type 1", "day_type");
+  const monday = ticked(action(r, "item 1", "step", { data: { days: "MO" } }));
+  const tuesday = action(r, "item 2", "step", { data: { days: "TU" } });
+  const strip = weekStrip(r, [label, monday, tuesday], DAY, "a")!;
+  assert.deepEqual(strip.map((entry) => entry.day), [...DAY_CODES]);
+  assert.deepEqual(strip.map((entry) => entry.done), [true, false, false, false, false, false, false]);
+  assert.deepEqual(strip.map((entry) => entry.today), [true, false, false, false, false, false, false]);
+  const wednesday = weekStrip(r, [label, monday, tuesday], "2026-10-28", "a")!;
+  assert.deepEqual(wednesday.map((entry) => entry.day), [...DAY_CODES]);
+  assert.deepEqual(wednesday.map((entry) => entry.today), [false, false, true, false, false, false, false]);
+  assert.equal(weekStrip(r, [label, ticked(monday), tuesday], DAY, "a")![0].done, true);
 });
 
 test("a routine with no day label has no strip, a day the routine skips has no label, and a day without a label stays empty", () => {
@@ -146,6 +218,19 @@ test("the countdown reads m:ss under an hour and h:mm:ss from an hour, rounding 
   assert.equal(clock(3 * 3_600_000 + 61_000), "3:01:01");
 });
 
+test("the countdown puts hours, minutes and seconds in that order", () => {
+  assert.equal(clock(2 * 3_600_000 + 3 * 60_000 + 7_000), "2:03:07");
+  assert.equal(clock(7 * 3_600_000 + 25 * 60_000 + 9_000), "7:25:09");
+  assert.equal(clock(65_000), "1:05");
+  assert.equal(clock(9 * 60_000 + 41_000), "9:41");
+});
+
+test("the three timer limits are one minute, one hour and two minutes", () => {
+  assert.equal(ADD_MS, 60_000);
+  assert.equal(STALE_MS, 3_600_000);
+  assert.equal(FRESH_MS, 120_000);
+});
+
 test("the share of the timer used grows from 0 to 1", () => {
   const t = begin(10, 0);
   const at = (now: number) => share(phase(t, now) as Extract<ReturnType<typeof phase>, { name: "running" }>);
@@ -157,9 +242,12 @@ test("the share of the timer used grows from 0 to 1", () => {
 test("a stored timer is read back only when it is well formed, and its key names the routine and the action", () => {
   const t = begin(5, 123);
   assert.deepEqual(parse(JSON.stringify(t)), t);
+  assert.deepEqual(parse('{"end":1,"ms":1}'), { end: 1, ms: 1 });
+  assert.deepEqual(parse('{"end":-1,"ms":0.5}'), { end: -1, ms: 0.5 });
   for (const raw of [null, "", "{", "[]", "null", "{}", '{"end":1}', '{"end":"1","ms":2}', '{"end":1,"ms":0}', '{"end":1,"ms":-5}', '{"end":null,"ms":5}', '{"end":1e999,"ms":5}']) assert.equal(parse(raw), null, String(raw));
-  assert.equal(timerKey("r1", "a1"), "wp.timer.r1.a1");
-  assert.notEqual(timerKey("r1", "a1"), timerKey("r1", "a2"));
+  assert.equal(timerKey("a", "r1", "a1"), "wp.timer.a.r1.a1");
+  assert.notEqual(timerKey("a", "r1", "a1"), timerKey("a", "r1", "a2"));
+  assert.notEqual(timerKey("a", "r1", "a1"), timerKey("b", "r1", "a1"));
 });
 
 test("the spoken time lists hours, minutes and seconds with plurals, and says zero plainly", () => {
@@ -174,7 +262,7 @@ test("the spoken time lists hours, minutes and seconds with plurals, and says ze
 
 const sentinel = () => {
   const listeners: (() => void)[] = [];
-  const s = { released: 0, release: async () => void s.released++, addEventListener: (_: "release", listener: () => void) => void listeners.push(listener), fire: () => listeners.forEach((listener) => listener()) };
+  const s = { released: 0, types: [] as string[], release: async () => void s.released++, addEventListener: (type: "release", listener: () => void) => (s.types.push(type), void listeners.push(listener)), fire: () => listeners.forEach((listener) => listener()) };
   return s;
 };
 
@@ -252,4 +340,25 @@ test("a request that is refused while hidden is retried and succeeds, and a rele
   await Promise.all([first, second]);
   assert.equal(again.released, 0);
   assert.equal(swap.seen.at(-1), "held");
+});
+
+test("the lock listens for the browser's own release event, and a release that fails is swallowed", async () => {
+  const s = sentinel();
+  const w = lock({ request: async () => s });
+  await w.acquire();
+  assert.deepEqual(s.types, ["release"]);
+
+  const stuck = { ...sentinel(), release: () => Promise.reject(new Error("gone")) };
+  const held = lock({ request: async () => stuck });
+  await held.acquire();
+  await held.release();
+  assert.equal(held.seen.at(-1), "idle");
+
+  let finish: (value: typeof stuck) => void = () => {};
+  const late = lock({ request: () => new Promise((resolve) => (finish = resolve as typeof finish)) });
+  const pending = late.acquire();
+  await late.release();
+  finish(stuck);
+  await pending;
+  assert.deepEqual(late.seen, ["idle"]);
 });

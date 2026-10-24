@@ -39,15 +39,15 @@ test("a tick goes through the same flows as the list, with the displayed day, an
 });
 
 test("the position derives from the ticks and is read again when the routine day changes", () => {
-  assert.match(start, /useState\(\(\) => position\(pages, side, day\)\)/);
-  assert.match(start, /if \(shown !== day\) \{\s*setShown\(day\);\s*setIndex\(position\(pages, side, day\)\);\s*setMessage\(start\.newDay\);\s*\}/);
+  assert.match(start, /useState\(\(\) => position\(pages, side, day, timers\.running\(me, routine\.id\)\)\)/);
+  assert.match(start, /if \(shown !== day\) \{\s*setShown\(day\);\s*timers\.keep\(me, routine\.id, null\);\s*setIndex\(position\(pages, side, day\)\);\s*setMessage\(start\.newDay\);\s*\}/);
   assert.match(start, /const at = Math\.min\(index, pages\.length\);/);
 });
 
 test("the countdown is derived from the stored end instant on every render, and nothing counts ticks", () => {
   assert.match(page, /const current = phase\(timer, now\);/);
-  assert.match(page, /sessionStorage\.setItem\(key, JSON\.stringify\(timer\)\)/);
-  assert.match(page, /parse\(sessionStorage\.getItem\(key\)\)/);
+  assert.match(page, /timers\.write\(me, routine\.id, action\.id, next\)/);
+  assert.match(page, /useState\(\(\) => timers\.read\(me, routine\.id, action\.id\)\)/);
   assert.match(page, /begin\(minutes, at\)/);
   assert.doesNotMatch(page + start, /left\s*[-+]=|remaining\s*[-+]=|setLeft|setSeconds|count\s*[-+]=\s*1/);
   const hook = read("hooks/use-now.ts");
@@ -77,7 +77,7 @@ test("the countdown is not announced every second: it is a timer with live off, 
   assert.match(page, /say\(start\.timer\.began\(/);
   assert.match(page, /say\(start\.timer\.over\(action\.title\)\)/);
   assert.match(page, /say\(start\.timer\.remaining\(start\.timer\.spoken\(left\)\)\)/);
-  assert.match(start, /<p className="visually-hidden" role="status">\s*\{message\}\s*<\/p>/);
+  assert.match(start, /<p className="visually-hidden" role="status">\s*\{page === undefined && !idle \? ending : message\}\s*<\/p>/);
   assert.equal([...(page + start).matchAll(/aria-live=/g)].length, 2);
   assert.match(page, /className="start-clock start-tally" aria-live="polite"/);
 });
@@ -85,9 +85,9 @@ test("the countdown is not announced every second: it is a timer with live off, 
 test("focus moves to the new primary button on an advance, Escape exits, and a held key never repeats a button", () => {
   assert.match(start, /useEffect\(\(\) => \{\s*if \(!moved\.current\) return;\s*root\.current\?\.querySelector<HTMLElement>\("\[data-primary\]"\)\?\.focus\(\);\s*\}, \[at\]\);/);
   assert.match(start, /event\.key === "Escape" && !event\.defaultPrevented && exit\(\)/);
-  assert.match(start, /const exit = \(\) => location\.replace\(`#\/routines\/\$\{routine\.id\}`\);/);
+  assert.match(start, /const exit = \(\) => \{\s*timers\.keep\(me, routine\.id, null\);\s*location\.replace\(`#\/routines\/\$\{routine\.id\}`\);\s*\};/);
   assert.match(start, /onKeyDown=\{\(event\) => \{\s*if \(event\.repeat\) event\.preventDefault\(\);\s*\}\}/);
-  assert.match(start, /setMessage\(clamped >= total \? start\.finished : start\.announce\(/);
+  assert.match(start, /setMessage\(clamped >= total \? "" : start\.announce\(/);
   assert.match(read("ui/routine-action.tsx"), /className="rt-plus"[^>]*onKeyDown=\{\(event\) => event\.repeat && event\.preventDefault\(\)\}/);
 });
 
@@ -160,4 +160,40 @@ test("a save that edits an action removed on another device is refused with a pl
   assert.match(sheet, /setProblems\(lost\.length > 0 \? \[\] : plan\.problems\)/);
   assert.equal(text.routines.form.gone("item 2"), "item 2: This action was removed on another device.");
   assert.doesNotMatch(read("domain/routine-draft.ts"), /deleted_at: null/);
+});
+
+test("a move clamps the target, focuses the new primary button, starts the settle time and announces the page by its place", () => {
+  assert.match(start, /const clamped = clampTo\(to, total\);\s*moved\.current = true;\s*since\.current = performance\.now\(\);\s*setFailure\(\[\]\);\s*setIndex\(clamped\);/);
+  assert.match(start, /start\.announce\(clamped \+ 1, total, heading\(pages\[clamped\]\)\)/);
+});
+
+test("each timer action gets its own countdown: the component is keyed by the action, and the page by the day and the position", () => {
+  assert.match(page, /<Timing key=\{action\.id\} \{\.\.\.props\} action=\{action\}/);
+  assert.match(start, /<div className="start-page" key=\{`\$\{day\}:\$\{at\}`\}>/);
+  assert.equal([...page.matchAll(/useState\(/g)].length, 1);
+});
+
+test("a tap within the settle time of a page change is cancelled for the whole screen, and the clock is the monotonic one", () => {
+  assert.match(start, /const since = useRef\(performance\.now\(\)\);/);
+  assert.match(start, /since\.current = performance\.now\(\);\s*setFailure\(\[\]\);/);
+  assert.match(start, /onClickCapture=\{\(event\) => \{\s*if \(settled\(since\.current, performance\.now\(\)\)\) return;\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*\}\}/);
+  assert.doesNotMatch(start, /setTimeout|Date\.now/);
+});
+
+test("a timer belongs to its action: only the current page keeps one, and leaving the screen or a new day drops them all", () => {
+  assert.match(start, /useEffect\(\(\) => timers\.keep\(me, routine\.id, current\), \[me, routine\.id, current\]\);/);
+  assert.match(start, /const current = page\?\.\[0\]\.id \?\? null;/);
+  assert.equal([...start.matchAll(/timers\.keep\(me, routine\.id, null\)/g)].length, 2);
+  assert.match(page, /timers\.write\(me, routine\.id, action\.id, next\)/);
+});
+
+test("the status line and the screen read the end of the list from one value, and a list with nothing to tick never says all done", () => {
+  assert.match(start, /const ending = open === 0 \? start\.finished : start\.left\(open\);/);
+  assert.equal([...start.matchAll(/start\.finished\b/g)].length, 1);
+  assert.equal([...start.matchAll(/start\.left\(/g)].length, 1);
+  assert.match(start, /<h2 className="start-title">\{ending\}<\/h2>/);
+  assert.match(start, /const idle = !hasWork\(pages, side, day\);/);
+  assert.match(start, /const page = idle \? undefined : \(pages\[at\] as Page \| undefined\);/);
+  assert.match(start, /\) : idle \? \(\s*<>\s*<h2 className="start-title">\{start\.nothing\}<\/h2>/);
+  assert.match(start, /\{!idle && <span className="start-pos">/);
 });

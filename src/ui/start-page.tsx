@@ -3,9 +3,10 @@ import type { CSSProperties } from "react";
 import type { Side } from "../../shared/api.ts";
 import { count, isDone } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { FRESH_MS, begin, clock, extend, parse, phase, share, timerKey } from "../domain/routine-timer.ts";
+import { FRESH_MS, begin, clock, extend, phase, share } from "../domain/routine-timer.ts";
 import type { Timer } from "../domain/routine-timer.ts";
 import { useNow } from "../hooks/use-now.ts";
+import { timers } from "../store/browser.ts";
 import { chime } from "./chime.ts";
 import { Icon } from "./icons.tsx";
 import { text } from "./text.ts";
@@ -16,6 +17,7 @@ const start = copy.start;
 
 export type Moves = {
   routine: ItemRow;
+  me: Side;
   side: Side;
   day: string;
   say: (message: string) => void;
@@ -29,31 +31,15 @@ type Props = Moves & { page: ItemRow[] };
 
 const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string" ? (row.data[key] as string) : null);
 
-const read = (key: string) => {
-  try {
-    return parse(sessionStorage.getItem(key));
-  } catch {
-    return null;
-  }
-};
-
-const write = (key: string, timer: Timer | null) => {
-  try {
-    if (timer === null) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, JSON.stringify(timer));
-  } catch {}
-};
-
-function Timing({ action, minutes, finished, routine, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean }) {
-  const key = timerKey(routine.id, action.id);
-  const [timer, setTimer] = useState(() => read(key));
+function Timing({ action, minutes, finished, routine, me, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean }) {
+  const [timer, setTimer] = useState(() => timers.read(me, routine.id, action.id));
   const now = useNow(timer !== null);
   const current = phase(timer, now);
   const body = useRef<HTMLDivElement>(null);
   const seen = useRef<string | null>(null);
 
   const set = (next: Timer | null) => {
-    write(key, next);
+    timers.write(me, routine.id, action.id, next);
     setTimer(next);
   };
 
@@ -238,7 +224,7 @@ export function StartPage(props: Props) {
       <>
         {head}
         {body}
-        <Timing {...props} action={action} minutes={action.data.minutes} finished={finished} />
+        <Timing key={action.id} {...props} action={action} minutes={action.data.minutes} finished={finished} />
       </>
     );
   }

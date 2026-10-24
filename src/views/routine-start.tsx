@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn, dayLabel, keyFor } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { isOpen, openCount, pagesOf, position } from "../domain/routine-start.ts";
+import { clampTo, hasWork, isOpen, openCount, pagesOf, position, settled } from "../domain/routine-start.ts";
 import type { Page } from "../domain/routine-start.ts";
 import { actionsOf } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { useWakeLock } from "../hooks/use-wake-lock.ts";
+import { timers } from "../store/browser.ts";
 import { chime } from "../ui/chime.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
@@ -30,7 +31,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const actions = useMemo(() => actionsOf(items, routine).filter((action) => actionOccursOn(routine, action, day)), [items, routine, day]);
   const pages = useMemo(() => pagesOf(actions), [actions]);
   const side = keyFor(routine.who, me);
-  const [index, setIndex] = useState(() => position(pages, side, day));
+  const [index, setIndex] = useState(() => position(pages, side, day, timers.running(me, routine.id)));
   const [shown, setShown] = useState(day);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState<string[]>([]);
@@ -38,25 +39,33 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const { once } = useBusy();
   const root = useRef<HTMLElement>(null);
   const moved = useRef(false);
+  const since = useRef(performance.now());
+  const idle = !hasWork(pages, side, day);
   const at = Math.min(index, pages.length);
-  const page = pages[at] as Page | undefined;
+  const page = idle ? undefined : (pages[at] as Page | undefined);
+  const current = page?.[0].id ?? null;
   const total = pages.length;
   const dayName = dayLabel(actions, day);
 
   if (shown !== day) {
     setShown(day);
+    timers.keep(me, routine.id, null);
     setIndex(position(pages, side, day));
     setMessage(start.newDay);
   }
 
-  const exit = () => location.replace(`#/routines/${routine.id}`);
+  const exit = () => {
+    timers.keep(me, routine.id, null);
+    location.replace(`#/routines/${routine.id}`);
+  };
 
   const go = (to: number) => {
-    const clamped = Math.max(0, Math.min(to, total));
+    const clamped = clampTo(to, total);
     moved.current = true;
+    since.current = performance.now();
     setFailure([]);
     setIndex(clamped);
-    setMessage(clamped >= total ? start.finished : start.announce(clamped + 1, total, heading(pages[clamped])));
+    setMessage(clamped >= total ? "" : start.announce(clamped + 1, total, heading(pages[clamped])));
   };
 
   useEffect(() => {
@@ -64,6 +73,8 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     addEventListener("keydown", leave);
     return () => removeEventListener("keydown", leave);
   }, [routine.id]);
+
+  useEffect(() => timers.keep(me, routine.id, current), [me, routine.id, current]);
 
   useEffect(() => {
     if (!moved.current) return;
@@ -79,6 +90,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
 
   const moves = {
     routine,
+    me,
     side,
     day,
     say: setMessage,
@@ -101,6 +113,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   };
 
   const open = openCount(pages, side, day);
+  const ending = open === 0 ? start.finished : start.left(open);
   const upcoming = pages[at + 1];
 
   return (
@@ -110,18 +123,23 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
       data-full
       aria-label={routine.title}
       onPointerUp={touch}
+      onClickCapture={(event) => {
+        if (settled(since.current, performance.now())) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onKeyDown={(event) => {
         if (event.repeat) event.preventDefault();
       }}
     >
       <div className="start-head">
         <Title className="start-name">{routine.title}</Title>
-        <span className="start-pos">{start.position(Math.min(at + 1, total), total)}</span>
+        {!idle && <span className="start-pos">{start.position(Math.min(at + 1, total), total)}</span>}
         <button type="button" className="ib" aria-label={start.exit} onClick={exit}>
           <Icon name="close" />
         </button>
       </div>
-      {total > MAX_DOTS ? (
+      {idle ? null : total > MAX_DOTS ? (
         <div className="start-bar" aria-hidden="true">
           <span style={{ width: `${Math.round((at / total) * 100)}%` }} />
         </div>
@@ -133,13 +151,13 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
         </ol>
       )}
       {dayName !== null && <p className="start-meta">{copy.dayLabel(dayName)}</p>}
-      <div className="start-page" key={at}>
+      <div className="start-page" key={`${day}:${at}`}>
         {page !== undefined ? (
           <>
             <StartPage {...moves} page={page} />
             <p className="start-up">{upcoming === undefined ? start.last : start.up(label(upcoming))}</p>
           </>
-        ) : total === 0 ? (
+        ) : idle ? (
           <>
             <h2 className="start-title">{start.nothing}</h2>
             <div className="start-do">
@@ -150,7 +168,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
           </>
         ) : (
           <>
-            <h2 className="start-title">{open === 0 ? start.finished : start.left(open)}</h2>
+            <h2 className="start-title">{ending}</h2>
             {open === 0 && <p className="start-note">{start.finishedBody}</p>}
             <div className="start-do">
               {open > 0 && (
@@ -171,7 +189,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
         </p>
       )}
       <div className="start-foot">
-        <button type="button" className="secondary start-alt" disabled={at === 0 || total === 0} onClick={() => go(at - 1)}>
+        <button type="button" className="secondary start-alt" disabled={at === 0 || idle} onClick={() => go(at - 1)}>
           {start.back}
         </button>
         {page !== undefined && isOpen(page, side, day) && (
@@ -182,7 +200,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
       </div>
       {wake.state !== "idle" && <p className="hint start-awake">{wake.state === "held" ? start.awake : start.mayDim}</p>}
       <p className="visually-hidden" role="status">
-        {message}
+        {page === undefined && !idle ? ending : message}
       </p>
     </section>
   );

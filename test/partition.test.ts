@@ -5,12 +5,14 @@ import { createApi } from "../src/store/api.ts";
 import type { Fetch } from "../src/store/api.ts";
 import { memoryDisk, memoryPersistence } from "../src/store/memory.ts";
 import { createSession, sideHint } from "../src/store/partition.ts";
+import { timerStore } from "../src/store/timers.ts";
 import type { Disk, Persisted } from "../src/store/persistence.ts";
 import { paused } from "../src/store/store.ts";
 import type { Snapshot } from "../src/store/store.ts";
 import { failureOf } from "../src/ui/failure.ts";
 import { text } from "../src/ui/text.ts";
 import { screenFor } from "../src/domain/status.ts";
+import { begin, timerKey } from "../src/domain/routine-timer.ts";
 import { client, idOf, task, titles } from "./store-client.ts";
 import { createServer } from "./store-server.ts";
 import { createWorkerServer } from "./store-worker.ts";
@@ -49,6 +51,17 @@ const profile = async (server: Source, who: Side, { legacy, hint = null }: { leg
     return server.as(state.who)(url, init);
   };
   const timers: Timer[] = [];
+  const stored = new Map<string, string>();
+  const storage = {
+    get length() {
+      return stored.size;
+    },
+    key: (at: number) => [...stored.keys()][at] ?? null,
+    getItem: (key: string) => stored.get(key) ?? null,
+    setItem: (key: string, value: string) => void stored.set(key, value),
+    removeItem: (key: string) => void stored.delete(key),
+  };
+  const held = timerStore(storage);
   const later = (run: () => Promise<unknown>, ms: number) => {
     const timer = { ms, run, live: true };
     timers.push(timer);
@@ -59,6 +72,7 @@ const profile = async (server: Source, who: Side, { legacy, hint = null }: { leg
       disk: { ...disk, ...over },
       hint: { get: () => state.hint, set: (side) => void (state.hint = side) },
       api: (side) => createApi(fetcher, side),
+      purge: held.purge,
       ...(schedule ? { later: schedule } : {}),
     });
   const due = () => timers.filter((timer) => timer.live).map((timer) => timer.ms);
@@ -68,7 +82,7 @@ const profile = async (server: Source, who: Side, { legacy, hint = null }: { leg
     timer.live = false;
     await timer.run();
   };
-  return { state, raw, opened, tab, timers, due, fire };
+  return { state, raw, opened, tab, timers, due, fire, held, stored };
 };
 
 type Profile = Awaited<ReturnType<typeof profile>>;
@@ -901,4 +915,46 @@ test("opening a confirmed tab again while the network is down leaves it confirme
   assert.deepEqual([tab.getSnapshot().link, tab.getSnapshot().paused, p.due()], ["online", false, []]);
   idOf(await tab.create("items", task("Still writable")));
   assert.equal(tab.getSnapshot().pending, 1);
+});
+
+test("the timers of a side are removed from the shared tab storage when the other side is confirmed, and only then", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  const mine = (side: Side) => [...p.stored.keys()].filter((key) => key.startsWith(`wp.timer.${side}.`));
+  p.held.write("a", "private-routine", "action-1", begin(5, Date.now()));
+  p.held.write("b", "other-routine", "action-2", begin(5, Date.now()));
+
+  p.state.down = true;
+  p.state.hint = "a";
+  const offline = p.tab();
+  await offline.open();
+  assert.equal(offline.getSnapshot().link, "offline");
+  assert.deepEqual([mine("a").length, mine("b").length], [1, 1]);
+
+  p.state.down = false;
+  const again = p.tab();
+  await again.open();
+  assert.equal(again.getSnapshot().me, "a");
+  assert.deepEqual(mine("a"), [timerKey("a", "private-routine", "action-1")]);
+  assert.deepEqual(mine("b"), []);
+
+  p.state.who = "b";
+  const other = p.tab();
+  await other.open();
+  assert.equal(other.getSnapshot().me, "b");
+  assert.deepEqual([...p.stored.keys()], []);
+  assert.equal(p.held.read("a", "private-routine", "action-1"), null);
+  assert.equal(JSON.stringify([...p.stored]).includes("private-routine"), false);
+});
+
+test("a tab that changes side after its probe drops the timers of the side it leaves", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  const tab = p.tab();
+  await tab.open();
+  p.held.write("a", "private-routine", "action-1", begin(5, Date.now()));
+  p.state.who = "b";
+  await tab.open();
+  assert.equal(tab.getSnapshot().me, "b");
+  assert.deepEqual([...p.stored.keys()], []);
 });

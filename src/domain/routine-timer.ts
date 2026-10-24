@@ -1,3 +1,5 @@
+import type { Side } from "../../shared/api.ts";
+
 export type Timer = { end: number; ms: number };
 
 export type Phase = { name: "idle" } | { name: "running"; left: number; ms: number } | { name: "ended"; ago: number };
@@ -10,7 +12,16 @@ export const FRESH_MS = 120_000;
 
 const MINUTE = 60_000;
 
-export const timerKey = (routine: string, action: string) => `wp.timer.${routine}.${action}`;
+export const PREFIX = "wp.timer.";
+
+const KEY = /^wp\.timer\.([ab])\.([^.]+)\.([^.]+)$/;
+
+export const timerKey = (side: Side, routine: string, action: string) => `${PREFIX}${side}.${routine}.${action}`;
+
+export const keyOf = (key: string) => {
+  const found = KEY.exec(key);
+  return found === null ? null : { side: found[1] as Side, routine: found[2], action: found[3] };
+};
 
 export const begin = (minutes: number, now: number): Timer => ({ end: now + minutes * MINUTE, ms: minutes * MINUTE });
 
