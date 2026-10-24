@@ -42,7 +42,7 @@ test("the position derives from the ticks and is read again when the routine day
   assert.match(start, /useState\(\(\) => placeOf\(pages, position\(pages, side, day, timers\.running\(me, routine\.id\)\)\)\)/);
   assert.match(start, /if \(shown !== day\) \{\s*setShown\(day\);\s*timers\.keep\(me, routine\.id, null\);\s*setPlace\(placeOf\(pages, position\(pages, side, day\)\)\);\s*setMessage\(start\.newDay\);\s*\}/);
   assert.match(start, /const screen = screenOf\(pages, place, side, day\);\s*const \{ at, open \} = screen;/);
-  assert.match(start, /\} else if \(place\.id !== placeOf\(pages, at\)\.id\) \{\s*setPlace\(placeOf\(pages, at\)\);\s*\}/);
+  assert.match(start, /const followed = follow\(pages, place\);\s*if \(followed !== place\) setPlace\(followed\);/);
 });
 
 test("the countdown is derived from the stored end instant on every render, and nothing counts ticks", () => {
@@ -55,7 +55,7 @@ test("the countdown is derived from the stored end instant on every render, and 
   assert.match(hook, /const refresh = \(\) => setNow\(Date\.now\(\)\);/);
   for (const event of ["visibilitychange", "pageshow", "focus"]) assert.match(hook, new RegExp(`${event}", refresh`));
   assert.match(hook, /return \(\) => \{\s*clearInterval\(timer\);/);
-  assert.equal([...read("hooks/use-routines.ts").matchAll(/new Date\(/g)].length, 3);
+  assert.equal([...read("hooks/use-routines.ts").matchAll(/new Date\(/g)].length, 2);
 });
 
 test("the timer ends with a sound made after a tap, a vibration where there is one and a visual change, and the sound is honest about autoplay", () => {
@@ -148,7 +148,7 @@ test("the detail and the Today block lead into Start, and the strip shows on bot
 test("the sheet plans its save from the snapshot taken when it opened and from the live rows, through one helper", () => {
   const sheet = read("ui/routine-sheet.tsx");
   assert.match(sheet, /const \[opened\] = useState\(current\);/);
-  assert.match(sheet, /const plan = savePlan\(draft, opened, current, \(\) => crypto\.randomUUID\(\)\);/);
+  assert.match(sheet, /const plan = savePlan\(forTimetable\(draft, me\), opened, current, \(\) => crypto\.randomUUID\(\)\);/);
   assert.doesNotMatch(sheet, /planOf\(|const opened = /);
   assert.equal([...sheet.matchAll(/savePlan\(/g)].length, 1);
   assert.match(read("domain/routine-draft.ts"), /export const savePlan = \(draft: RoutineDraft, opened: Current \| null, current: Current \| null, newId: \(\) => string\): Plan => planOf\(draft, opened, current\?\.actions \?\? \[\], newId\);/);
