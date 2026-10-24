@@ -9,6 +9,7 @@ import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
 import type { Flows } from "./routine-flows.ts";
 import { daysLine } from "./routine-label.ts";
+import { Times } from "./timetable.tsx";
 import { text } from "./text.ts";
 
 const copy = text.routines;
@@ -43,7 +44,11 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
           <span className="row-b">
             <span className="title">{action.title}</span>
             <span className="meta">
-              {action.kind === "block" && <span>{copy.timeRange(word(action, "start_time") ?? "", word(action, "end_time"))}</span>}
+              {action.kind === "block" && (
+                <span>
+                  <Times start={word(action, "start_time") ?? ""} end={word(action, "end_time")} />
+                </span>
+              )}
               {word(action, "where") && <span>{word(action, "where")}</span>}
               {action.kind === "day_type" && <span>{copy.form.kind.day_type}</span>}
               {only && <span>{copy.daysOnly(only)}</span>}

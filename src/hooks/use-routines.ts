@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { routineDay } from "../../shared/routines.ts";
+import { routineDay, routineMinutes } from "../../shared/routines.ts";
 import { routineRows } from "../domain/routines.ts";
 import { routineFlows } from "../ui/routine-flows.ts";
 import { actions, useSnapshot } from "./use-store.ts";
 
-const REFRESH_MS = 60_000;
+const MINUTE_MS = 60_000;
 
-export const useRoutineDay = () => {
-  const [day, setDay] = useState(() => routineDay(new Date()));
+const REFRESH_MS = MINUTE_MS;
+
+const useReading = <T,>(read: () => T) => {
+  const [value, setValue] = useState(read);
   useEffect(() => {
-    const refresh = () => setDay(routineDay(new Date()));
+    const refresh = () => setValue(read());
     document.addEventListener("visibilitychange", refresh);
     const timer = setInterval(refresh, REFRESH_MS);
     return () => {
@@ -17,7 +19,14 @@ export const useRoutineDay = () => {
       clearInterval(timer);
     };
   }, []);
-  return day;
+  return value;
+};
+
+export const useRoutineDay = () => useReading(() => routineDay(new Date()));
+
+export const useRoutineClock = () => {
+  const now = new Date(useReading(() => Math.floor(new Date().getTime() / MINUTE_MS)) * MINUTE_MS);
+  return { day: routineDay(now), elapsed: routineMinutes(now) };
 };
 
 export const useRoutines = () => {

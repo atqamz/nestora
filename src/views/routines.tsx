@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Side } from "../../shared/api.ts";
-import { actionOccursOn, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
+import { TIMETABLE, actionOccursOn, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { blankDraft, copyDraft } from "../domain/routine-draft.ts";
 import { actionsOf, listing, routinesOf } from "../domain/routines.ts";
@@ -18,7 +18,7 @@ import { RoutineStart } from "./routine-start.tsx";
 
 const copy = text.routines;
 
-type Sheet = { kind: "new" } | { kind: "copy"; routine: ItemRow } | { kind: "pause"; routine: ItemRow } | null;
+type Sheet = { kind: "new" | "timetable" } | { kind: "copy"; routine: ItemRow } | { kind: "pause"; routine: ItemRow } | null;
 
 function Row({ routine, items, me, day, flows, onCopy, onPause }: { routine: ItemRow; items: readonly ItemRow[]; me: Side; day: string; flows: Flows; onCopy: () => void; onPause: () => void }) {
   const { busy, once } = useBusy();
@@ -86,6 +86,10 @@ function RoutineList() {
           <Icon name="plus" />
           {copy.new}
         </button>
+        <button type="button" className="secondary" onClick={() => setSheet({ kind: "timetable" })}>
+          <Icon name="plus" />
+          {copy.newTimetable}
+        </button>
       </div>
       {routines.length === 0 && <p className="empty">{copy.empty}</p>}
       {sections.map(({ owner, moments }) => (
@@ -103,7 +107,9 @@ function RoutineList() {
           ))}
         </section>
       ))}
-      {sheet?.kind === "new" && <RoutineSheet start={blankDraft(me)} current={null} me={me} today={day} flows={flows} onClose={() => setSheet(null)} />}
+      {(sheet?.kind === "new" || sheet?.kind === "timetable") && (
+        <RoutineSheet start={blankDraft(me, sheet.kind === "timetable" ? TIMETABLE : undefined)} current={null} me={me} today={day} flows={flows} onClose={() => setSheet(null)} />
+      )}
       {duplicated && (
         <RoutineSheet start={copyDraft(duplicated, actionsOf(items, duplicated), () => crypto.randomUUID())} current={null} me={me} today={day} duplicate={duplicated} flows={flows} onClose={() => setSheet(null)} />
       )}

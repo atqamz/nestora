@@ -128,14 +128,14 @@ test("no code path hands the screens a row the partition hides: private routines
 test("a custom moment comes after the known ones and before a routine with no moment, in the listing", () => {
   const rows = [
     routine("none", {}, { group_key: null }),
-    routine("custom b", {}, { group_key: "timetable" }),
+    routine("custom b", {}, { group_key: "late" }),
     routine("custom a", {}, { group_key: "afternoon" }),
     routine("evening", {}, { group_key: "evening" }),
     routine("morning", {}, { group_key: "morning" }),
     routine("demand", {}, { group_key: "on_demand" }),
   ];
   const [{ moments }] = listing(rows, "a");
-  assert.deepEqual(moments.map(({ key }) => key), ["morning", "on_demand", "evening", "afternoon", "timetable", null]);
+  assert.deepEqual(moments.map(({ key }) => key), ["morning", "on_demand", "evening", "afternoon", "late", null]);
   const today = todayBlocks(rows, "a", DAY).map((block) => block.routine.title);
   assert.deepEqual(today, ["morning", "demand", "evening", "custom a", "custom b", "none"]);
 });

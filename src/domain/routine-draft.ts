@@ -1,6 +1,6 @@
 import type { Side } from "../../shared/api.ts";
 import { ACTION_KINDS, DAY_CODES } from "../../shared/routines.ts";
-import { isUrl } from "../../shared/validate.ts";
+import { isTime, isUrl } from "../../shared/validate.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import { tables } from "../../shared/tables.ts";
 import type { ItemRow } from "../../shared/tables.ts";
@@ -39,7 +39,7 @@ export type RoutineDraft = {
   actions: ActionDraft[];
 };
 
-export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url"; code: "required" | "number" | "days" | "from" | "order" | "url" };
+export type Problem = { at: number | null; field: "title" | "days" | "from" | "minutes" | "qty" | "start" | "end" | "url"; code: "required" | "number" | "days" | "from" | "order" | "time" | "url" };
 
 export type Current = { routine: ItemRow; actions: readonly ItemRow[] };
 
@@ -79,7 +79,7 @@ const daysString = (days: readonly DayCode[]) => (days.length === 0 || days.leng
 
 export const blankAction = (kind: ActionKind, id: string): ActionDraft => ({ id, kind, title: "", heading: "", days: [], note: "", url: "", minutes: "", qty: "", unit: "", start: "", end: "", where: "" });
 
-export const blankDraft = (me: Side): RoutineDraft => ({ title: "", who: me, moment: "morning", days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", private: false, actions: [] });
+export const blankDraft = (me: Side, moment = "morning"): RoutineDraft => ({ title: "", who: me, moment, days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", private: false, actions: [] });
 
 const actionDraft = (row: ItemRow): ActionDraft => {
   const data = row.data ?? {};
@@ -134,8 +134,9 @@ const actionProblems = (action: ActionDraft, at: number): Problem[] => {
   if (action.kind === "timer" && NUMBER.test(action.minutes.trim()) && Number(action.minutes) < 1) found.push({ at, field: "minutes", code: "number" });
   if (action.kind === "counter" && (!NUMBER.test(action.qty.trim()) || Number(action.qty) < 1)) found.push({ at, field: "qty", code: empty(action.qty) ? "required" : "number" });
   if (action.kind === "step" && !empty(action.url) && !isUrl(action.url.trim())) found.push({ at, field: "url", code: "url" });
-  if (action.kind === "block" && empty(action.start)) found.push({ at, field: "start", code: "required" });
-  if (action.kind === "block" && !empty(action.start) && !empty(action.end) && action.end <= action.start) found.push({ at, field: "end", code: "order" });
+  if (action.kind === "block" && !isTime(action.start)) found.push({ at, field: "start", code: empty(action.start) ? "required" : "time" });
+  if (action.kind === "block" && !empty(action.end) && !isTime(action.end)) found.push({ at, field: "end", code: "time" });
+  if (action.kind === "block" && isTime(action.start) && isTime(action.end) && action.end <= action.start) found.push({ at, field: "end", code: "order" });
   return found;
 };
 

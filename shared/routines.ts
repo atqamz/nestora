@@ -7,6 +7,10 @@ export const ROUTINE_KINDS: readonly string[] = ["routine", ...ACTION_KINDS];
 
 export const isRoutineKind = (kind: string) => ROUTINE_KINDS.includes(kind);
 
+export const TIMETABLE = "timetable";
+
+export const isTimetable = (row: Pick<ItemRow, "kind" | "group_key">) => row.kind === "routine" && row.group_key?.trim() === TIMETABLE;
+
 export const DAY_CODES = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const;
 
 const DAY_START_HOUR = 4;
@@ -20,6 +24,8 @@ export type Schedule = { days?: string; every_weeks?: string; from?: string; unt
 export type Scheduled = { routine: ItemRow; actions: ItemRow[] };
 
 const HOUR = 3_600_000;
+
+const MINUTE = 60_000;
 
 const DAY = 24 * HOUR;
 
@@ -51,6 +57,11 @@ export const visible = <R extends ItemRow>(rows: readonly R[], side: Side | null
 };
 
 export const routineDay = (now: Date) => dateOf(now.getTime() + (UTC_OFFSET_HOURS - DAY_START_HOUR) * HOUR);
+
+export const routineMinutes = (now: Date) => {
+  const clock = (Math.floor(now.getTime() / MINUTE) + UTC_OFFSET_HOURS * 60) % (24 * 60);
+  return clock < DAY_START_HOUR * 60 ? clock + 24 * 60 : clock;
+};
 
 export const weekday = (date: string): DayCode => DAY_CODES[(((epochDay(date) + 3) % 7) + 7) % 7];
 

@@ -66,6 +66,8 @@ const isText = (v: unknown, max: number, multiline: boolean) =>
   !UNWANTED.test(multiline ? v.replace(/[\n\t]/g, "") : v) &&
   VISIBLE.test(v);
 
+export const isTime = (v: unknown) => typeof v === "string" && TIME.test(v);
+
 export const isUrl = (v: unknown) => {
   if (typeof v !== "string" || v.length > URL_MAX || !URL_SHAPE.test(v)) return false;
   try {
@@ -204,7 +206,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "dates" ? isDates(v)
     : type === "stages" ? isStages(v)
     : type === "photo" ? isPhoto(v)
-    : type === "time" ? typeof v === "string" && TIME.test(v)
+    : type === "time" ? isTime(v)
     : type === "days" ? isDays(v)
     : type === "isbn" ? isIsbn13(v)
     : type === "cover" ? isCover(v)

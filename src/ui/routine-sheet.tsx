@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Side } from "../../shared/api.ts";
-import { ACTION_KINDS, DAY_CODES } from "../../shared/routines.ts";
+import { ACTION_KINDS, DAY_CODES, TIMETABLE } from "../../shared/routines.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { KIND_FIELDS, LIMITS, blankAction, savePlan } from "../domain/routine-draft.ts";
 import type { ActionDraft, ActionKind, Current, Problem, RoutineDraft, Who } from "../domain/routine-draft.ts";
 import { MOMENTS } from "../domain/routines.ts";
+import { overlaps } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { Avatar, Pair } from "./avatar.tsx";
@@ -25,6 +26,8 @@ const form = copy.form;
 type Props = { start: RoutineDraft; current: Current | null; me: Side; today: string; duplicate?: ItemRow; flows: Flows; onClose: () => void };
 
 const message = (problem: Problem) => (problem.code === "required" ? form.problem[problem.field as "title"] : problem.code === "order" ? form.problem.end : form.problem[problem.code]);
+
+const KINDS_IN_TIMETABLE: readonly ActionKind[] = ["block"];
 
 function DayChips({ label, days, onChange, hint, error }: { label: string; days: readonly DayCode[]; onChange: (days: DayCode[]) => void; hint?: string; error?: string }) {
   return (
@@ -66,6 +69,8 @@ function ActionEditor({
   first,
   last,
   errors,
+  timetable,
+  clash,
   edit,
   move,
   remove,
@@ -75,6 +80,8 @@ function ActionEditor({
   first: boolean;
   last: boolean;
   errors: Record<string, string>;
+  timetable: boolean;
+  clash: string | null;
   edit: Edit;
   move: (step: -1 | 1) => void;
   remove: () => void;
@@ -82,6 +89,7 @@ function ActionEditor({
   const name = `${form.kind[action.kind]} ${index + 1}`;
   const label = action.title.trim() || name;
   const inline = KIND_FIELDS[action.kind].filter((field) => field !== "note");
+  const slot = timetable && action.kind === "block";
   return (
     <li className="rt-act" data-action={action.id}>
       <div className="rt-act-h">
@@ -109,6 +117,7 @@ function ActionEditor({
                 type: FIELD_TYPE[field],
                 value: action[field],
                 max: field in FIELD_MAX ? FIELD_MAX[field as keyof typeof FIELD_MAX] : undefined,
+                hint: slot && field === "end" ? form.endHint : undefined,
                 onChange: (value) => edit({ [field]: value }),
               }}
               error={errors[field]}
@@ -116,14 +125,18 @@ function ActionEditor({
           ))}
         </div>
       )}
-      <details className="rt-more">
-        <summary>{form.options}</summary>
-        {action.kind === "step" && (
-          <Field control={{ name: `note-${action.id}`, label: form.note, type: "note", value: action.note, max: LIMITS.note, onChange: (note) => edit({ note }) }} />
-        )}
-        <Field control={{ name: `heading-${action.id}`, label: form.heading, type: "text", value: action.heading, max: LIMITS.heading, onChange: (heading) => edit({ heading }) }} />
-        <DayChips label={form.actionDays} days={action.days} hint={form.actionDaysHint} onChange={(days) => edit({ days })} />
-      </details>
+      {slot && <DayChips label={form.days} days={action.days} hint={form.blockDaysHint} onChange={(days) => edit({ days })} />}
+      {clash !== null && <p className="hint rt-clash">{clash}</p>}
+      {!slot && (
+        <details className="rt-more">
+          <summary>{form.options}</summary>
+          {action.kind === "step" && (
+            <Field control={{ name: `note-${action.id}`, label: form.note, type: "note", value: action.note, max: LIMITS.note, onChange: (note) => edit({ note }) }} />
+          )}
+          <Field control={{ name: `heading-${action.id}`, label: form.heading, type: "text", value: action.heading, max: LIMITS.heading, onChange: (heading) => edit({ heading }) }} />
+          <DayChips label={form.actionDays} days={action.days} hint={form.actionDaysHint} onChange={(days) => edit({ days })} />
+        </details>
+      )}
     </li>
   );
 }
@@ -139,6 +152,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   const body = useRef<HTMLDivElement>(null);
   const creating = opened === null;
   const locked = draft.private;
+  const timetable = draft.moment === TIMETABLE;
 
   const set = (patch: Partial<RoutineDraft>) => setDraft((was) => ({ ...was, ...patch }));
   const editAction = (id: string): Edit => (patch) => setDraft((was) => ({ ...was, actions: was.actions.map((action) => (action.id === id ? { ...action, ...patch } : action)) }));
@@ -200,6 +214,9 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
 
   const own = errorsAt(null);
   const moments = [...MOMENTS.map(String), ...(draft.moment !== "" && !(MOMENTS as readonly string[]).includes(draft.moment) ? [draft.moment] : [])];
+  const clashes = overlaps(draft.actions, draft.days);
+  const clashLine = (at: number) =>
+    clashes[at].length === 0 ? null : form.overlaps(clashes[at].map((to) => draft.actions[to].title.trim() || `${form.kind.block} ${to + 1}`).join(", "));
   const everyChanged = (every: string) => set({ every, from: draft.from || (Number(every) > 1 ? today : "") });
 
   return (
@@ -238,7 +255,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
               options: [
                 { value: "a", label: label("a"), icon: <Avatar side="a" /> },
                 { value: "b", label: label("b"), icon: <Avatar side="b" /> },
-                { value: "both", label: text.both, icon: <Pair /> },
+                ...(timetable ? [] : [{ value: "both", label: text.both, icon: <Pair /> }]),
               ],
               onChange: (who) => set({ who: who as Who }),
             }}
@@ -253,10 +270,10 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
             choice: true,
             value: draft.moment,
             options: moments.map((value) => ({ value, label: momentLabel(value) })),
-            onChange: (moment) => set({ moment }),
+            onChange: (moment) => set(moment === TIMETABLE ? { moment, days: [...DAY_CODES], who: draft.who === "both" ? me : draft.who } : { moment }),
           }}
         />
-        <DayChips label={form.days} days={draft.days} onChange={(days) => set({ days })} error={own.days} />
+        {!timetable && <DayChips label={form.days} days={draft.days} onChange={(days) => set({ days })} error={own.days} />}
         <Field
           control={{
             name: "routine-every",
@@ -286,6 +303,8 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
                 first={index === 0}
                 last={index === draft.actions.length - 1}
                 errors={errorsAt(index)}
+                timetable={timetable}
+                clash={clashLine(index)}
                 edit={editAction(action.id)}
                 move={(step) => move(action.id, step)}
                 remove={() => remove(action.id)}
@@ -294,7 +313,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
           </ol>
         )}
         <div className="rt-add" role="group" aria-label={form.actions}>
-          {ACTION_KINDS.map((kind) => (
+          {ACTION_KINDS.filter((kind) => !timetable || KINDS_IN_TIMETABLE.includes(kind)).map((kind) => (
             <button key={kind} type="button" className="secondary" aria-label={form.addNamed[kind]} onClick={() => add(kind)}>
               <Icon name="plus" />
               {form.addKinds[kind]}

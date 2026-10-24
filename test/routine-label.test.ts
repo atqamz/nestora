@@ -11,9 +11,9 @@ const TODAY = "2026-10-26";
 const routine = (data: Record<string, unknown> | null): ItemRow => item({ kind: "routine", status: null, who: "a", title: "Morning routine", data });
 
 test("a moment is named from the fixed list, falls back to the typed text, and none reads as Other", () => {
-  assert.deepEqual(["morning", "on_demand", "evening"].map(momentLabel), ["Morning", "On demand", "Evening"]);
+  assert.deepEqual(["morning", "on_demand", "evening", "timetable"].map(momentLabel), ["Morning", "On demand", "Evening", "Timetable"]);
   assert.equal(momentLabel(null), "Other");
-  assert.equal(momentLabel("timetable"), "timetable");
+  assert.equal(momentLabel("late"), "late");
   assert.equal(momentLabel("constructor"), "constructor");
   assert.equal(momentLabel("toString"), "toString");
 });
