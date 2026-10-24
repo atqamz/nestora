@@ -169,3 +169,58 @@
   width: 1.25rem;
   height: 1.25rem;
 }
+
+.feed > h2 {
+  margin-top: var(--s7);
+}
+
+.feed > h3 {
+  margin: var(--s5) 0 var(--s2);
+  font-size: 1rem;
+}
+
+.feed > p,
+.feed-status,
+.feed-steps {
+  margin: var(--s2) 0 0;
+}
+
+.feed-status {
+  font-weight: 550;
+}
+
+.feed-steps {
+  padding-left: var(--s5);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+}
+
+.feed-link {
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-group);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.feed-link input {
+  min-width: 0;
+  width: 100%;
+}
+
+.feed-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s3);
+}
+
+.feed-acts > button {
+  margin-left: 0;
+}
+
+.feed-secret {
+  color: var(--ink);
+}

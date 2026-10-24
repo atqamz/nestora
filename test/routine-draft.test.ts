@@ -458,7 +458,7 @@ test("an action removed in the sheet and edited elsewhere is still deleted, and 
 
 test("a new draft and a new action start empty, and Save refuses them until each is named", () => {
   assert.deepEqual(blankAction("step", "id-1"), { id: "id-1", kind: "step", title: "", heading: "", days: [], note: "", url: "", minutes: "", qty: "", unit: "", start: "", end: "", where: "" });
-  assert.deepEqual(blankDraft("b"), { title: "", who: "b", moment: "morning", days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", private: false, actions: [] });
+  assert.deepEqual(blankDraft("b"), { title: "", who: "b", moment: "morning", days: [...DAY_CODES], every: "1", from: "", pausedUntil: "", start: "", duration: "", private: false, actions: [] });
   assert.deepEqual(problemsOf({ ...blankDraft("a"), actions: [blankAction("step", "id-1")] }).map((problem) => [problem.at, problem.field, problem.code]), [[null, "title", "required"], [0, "title", "required"]]);
   assert.deepEqual(problemsOf({ ...blankDraft("a"), title: "x", actions: [blankAction("timer", "id-1"), blankAction("counter", "id-2"), blankAction("block", "id-3")] }).map((problem) => [problem.at, problem.field]), [[0, "title"], [0, "minutes"], [1, "title"], [1, "qty"], [2, "title"], [2, "start"]]);
 });
