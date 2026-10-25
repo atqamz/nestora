@@ -387,6 +387,37 @@ test("by default a search waits 400 ms for a pause in typing and gives up on a s
   }
 });
 
+test("an answer is served from memory for under an hour and fetched again from an hour on", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
+    const lookup = createLookup({ worker: false, fetcher, wait: 1 });
+    await lookup.search(input("laskar"));
+    mock.timers.setTime(1_800_000_000_000 + 3_599_999);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 1);
+    mock.timers.setTime(1_800_000_000_000 + 3_600_000);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("an answer stamped in the future is refused", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
+    const lookup = createLookup({ worker: false, fetcher, wait: 1 });
+    await lookup.search(input("laskar"));
+    mock.timers.setTime(1_800_000_000_000 - 1);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test("by default the memory holds 50 answers and forgets the oldest first", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
   const lookup = createLookup({ worker: false, fetcher, wait: 1 });

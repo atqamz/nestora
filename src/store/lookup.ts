@@ -24,6 +24,8 @@ const delayOf = (header: string | null) => {
 
 type Options = { fetcher?: Fetcher; online?: () => boolean; wait?: number; timeout?: number; remember?: number; worker?: boolean };
 
+const CACHE_MS = 3_600_000;
+
 const ours = (res: Response) => [429, 502, 503].includes(res.status) && res.headers.get("content-type")?.includes("application/json") === true;
 
 export const createLookup = ({
@@ -36,7 +38,7 @@ export const createLookup = ({
 }: Options = {}): Lookup => {
   let current: AbortController | null = null;
   let searching = false;
-  const cache = new Map<string, unknown>();
+  const cache = new Map<string, { value: unknown; at: number }>();
 
   const begin = (search = false) => {
     current?.abort();
@@ -52,7 +54,12 @@ export const createLookup = ({
     });
 
   const get = async <T>(signal: AbortSignal, url: string, parse: (body: unknown) => T, own = false): Promise<Outcome<T>> => {
-    if (cache.has(url)) return { kind: "ok", value: cache.get(url) as T };
+    const kept = cache.get(url);
+    if (kept !== undefined) {
+      const age = Date.now() - kept.at;
+      if (age >= 0 && age < CACHE_MS) return { kind: "ok", value: kept.value as T };
+      cache.delete(url);
+    }
     if (!online()) return { kind: "offline" };
     const limit = new AbortController();
     let late = false;
@@ -81,7 +88,7 @@ export const createLookup = ({
       clearTimeout(timer);
     }
     if (cache.size >= remember) cache.delete(cache.keys().next().value as string);
-    cache.set(url, value);
+    cache.set(url, { value, at: Date.now() });
     return signal.aborted ? { kind: "stale" } : { kind: "ok", value };
   };
 

@@ -71,8 +71,8 @@ const recall = async (store: Store | null, key: Request): Promise<Hit[] | null> 
   try {
     const hit = await store?.match(key);
     if (hit === undefined) return null;
-    const { hits, at } = (await hit.json()) as { hits: Hit[] | null; at: number };
-    const age = Date.now() - at;
+    const { hits, at } = (await hit.json()) as { hits: Hit[] | null; at: unknown };
+    const age = typeof at === "number" ? Date.now() - at : NaN;
     return Array.isArray(hits) && age >= 0 && age < CACHE_SECONDS * 1000 ? hits : null;
   } catch {
     return null;

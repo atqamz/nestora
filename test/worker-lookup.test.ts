@@ -180,7 +180,7 @@ test("an entry stamped in the future, without a stamp or with a bad one is not s
   mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
   try {
     const hits = [{ source: "google", work: "Vol1AbCdEfGh", title: "Stored", author: "", year: null, cover: null, isbns: [], language: null, blurb: null }];
-    for (const stored of [{ hits, at: 1_800_000_000_001 }, { hits }, { hits, at: "now" }, { hits, at: null }, { hits, at: Number.NaN }]) {
+    for (const stored of [{ hits, at: 1_800_000_000_001 }, { hits }, { hits, at: "now" }, { hits, at: "1800000000000" }, { hits, at: null }, { hits, at: Number.NaN }]) {
       const t = setup(laskar);
       const key = `https://lookup.invalid/v1?${new URLSearchParams({ title: "laskar pelangi", author: "andrea hirata" })}`;
       await t.cache.store.put(new Request(key), Response.json(stored));
