@@ -1,0 +1,239 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 4,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "Pk1AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Pk1AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Pangeran Kecil (Le Petit Prince)",
+        "authors": [
+          "Antoine de Saint-Exupéry"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2003",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9789796069088"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Pk1AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Pk1AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "id",
+        "previewLink": "http://books.google.com/books?id=Pk1AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Pk1AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Pk1AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Pk1AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Pk2AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Pk2AbCdEfGhI",
+      "volumeInfo": {
+        "title": "The Little Prince",
+        "authors": [
+          "Antoine de Saint-Exupéry"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "1943",
+        "description": "Invented blurb of a boy and a fox.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9780156012195"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Pk2AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Pk2AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "en",
+        "previewLink": "http://books.google.com/books?id=Pk2AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Pk2AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Pk2AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Pk2AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Pk3AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Pk3AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Le Petit Prince",
+        "authors": [
+          "Antoine de Saint-Exupéry"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "1999",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9782070612758"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Pk3AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Pk3AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "fr",
+        "previewLink": "http://books.google.com/books?id=Pk3AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Pk3AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Pk3AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Pk3AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Pk4AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Pk4AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Pangeran Kecil",
+        "authors": [
+          "Gramedia Anak"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2020",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9786020000015"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Pk4AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Pk4AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "id",
+        "previewLink": "http://books.google.com/books?id=Pk4AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Pk4AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Pk4AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Pk4AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    }
+  ]
+}

@@ -39,7 +39,7 @@ const input = (title: string, author = "", original = "") => ({ title, author, o
 
 test("a search is one request with the query, no credentials and no referrer, and nothing else", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const out = await lookup.search(input("Laskar Pelangi"));
   assert.equal(out.kind, "ok");
   assert.equal(out.kind === "ok" && out.value[0].title, "Laskar Pelangi");
@@ -55,7 +55,7 @@ test("a search is one request with the query, no credentials and no referrer, an
 
 test("the default debounce is a pause in typing of a few hundred milliseconds", async () => {
   const { calls, fetcher } = server(() => reply(sample("bumi-manusia-search")));
-  const search = createLookup({ fetcher }).search(input("bumi"));
+  const search = createLookup({ worker: false, fetcher }).search(input("bumi"));
   await tick(150);
   assert.equal(calls.length, 0);
   assert.equal((await search).kind, "ok");
@@ -64,7 +64,7 @@ test("the default debounce is a pause in typing of a few hundred milliseconds", 
 
 test("typing is debounced: only the last of several quick searches reaches the network, and the others are stale", async () => {
   const { calls, fetcher } = server(() => reply(sample("bumi-manusia-search")));
-  const lookup = createLookup({ fetcher, wait: 30 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 30 });
   const outs = [lookup.search(input("bum")), lookup.search(input("bumi")), lookup.search(input("bumi manusia"))];
   assert.deepEqual((await Promise.all(outs)).map((out) => out.kind), ["stale", "stale", "ok"]);
   assert.equal(calls.length, 1);
@@ -74,7 +74,7 @@ test("typing is debounced: only the last of several quick searches reaches the n
 test("a new search aborts the request in flight and its late answer is stale", async () => {
   const slow = deferred<Response>();
   const { calls, fetcher } = server((url) => (url.includes("q=first") ? slow.promise : reply(sample("bumi-manusia-search"))));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const first = lookup.search(input("first"));
   await tick(20);
   assert.equal(calls.length, 1);
@@ -93,7 +93,7 @@ test("an answer that arrives after a newer search began is stale even when the f
     if (calls.length === 1) await release.promise;
     return reply(sample("bumi-manusia-search"));
   };
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const first = lookup.search(input("first"));
   await tick(20);
   const second = lookup.search(input("second"));
@@ -105,7 +105,7 @@ test("an answer that arrives after a newer search began is stale even when the f
 test("one lookup at a time: starting a lookup by ISBN or a description aborts the search before it", async () => {
   const hold = deferred<Response>();
   const { calls, fetcher } = server((url) => (url.includes("/works/") ? reply({ description: "About." }) : hold.promise));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const search = lookup.search(input("laskar"));
   await tick(20);
   const blurb = await lookup.blurb("OL15302003W");
@@ -117,7 +117,7 @@ test("one lookup at a time: starting a lookup by ISBN or a description aborts th
 
 test("cancel aborts what is in flight", async () => {
   const { calls, fetcher } = server(() => new Promise<Response>(() => {}));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const search = lookup.search(input("laskar"));
   await tick(20);
   lookup.cancel();
@@ -127,7 +127,7 @@ test("cancel aborts what is in flight", async () => {
 
 test("a search superseded during its pause answers at once instead of after the pause", async () => {
   const { calls, fetcher } = server(() => reply(sample("bumi-manusia-search")));
-  const lookup = createLookup({ fetcher, wait: 400 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 400 });
   const first = lookup.search(input("bumi"));
   const started = Date.now();
   const second = lookup.search(input("bumi manusia"));
@@ -139,7 +139,7 @@ test("a search superseded during its pause answers at once instead of after the 
 
 test("a lookup by ISBN aborts the search in flight", async () => {
   const { calls, fetcher } = server((url) => (url.includes("isbn=") ? reply(sample("laskar-pelangi-isbn")) : new Promise<Response>(() => {})));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const search = lookup.search(input("laskar"));
   await tick(20);
   assert.equal((await lookup.byIsbn("9789793062792")).kind, "ok");
@@ -149,7 +149,7 @@ test("a lookup by ISBN aborts the search in flight", async () => {
 
 test("cancel during the debounce stops the request before it is made", async () => {
   const { calls, fetcher } = server(() => reply(sample("bumi-manusia-search")));
-  const lookup = createLookup({ fetcher, wait: 30 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 30 });
   const search = lookup.search(input("laskar"));
   lookup.cancel();
   assert.equal((await search).kind, "stale");
@@ -159,7 +159,7 @@ test("cancel during the debounce stops the request before it is made", async () 
 
 test("an answer is remembered for the session, so the same search is not asked twice and answers at once", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const first = await lookup.search(input("Laskar Pelangi"));
   const again = await lookup.search(input("Laskar Pelangi"));
   assert.deepEqual(again, first);
@@ -170,7 +170,7 @@ test("an answer is remembered for the session, so the same search is not asked t
 
 test("by default the memory holds many answers, not just the last", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   for (const title of ["one", "two", "three", "four"]) await lookup.search(input(title));
   for (const title of ["one", "two", "three", "four"]) await lookup.search(input(title));
   assert.equal(calls.length, 4);
@@ -179,7 +179,7 @@ test("by default the memory holds many answers, not just the last", async () => 
 test("a failure is not remembered: asking again asks again", async () => {
   let up = false;
   const { calls, fetcher } = server(() => (up ? reply(sample("laskar-pelangi-search")) : reply({}, 500)));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   assert.equal((await lookup.search(input("laskar"))).kind, "failed");
   up = true;
   assert.equal((await lookup.search(input("laskar"))).kind, "ok");
@@ -188,7 +188,7 @@ test("a failure is not remembered: asking again asks again", async () => {
 
 test("the memory holds a bounded number of answers and forgets the oldest first", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1, remember: 2 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, remember: 2 });
   for (const title of ["one", "two", "three"]) await lookup.search(input(title));
   assert.equal(calls.length, 3);
   await lookup.search(input("three"));
@@ -200,7 +200,7 @@ test("the memory holds a bounded number of answers and forgets the oldest first"
 
 test("when the title finds nothing the original title is searched with the same author, and its hits are returned", async () => {
   const { calls, fetcher } = server((url) => (url.includes("q=Pangeran") ? reply({ docs: [] }) : reply(sample("little-prince-search"))));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const out = await lookup.search(input("Pangeran Kecil", "Antoine", "Le Petit Prince"));
   assert.equal(out.kind === "ok" && out.value[0].work, "OL10263W");
   assert.deepEqual(calls.map((call) => new URL(call.url).searchParams.get("q")), ["Pangeran Kecil Antoine", "Le Petit Prince Antoine"]);
@@ -208,48 +208,48 @@ test("when the title finds nothing the original title is searched with the same 
 
 test("the original title is not searched when the title already found something, or when there is none", async () => {
   const found = server(() => reply(sample("little-prince-search")));
-  await createLookup({ fetcher: found.fetcher, wait: 1 }).search(input("Le Petit Prince", "", "Le Petit Prince"));
+  await createLookup({ worker: false, fetcher: found.fetcher, wait: 1 }).search(input("Le Petit Prince", "", "Le Petit Prince"));
   assert.equal(found.calls.length, 1);
   const none = server(() => reply({ docs: [] }));
-  const out = await createLookup({ fetcher: none.fetcher, wait: 1 }).search(input("zzzz"));
+  const out = await createLookup({ worker: false, fetcher: none.fetcher, wait: 1 }).search(input("zzzz"));
   assert.deepEqual(out, { kind: "ok", value: [] });
   assert.equal(none.calls.length, 1);
 });
 
 test("a search with nothing to ask makes no request and finds nothing", async () => {
   const { calls, fetcher } = server(() => reply({}));
-  assert.deepEqual(await createLookup({ fetcher, wait: 1 }).search(input("", "Antoine", "")), { kind: "ok", value: [] });
+  assert.deepEqual(await createLookup({ worker: false, fetcher, wait: 1 }).search(input("", "Antoine", "")), { kind: "ok", value: [] });
   assert.equal(calls.length, 0);
 });
 
 test("a lookup by ISBN is one search by that ISBN and returns the best hit", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-isbn")));
-  const lookup = createLookup({ fetcher });
+  const lookup = createLookup({ worker: false, fetcher });
   const out = await lookup.byIsbn("9789793062792");
   assert.equal(out.kind === "ok" && out.value?.work, "OL15302003W");
   assert.equal(new URL(calls[0].url).searchParams.get("isbn"), "9789793062792");
   assert.equal(calls.length, 1);
   assert.deepEqual(await lookup.byIsbn("9789793062792"), out);
   assert.equal(calls.length, 1);
-  assert.deepEqual(await createLookup({ fetcher: server(() => reply({ docs: [] })).fetcher }).byIsbn("9780156012195"), { kind: "ok", value: null });
+  assert.deepEqual(await createLookup({ worker: false, fetcher: server(() => reply({ docs: [] })).fetcher }).byIsbn("9780156012195"), { kind: "ok", value: null });
 });
 
 test("a lookup by ISBN takes the hit that carries the ISBN even when it is not the first", async () => {
   const body = { docs: [{ key: "/works/OL1W", title: "A" }, { key: "/works/OL2W", title: "B", editions: { docs: [{ isbn: ["9789793062792"] }] } }] };
-  const out = await createLookup({ fetcher: server(() => reply(body)).fetcher }).byIsbn("9789793062792");
+  const out = await createLookup({ worker: false, fetcher: server(() => reply(body)).fetcher }).byIsbn("9789793062792");
   assert.equal(out.kind === "ok" && out.value?.work, "OL2W");
 });
 
 test("a description is fetched from the work and cut to its first paragraph", async () => {
   const { calls, fetcher } = server(() => reply(sample("little-prince-work")));
-  const out = await createLookup({ fetcher }).blurb("OL10263W");
+  const out = await createLookup({ worker: false, fetcher }).blurb("OL10263W");
   assert.equal(calls[0].url, "https://openlibrary.org/works/OL10263W.json");
   assert.match(out.kind === "ok" ? (out.value ?? "") : "", /^\*Le Petit Prince\* est une œuvre/);
 });
 
 test("offline: no request is made, and the lookup says so", async () => {
   const { calls, fetcher } = server(() => reply({}));
-  const lookup = createLookup({ fetcher, wait: 1, online: () => false });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, online: () => false });
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "offline" });
   assert.deepEqual(await lookup.byIsbn("9789793062792"), { kind: "offline" });
   assert.deepEqual(await lookup.blurb("OL1W"), { kind: "offline" });
@@ -259,28 +259,28 @@ test("offline: no request is made, and the lookup says so", async () => {
 test("a remembered answer is still shown offline", async () => {
   let online = true;
   const { fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1, online: () => online });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, online: () => online });
   await lookup.search(input("laskar"));
   online = false;
   assert.equal((await lookup.search(input("laskar"))).kind, "ok");
 });
 
 test("a request that cannot connect is offline", async () => {
-  const lookup = createLookup({ fetcher: () => Promise.reject(new TypeError("Failed to fetch")), wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher: () => Promise.reject(new TypeError("Failed to fetch")), wait: 1 });
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "offline" });
 });
 
 test("every status but 200 is a failure, 429 and 5xx say it is worth retrying, and so is a body that is not JSON", async () => {
   for (const status of [204, 301, 400, 403, 404]) {
-    const lookup = createLookup({ fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
+    const lookup = createLookup({ worker: false, fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
     assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed" }, String(status));
   }
   for (const status of [429, 500, 503, 599]) {
-    const lookup = createLookup({ fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
+    const lookup = createLookup({ worker: false, fetcher: server(() => reply({}, status)).fetcher, wait: 1 });
     assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed", retry: 0 }, String(status));
   }
-  assert.deepEqual(await createLookup({ fetcher: server(() => reply({}, 499)).fetcher, wait: 1 }).search(input("laskar")), { kind: "failed" });
-  const lookup = createLookup({ fetcher: server(() => reply("<html>")).fetcher, wait: 1 });
+  assert.deepEqual(await createLookup({ worker: false, fetcher: server(() => reply({}, 499)).fetcher, wait: 1 }).search(input("laskar")), { kind: "failed" });
+  const lookup = createLookup({ worker: false, fetcher: server(() => reply("<html>")).fetcher, wait: 1 });
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "failed" });
   assert.deepEqual(await lookup.blurb("OL1W"), { kind: "failed" });
 });
@@ -288,7 +288,7 @@ test("every status but 200 is a failure, 429 and 5xx say it is worth retrying, a
 test("a Retry-After header is read as seconds or as a date and passed on, and nonsense or a past date means no wait", async () => {
   const after = async (value: string | null) => {
     const headers: Record<string, string> = value === null ? {} : { "retry-after": value };
-    const out = await createLookup({ fetcher: server(() => new Response("{}", { status: 429, headers })).fetcher, wait: 1 }).search(input("laskar"));
+    const out = await createLookup({ worker: false, fetcher: server(() => new Response("{}", { status: 429, headers })).fetcher, wait: 1 }).search(input("laskar"));
     return out.kind === "failed" ? out.retry : undefined;
   };
   assert.equal(await after("12"), 12_000);
@@ -305,7 +305,7 @@ test("a Retry-After header is read as seconds or as a date and passed on, and no
 });
 
 test("a stopped lookup is stale even when the server said it was busy", async () => {
-  const lookup = createLookup({ fetcher: server(() => new Response("{}", { status: 503 })).fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher: server(() => new Response("{}", { status: 503 })).fetcher, wait: 1 });
   const pending = lookup.search(input("laskar"));
   lookup.stop();
   assert.deepEqual(await pending, { kind: "stale" });
@@ -313,7 +313,7 @@ test("a stopped lookup is stale even when the server said it was busy", async ()
 
 test("a very slow answer is cut off at the timeout and reported as slow, and the request is aborted", async () => {
   const { calls, fetcher } = server(() => new Promise<Response>(() => {}));
-  const lookup = createLookup({ fetcher, wait: 1, timeout: 30 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, timeout: 30 });
   const started = Date.now();
   assert.deepEqual(await lookup.search(input("laskar")), { kind: "slow" });
   assert.ok(Date.now() - started >= 25);
@@ -332,13 +332,13 @@ test("a body that stalls after the headers also times out", async () => {
         { status: 200 },
       ),
     );
-  assert.deepEqual(await createLookup({ fetcher: stalled, wait: 1, timeout: 30 }).search(input("laskar")), { kind: "slow" });
+  assert.deepEqual(await createLookup({ worker: false, fetcher: stalled, wait: 1, timeout: 30 }).search(input("laskar")), { kind: "slow" });
 });
 
 test("after a timeout the next search works", async () => {
   let slow = true;
   const { fetcher } = server(() => (slow ? new Promise<Response>(() => {}) : reply(sample("laskar-pelangi-search"))));
-  const lookup = createLookup({ fetcher, wait: 1, timeout: 20 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, timeout: 20 });
   assert.equal((await lookup.search(input("laskar"))).kind, "slow");
   slow = false;
   assert.equal((await lookup.search(input("laskar"))).kind, "ok");
@@ -346,7 +346,7 @@ test("after a timeout the next search works", async () => {
 
 test("a fast answer does not leave a timer that aborts later requests", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1, timeout: 30 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1, timeout: 30 });
   await lookup.search(input("laskar"));
   await tick(60);
   assert.equal(calls[0].init.signal?.aborted, false);
@@ -354,11 +354,11 @@ test("a fast answer does not leave a timer that aborts later requests", async ()
 
 test("the original title is not searched when the title already found something or already failed", async () => {
   const found = server(() => reply(sample("laskar-pelangi-search")));
-  const out = await createLookup({ fetcher: found.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince"));
+  const out = await createLookup({ worker: false, fetcher: found.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince"));
   assert.equal(out.kind, "ok");
   assert.equal(found.calls.length, 1);
   const down = server(() => reply({}, 500));
-  assert.deepEqual(await createLookup({ fetcher: down.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince")), { kind: "failed", retry: 0 });
+  assert.deepEqual(await createLookup({ worker: false, fetcher: down.fetcher, wait: 1 }).search(input("Laskar Pelangi", "", "Le Petit Prince")), { kind: "failed", retry: 0 });
   assert.equal(down.calls.length, 1);
 });
 
@@ -366,7 +366,7 @@ test("by default a search waits 400 ms for a pause in typing and gives up on a s
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
     const { calls, fetcher } = server(() => new Promise<Response>(() => {}));
-    const search = createLookup({ fetcher }).search(input("laskar"));
+    const search = createLookup({ worker: false, fetcher }).search(input("laskar"));
     let outcome: unknown = null;
     void search.then((out) => (outcome = out));
     const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -387,9 +387,40 @@ test("by default a search waits 400 ms for a pause in typing and gives up on a s
   }
 });
 
+test("an answer is served from memory for under an hour and fetched again from an hour on", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
+    const lookup = createLookup({ worker: false, fetcher, wait: 1 });
+    await lookup.search(input("laskar"));
+    mock.timers.setTime(1_800_000_000_000 + 3_599_999);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 1);
+    mock.timers.setTime(1_800_000_000_000 + 3_600_000);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("an answer stamped in the future is refused", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
+    const lookup = createLookup({ worker: false, fetcher, wait: 1 });
+    await lookup.search(input("laskar"));
+    mock.timers.setTime(1_800_000_000_000 - 1);
+    await lookup.search(input("laskar"));
+    assert.equal(calls.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test("by default the memory holds 50 answers and forgets the oldest first", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   for (let n = 0; n <= 50; n++) await lookup.search(input(`title ${n}`));
   assert.equal(calls.length, 51);
   await lookup.search(input("title 50"));
@@ -401,7 +432,7 @@ test("by default the memory holds 50 answers and forgets the oldest first", asyn
 
 test("by default the lookup is online unless the browser says it is offline", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-search")));
-  const lookup = createLookup({ fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher, wait: 1 });
   const set = (value: boolean | undefined) => Object.defineProperty(navigator, "onLine", { value, configurable: true });
   try {
     set(false);
@@ -421,7 +452,7 @@ test("cancel stops a search but leaves a lookup by ISBN or of a description alon
   for (const start of [(lookup: ReturnType<typeof createLookup>) => lookup.byIsbn("9789793062792"), (lookup: ReturnType<typeof createLookup>) => lookup.blurb("OL15302003W")]) {
     const hold = deferred<Response>();
     const { calls, fetcher } = server(() => hold.promise);
-    const lookup = createLookup({ fetcher, wait: 1 });
+    const lookup = createLookup({ worker: false, fetcher, wait: 1 });
     const pending = start(lookup);
     await tick(5);
     lookup.cancel();
@@ -432,7 +463,7 @@ test("cancel stops a search but leaves a lookup by ISBN or of a description alon
 });
 
 test("a search outcome becomes a state; a stale one is idle, not busy", () => {
-  const [hit] = [{ work: "OL1W", title: "A", author: "", year: null, coverId: null, isbn: null, language: null }];
+  const [hit] = [{ source: "openlibrary" as const, work: "OL1W", title: "A", author: "", year: null, cover: null, isbns: [], language: null, blurb: null }];
   assert.deepEqual(searchOf({ kind: "ok", value: [hit] }), { state: "found", hits: [hit] });
   assert.deepEqual(searchOf({ kind: "ok", value: [] }), { state: "empty", hits: [] });
   for (const kind of ["offline", "failed", "slow"] as const) assert.deepEqual(searchOf({ kind }), { state: kind, hits: [] });
@@ -440,7 +471,7 @@ test("a search outcome becomes a state; a stale one is idle, not busy", () => {
 });
 
 const watched = (fetch: Fetcher) => {
-  const lookup = createLookup({ fetcher: fetch, wait: 30 });
+  const lookup = createLookup({ worker: false, fetcher: fetch, wait: 30 });
   const states: Search["state"][] = [];
   const set = (next: Search) => states.push(next.state);
   return { lookup, states, set };
@@ -505,7 +536,7 @@ const bookOf = (title: string, data: Record<string, unknown> | null = null) => (
 
 test("filling from an ISBN is a patch for the book it belongs to", async () => {
   const { calls, fetcher } = server((url) => reply(url.includes("/works/") ? sample("laskar-pelangi-work") : sample("laskar-pelangi-isbn")));
-  const out = await fillBook(createLookup({ fetcher }), "9789793062792", () => bookOf("Laskar Pelangi"));
+  const out = await fillBook(createLookup({ worker: false, fetcher }), "9789793062792", () => bookOf("Laskar Pelangi"));
   assert.equal(out.kind, "patch");
   const patch = out.kind === "patch" ? out.patch : {};
   assert.deepEqual(Object.keys(patch).sort(), ["author", "blurb", "cover", "language", "ol"]);
@@ -515,14 +546,14 @@ test("filling from an ISBN is a patch for the book it belongs to", async () => {
 
 test("filling a book that is not the work of the ISBN says so and asks for nothing more", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-isbn")));
-  assert.deepEqual(await fillBook(createLookup({ fetcher }), "9789793062792", () => bookOf("Pangeran Kecil")), { kind: "mismatch" });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher }), "9789793062792", () => bookOf("Pangeran Kecil")), { kind: "mismatch" });
   assert.equal(calls.length, 1);
 });
 
 test("the patch is made from the book as it is when the answer arrives", async () => {
   const { fetcher } = server((url) => reply(url.includes("/works/") ? sample("laskar-pelangi-work") : sample("laskar-pelangi-isbn")));
   let book = bookOf("Laskar Pelangi");
-  const lookup = createLookup({ fetcher });
+  const lookup = createLookup({ worker: false, fetcher });
   const filling = fillBook(lookup, "9789793062792", () => book);
   book = bookOf("Laskar Pelangi", { author: "Partner A", blurb: "Mine" });
   const out = await filling;
@@ -532,16 +563,16 @@ test("the patch is made from the book as it is when the answer arrives", async (
 test("a book that has it all gets nothing new, and an empty ISBN answer is empty", async () => {
   const full = bookOf("Laskar Pelangi", { author: "A", language: "id", cover: "https://covers.openlibrary.org/b/id/1-M.jpg", ol: "OL1W", blurb: "Mine" });
   const { fetcher } = server(() => reply(sample("laskar-pelangi-isbn")));
-  assert.deepEqual(await fillBook(createLookup({ fetcher }), "9789793062792", () => full), { kind: "nothing" });
-  assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({ docs: [] })).fetcher }), "9780156012195", () => full), { kind: "empty" });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher }), "9789793062792", () => full), { kind: "nothing" });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher: server(() => reply({ docs: [] })).fetcher }), "9780156012195", () => full), { kind: "empty" });
 });
 
 test("a failed, slow, offline or superseded lookup is reported as it is, so the button can come back", async () => {
   const book = () => bookOf("Laskar Pelangi");
-  assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({}, 500)).fetcher }), "9789793062792", book), { kind: "failed", retry: 0 });
-  assert.deepEqual(await fillBook(createLookup({ fetcher: server(() => reply({})).fetcher, online: () => false }), "9789793062792", book), { kind: "offline" });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher: server(() => reply({}, 500)).fetcher }), "9789793062792", book), { kind: "failed", retry: 0 });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher: server(() => reply({})).fetcher, online: () => false }), "9789793062792", book), { kind: "offline" });
   const hold = server(() => new Promise<Response>(() => {}));
-  const lookup = createLookup({ fetcher: hold.fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher: hold.fetcher, wait: 1 });
   const filling = fillBook(lookup, "9789793062792", book);
   await tick(5);
   void lookup.search(input("another"));
@@ -554,14 +585,14 @@ const isbnServer = () => server(() => reply(sample("laskar-pelangi-isbn")));
 
 test("a scan on a detail with no ISBN is written only after the lookup says the ISBN is this book", async () => {
   const { calls, fetcher } = isbnServer();
-  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("Laskar Pelangi")), { kind: "write" });
+  assert.deepEqual(await scanBook(createLookup({ worker: false, fetcher }), CODE, () => bookOf("Laskar Pelangi")), { kind: "write" });
   assert.equal(calls.length, 1);
-  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("Pangeran Kecil", { original_title: "Laskar Pelangi" })), { kind: "write" });
-  assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => bookOf("  ")), { kind: "write" });
+  assert.deepEqual(await scanBook(createLookup({ worker: false, fetcher }), CODE, () => bookOf("Pangeran Kecil", { original_title: "Laskar Pelangi" })), { kind: "write" });
+  assert.deepEqual(await scanBook(createLookup({ worker: false, fetcher }), CODE, () => bookOf("  ")), { kind: "write" });
 });
 
 test("the ISBN of a different book is never written, with or without an ISBN already on the book", async () => {
-  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  const lookup = createLookup({ worker: false, fetcher: isbnServer().fetcher });
   assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Pangeran Kecil")), { kind: "mismatch" });
   assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Pangeran Kecil", { isbn: PRINCE })), { kind: "mismatch" });
   assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar", { isbn: PRINCE })), { kind: "mismatch" });
@@ -569,7 +600,7 @@ test("the ISBN of a different book is never written, with or without an ISBN alr
 
 test("a scan over an existing ISBN asks first and carries the old one, and the same ISBN again asks for nothing", async () => {
   const { calls, fetcher } = isbnServer();
-  const lookup = createLookup({ fetcher });
+  const lookup = createLookup({ worker: false, fetcher });
   assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar Pelangi", { isbn: PRINCE })), { kind: "confirm", old: PRINCE });
   assert.equal(calls.length, 1);
   for (const same of [CODE, " 978-979-3062-79-2 ", "ISBN 9789793062792"]) assert.deepEqual(await scanBook(lookup, CODE, () => bookOf("Laskar Pelangi", { isbn: same })), { kind: "same" });
@@ -580,13 +611,13 @@ test("a lookup that cannot answer does not decide the match: no ISBN is written,
   const none = bookOf("Laskar Pelangi");
   const held = bookOf("Laskar Pelangi", { isbn: PRINCE });
   for (const fetcher of [server(() => reply({}, 500)).fetcher, server(() => reply({ docs: [] })).fetcher]) {
-    assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => none), { kind: "write" });
-    assert.deepEqual(await scanBook(createLookup({ fetcher }), CODE, () => held), { kind: "confirm", old: PRINCE });
+    assert.deepEqual(await scanBook(createLookup({ worker: false, fetcher }), CODE, () => none), { kind: "write" });
+    assert.deepEqual(await scanBook(createLookup({ worker: false, fetcher }), CODE, () => held), { kind: "confirm", old: PRINCE });
   }
-  const offline = createLookup({ fetcher: isbnServer().fetcher, online: () => false });
+  const offline = createLookup({ worker: false, fetcher: isbnServer().fetcher, online: () => false });
   assert.deepEqual(await scanBook(offline, CODE, () => none), { kind: "write" });
   const hold = server(() => new Promise<Response>(() => {}));
-  const lookup = createLookup({ fetcher: hold.fetcher, wait: 1 });
+  const lookup = createLookup({ worker: false, fetcher: hold.fetcher, wait: 1 });
   const scanning = scanBook(lookup, CODE, () => none);
   await tick(5);
   void lookup.search(input("another"));
@@ -595,7 +626,7 @@ test("a lookup that cannot answer does not decide the match: no ISBN is written,
 
 test("the title is read when the answer arrives, so a rename during the lookup is honoured", async () => {
   let book = bookOf("Laskar Pelangi");
-  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  const lookup = createLookup({ worker: false, fetcher: isbnServer().fetcher });
   const scanning = scanBook(lookup, CODE, () => book);
   book = bookOf("Pangeran Kecil");
   assert.deepEqual(await scanning, { kind: "mismatch" });
@@ -604,14 +635,14 @@ test("the title is read when the answer arrives, so a rename during the lookup i
 test("a description lookup superseded while filling is stale, and one that is refused to retry later fails the fill instead of filling without it", async () => {
   let works = 0;
   const { fetcher } = server((url) => (url.includes("/works/") ? (works++, new Promise<Response>(() => {})) : reply(sample("laskar-pelangi-isbn"))));
-  const lookup = createLookup({ fetcher });
+  const lookup = createLookup({ worker: false, fetcher });
   const filling = fillBook(lookup, "9789793062792", () => bookOf("Laskar Pelangi"));
   await tick(10);
   assert.equal(works, 1);
   void lookup.byIsbn("9780156012195");
   assert.deepEqual(await filling, { kind: "stale" });
   const filled = async (answer: (url: string) => Promise<Response> | Response, timeout?: number) =>
-    fillBook(createLookup({ fetcher: server((url) => (url.includes("/works/") ? answer(url) : reply(sample("laskar-pelangi-isbn")))).fetcher, timeout }), "9789793062792", () => bookOf("Laskar Pelangi"));
+    fillBook(createLookup({ worker: false, fetcher: server((url) => (url.includes("/works/") ? answer(url) : reply(sample("laskar-pelangi-isbn")))).fetcher, timeout }), "9789793062792", () => bookOf("Laskar Pelangi"));
   assert.deepEqual(await filled(() => reply({}, 500)), { kind: "failed", retry: 0 });
   assert.deepEqual(await filled(() => new Response("{}", { status: 429, headers: { "retry-after": "7" } })), { kind: "failed", retry: 7000 });
   for (const gone of [() => reply({}, 404), () => reply({}, 403), () => new Response("<html>", { status: 200 })]) {
@@ -626,7 +657,7 @@ test("a description lookup superseded while filling is stale, and one that is re
 
 test("a title fill whose description request fails fails too, and a description the work does not have is not a failure", async () => {
   const hit = { key: "/works/OL1W", title: "Placeholder Gamma", author_name: ["Writer One"] };
-  const find = (work: Response) => fillTitle(createLookup({ wait: 0, fetcher: server((url) => (url.includes("/works/") ? work : reply({ docs: [hit] }))).fetcher }), () => bookOf("Placeholder Gamma", { author: "Writer One" }));
+  const find = (work: Response) => fillTitle(createLookup({ worker: false, wait: 0, fetcher: server((url) => (url.includes("/works/") ? work : reply({ docs: [hit] }))).fetcher }), () => bookOf("Placeholder Gamma", { author: "Writer One" }));
   assert.deepEqual(await find(reply({}, 503)), { kind: "failed", retry: 0 });
   for (const gone of [reply({}, 404), new Response("<html>", { status: 200 })]) {
     const out = await find(gone);
@@ -638,7 +669,7 @@ test("a title fill whose description request fails fails too, and a description 
 
 test("a book that already has a description does not ask for one", async () => {
   const { calls, fetcher } = server(() => reply(sample("laskar-pelangi-isbn")));
-  const out = await fillBook(createLookup({ fetcher }), "9789793062792", () => bookOf("Laskar Pelangi", { blurb: "Mine" }));
+  const out = await fillBook(createLookup({ worker: false, fetcher }), "9789793062792", () => bookOf("Laskar Pelangi", { blurb: "Mine" }));
   assert.equal(out.kind, "patch");
   assert.deepEqual(out.kind === "patch" && Object.keys(out.patch).sort(), ["author", "cover", "language", "ol"]);
   assert.equal(calls.length, 1);
@@ -652,7 +683,7 @@ test("a book that stops being the work of the ISBN while the description is fetc
     book = bookOf("Pangeran Kecil");
     return reply(sample("laskar-pelangi-work"));
   });
-  assert.deepEqual(await fillBook(createLookup({ fetcher }), "9789793062792", () => book), { kind: "mismatch" });
+  assert.deepEqual(await fillBook(createLookup({ worker: false, fetcher }), "9789793062792", () => book), { kind: "mismatch" });
 });
 
 test("each turn is a new number and only the last one is the latest", () => {
@@ -733,7 +764,7 @@ test("Replace writes the scanned ISBN only while the book still has the ISBN the
 });
 
 test("a synced edit to the ISBN or the title while the prompt is open drops the replacement; with no edit the same scan replaces", async () => {
-  const lookup = createLookup({ fetcher: isbnServer().fetcher });
+  const lookup = createLookup({ worker: false, fetcher: isbnServer().fetcher });
   const shown = bookOf("Laskar Pelangi", { isbn: PRINCE });
   const step = await scanBook(lookup, CODE, () => shown);
   const landed = landing(true, step, CODE, shown);

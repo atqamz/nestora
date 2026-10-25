@@ -58,7 +58,7 @@ const book = (title: string, data: Record<string, unknown> = {}) => item({ kind:
 
 const rig = (books: ItemRow[], options: { broken?: RegExp; online?: boolean; answer?: Answer; timeout?: number; pause?: (ms: number, signal: AbortSignal) => Promise<void> } = {}) => {
   const { state, now, wait } = clock();
-  const lookup = createLookup({ fetcher: paced(openLibrary(state, options.broken ?? null, options.answer), GAP_MS, now, wait), wait: 0, online: () => options.online ?? true, timeout: options.timeout });
+  const lookup = createLookup({ worker: false, fetcher: paced(openLibrary(state, options.broken ?? null, options.answer), GAP_MS, now, wait), wait: 0, online: () => options.online ?? true, timeout: options.timeout });
   const backoffs: number[] = [];
   const pause = async (ms: number) => void backoffs.push(ms);
   const rows = new Map(books.map((row) => [row.id, row]));

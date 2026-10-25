@@ -116,7 +116,7 @@ export function useBookForm(start: Kind, title: string, setTitle: (title: string
   };
 
   const save = (): Promise<Written> =>
-    saveBook(items, actions.create, { kind, title, author, original, isbn, language, blurb, cover: settled?.cover ?? "", ol: settled?.ol ?? "", ownerPick, placePick }, me);
+    saveBook(items, actions.create, { kind, title, author, original, isbn, language, blurb, cover: settled?.cover ?? "", ol: settled?.source === "openlibrary" ? settled.work : "", gb: settled?.source === "google" ? settled.work : "", ownerPick, placePick }, me);
 
   return {
     kind,

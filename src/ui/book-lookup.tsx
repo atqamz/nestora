@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
-import { coverUrl, workPage } from "../domain/openlibrary.ts";
+import { POWERED_BY } from "../domain/googlebooks.ts";
+import { pageOf } from "../domain/openlibrary.ts";
+import type { Source } from "../domain/openlibrary.ts";
 import { lookup } from "../hooks/use-lookup.ts";
 import { actions } from "../hooks/use-store.ts";
 import { useCanScan } from "../hooks/use-scan.ts";
@@ -17,44 +19,52 @@ const WORDS = text.books.lookup;
 const notice = (state: string) =>
   state === "busy" ? WORDS.searching : state === "offline" ? WORDS.offline : state === "failed" ? WORDS.failed : state === "slow" ? WORDS.slow : state === "empty" ? WORDS.empty : state === "mismatch" ? WORDS.mismatch : state === "changed" ? WORDS.changed : "";
 
-export function Credit({ work }: { work?: string | null }) {
-  const page = work ? workPage(work) : null;
+export function Credit({ source, work }: { source: Source; work?: string | null }) {
+  const page = work ? pageOf(source, work) : null;
+  const line = WORDS.credit[source];
   return (
     <p className="hint credit">
       {page === null ? (
-        WORDS.credit
+        line
       ) : (
         <a href={page} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-          {WORDS.credit}
+          {line}
         </a>
       )}
+      {source === "google" && <img className="powered" src={POWERED_BY} alt={WORDS.powered} width="62" height="30" decoding="async" referrerPolicy="no-referrer" />}
     </p>
   );
 }
 
 export function BookLookup({ form }: { form: BookForm }) {
   const { search, accept } = form.fields;
+  const [first] = search.hits;
   return (
     <div className="lookup">
       <p className="hint look-note" role="status">
         {notice(search.state)}
       </p>
-      {search.hits.length > 0 && (
+      {first !== undefined && (
         <>
-          <ul className="hits" aria-label={WORDS.results}>
+          <ul className="hits" aria-label={WORDS.results[first.source]}>
             {search.hits.map((hit) => (
               <li key={hit.work}>
                 <button type="button" className="hit" onClick={() => accept(hit)}>
-                  <Cover book={{ id: hit.work, title: hit.title, data: { cover: hit.coverId === null ? null : coverUrl(hit.coverId) } }} />
+                  <Cover book={{ id: hit.work, title: hit.title, data: { cover: hit.cover } }} />
                   <span className="bk-text">
                     <span className="title">{hit.title}</span>
                     {(hit.author !== "" || hit.year !== null) && <span className="bk-by">{[hit.author, hit.year].filter(Boolean).join(" · ")}</span>}
                   </span>
                 </button>
+                {hit.source === "google" && (
+                  <a className="hint hit-link" href={pageOf("google", hit.work) ?? undefined} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" aria-label={WORDS.openNamed(hit.title)}>
+                    {WORDS.open}
+                  </a>
+                )}
               </li>
             ))}
           </ul>
-          <Credit />
+          <Credit source={first.source} />
         </>
       )}
     </div>
@@ -92,7 +102,8 @@ export function FillBook({ book }: { book: ItemRow }) {
     if (pending !== null) keep.current?.focus();
   }, [pending]);
   const isbn = typeof book.data?.isbn === "string" ? book.data.isbn : null;
-  const work = typeof book.data?.ol === "string" ? book.data.ol : null;
+  const google = typeof book.data?.gb === "string" ? book.data.gb : null;
+  const work = google ?? (typeof book.data?.ol === "string" ? book.data.ol : null);
   if (isbn === null && work === null && !can) return null;
 
   const run = async (code: string) => {
@@ -169,7 +180,7 @@ export function FillBook({ book }: { book: ItemRow }) {
           {failure.join(" ")}
         </p>
       )}
-      {work !== null && <Credit work={work} />}
+      {work !== null && <Credit source={google === null ? "openlibrary" : "google"} work={work} />}
     </div>
   );
 }

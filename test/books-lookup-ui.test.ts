@@ -29,9 +29,9 @@ test("the detail names the cover for a screen reader, and the lists leave it dec
 
 test("the results are a labelled list of real buttons that are at least a row tall, with a visible focus ring, and the credit sits under them", () => {
   const view = read("ui/book-lookup.tsx");
-  assert.match(view, /<ul className="hits" aria-label=\{WORDS\.results\}>/);
+  assert.match(view, /<ul className="hits" aria-label=\{WORDS\.results\[first\.source\]\}>/);
   assert.match(view, /<button type="button" className="hit" onClick=\{\(\) => accept\(hit\)\}>/);
-  assert.match(view, /<\/ul>\s*<Credit \/>/);
+  assert.match(view, /<\/ul>\s*<Credit source=\{first\.source\} \/>/);
   const css = read("views/books.css");
   assert.match(rule(css, ".hit"), /min-height:\s*var\(--row-min\)/);
   assert.match(rule(css, ".hit"), /width:\s*100%/);
@@ -45,7 +45,9 @@ test("every state has plain words, and each tells the user typing goes on", () =
   assert.equal(lookup.empty, "No match. Keep typing.");
   assert.match(lookup.failed, /Keep typing\.$/);
   assert.match(lookup.slow, /Keep typing\.$/);
-  assert.equal(lookup.credit, "Details from Open Library");
+  assert.deepEqual(lookup.credit, { google: "Details from Google Books", openlibrary: "Details from Open Library" });
+  assert.deepEqual(lookup.results, { google: "Google Books search results", openlibrary: "Open Library results" });
+  assert.equal(lookup.powered, "Powered by Google");
   assert.match(lookup.searching, /Searching/);
 });
 
@@ -64,7 +66,7 @@ test("the form searches only while no result is accepted for the title, and drop
   const sheet = read("ui/book-sheet.tsx");
   assert.match(sheet, /const settled = held\(found, title\);/);
   assert.match(sheet, /useSearch\(\{ title, author, original \}, live && settled === null\)/);
-  assert.match(sheet, /cover: settled\?\.cover \?\? "", ol: settled\?\.ol \?\? ""/);
+  assert.match(sheet, /cover: settled\?\.cover \?\? "", ol: settled\?\.source === "openlibrary" \? settled\.work : "", gb: settled\?\.source === "google" \? settled\.work : ""/);
 });
 
 test("both Add sheets share the one form, so the global sheet's book chip gets the lookup too", () => {
@@ -75,7 +77,7 @@ test("both Add sheets share the one form, so the global sheet's book chip gets t
 
 test("the lookup client is the only code that reaches the network for books, and it sets nothing on the request", () => {
   const client = read("store/lookup.ts");
-  assert.match(client, /credentials: "omit"/);
+  assert.match(client, /credentials: own \? "same-origin" : "omit"/);
   assert.match(client, /referrerPolicy: "no-referrer"/);
   assert.doesNotMatch(client, /headers:|method:|cookie|localStorage|sendBeacon/);
   assert.doesNotMatch(read("hooks/use-lookup.ts"), /fetch/);
@@ -101,4 +103,19 @@ test("the search hook follows the pure state machine, and the screens fill throu
   assert.match(view, /fillBook\(lookup, code, \(\) => latest\.current\)/);
   assert.match(view, /if \(out\.kind === "stale"\) return setState\("idle"\);/);
   assert.equal(text.books.lookup.mismatch, "The ISBN belongs to a different book");
+});
+
+test("Google results carry the Powered by Google logo beside the credit and a link to the Google Books page on every row, and Open Library rows carry neither", () => {
+  const view = read("ui/book-lookup.tsx");
+  assert.match(view, /\{source === "google" && <img className="powered" src=\{POWERED_BY\} alt=\{WORDS\.powered\}/);
+  assert.match(view, /\{hit\.source === "google" && \(\s*<a className="hint hit-link" href=\{pageOf\("google", hit\.work\) \?\? undefined\} target="_blank" rel="noopener noreferrer"/);
+  assert.equal(text.books.lookup.openNamed("Bumi Manusia"), "Open Bumi Manusia on Google Books");
+  assert.match(rule(read("views/books.css"), ".hit-link"), /display:\s*flex/);
+  assert.match(rule(read("views/books.css"), ".hit-link"), /min-height:\s*var\(--target-min\)/);
+  assert.match(read("tokens.css"), /--target-min:\s*44px/);
+});
+
+test("a stored book credits the source it was filled from, linked to that source's page", () => {
+  const view = read("ui/book-lookup.tsx");
+  assert.match(view, /<Credit source=\{google === null \? "openlibrary" : "google"\} work=\{work\} \/>/);
 });

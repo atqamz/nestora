@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { draftFor } from "../src/domain/draft.ts";
-import { adopt, arrive, held, coverUrl, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { BLURB_INPUT_MAX, adopt, arrive, blurbOf, held, coverUrl, unlink, lacksBlurb, pageOf, workKey, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, phraseOf, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import type { Hit, Typed } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -10,24 +10,24 @@ const sample = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fix
 
 test("a search hit carries the work, the title, the authors, the year, the edition's ISBN-13, language and cover", () => {
   const [first, second] = parseSearch(sample("laskar-pelangi-search"));
-  assert.deepEqual(first, { work: "OL15302003W", title: "Laskar Pelangi", author: "Andrea Hirata", year: 2005, coverId: 7079796, isbn: "9789793062792", language: "id" });
+  assert.deepEqual(first, { source: "openlibrary", work: "OL15302003W", title: "Laskar Pelangi", author: "Andrea Hirata", year: 2005, cover: coverUrl(7079796), isbns: ["9789793062792"], language: "id", blurb: null });
   assert.equal(second.title, "The rainbow troops");
   assert.equal(second.language, "en");
-  assert.equal(second.isbn, "9780374246310");
-  assert.equal(second.coverId, 13007586);
+  assert.deepEqual(second.isbns, ["9780374246310"]);
+  assert.equal(second.cover, coverUrl(13007586));
 });
 
 test("an edition without an ISBN leaves the ISBN empty and takes the edition's own cover", () => {
   const [first, second] = parseSearch(sample("bumi-manusia-search"));
-  assert.deepEqual(first, { work: "OL307247W", title: "Bumi Manusia", author: "Pramoedya Ananta Toer", year: 1972, coverId: 15122195, isbn: null, language: "id" });
-  assert.deepEqual([second.language, second.coverId], ["other", null]);
+  assert.deepEqual(first, { source: "openlibrary", work: "OL307247W", title: "Bumi Manusia", author: "Pramoedya Ananta Toer", year: 1972, cover: coverUrl(15122195), isbns: [], language: "id", blurb: null });
+  assert.deepEqual([second.language, second.cover], ["other", null]);
 });
 
 test("an edition in two languages gives neither an ISBN nor a language, and the work's cover stands in for its own", () => {
   const [first, second, third] = parseSearch(sample("little-prince-search"));
-  assert.deepEqual(first, { work: "OL10263W", title: "Le petit prince", author: "Antoine de Saint-Exupéry", year: 1943, coverId: 10708272, isbn: null, language: null });
-  assert.deepEqual([second.isbn, second.language, second.coverId], ["9781467707374", null, 7605279]);
-  assert.deepEqual([third.isbn, third.language, third.coverId], [null, "en", 14491562]);
+  assert.deepEqual(first, { source: "openlibrary", work: "OL10263W", title: "Le petit prince", author: "Antoine de Saint-Exupéry", year: 1943, cover: coverUrl(10708272), isbns: [], language: null, blurb: null });
+  assert.deepEqual([second.isbns, second.language, second.cover], [["9781467707374"], null, coverUrl(7605279)]);
+  assert.deepEqual([third.isbns, third.language, third.cover], [[], "en", coverUrl(14491562)]);
 });
 
 test("a search body of any other shape gives no hits, and bad docs are skipped", () => {
@@ -36,24 +36,24 @@ test("a search body of any other shape gives no hits, and bad docs are skipped",
   const bad = [{ ...doc, key: "/works/x" }, { ...doc, key: 5 }, { ...doc, title: " " }, { ...doc, title: 4 }];
   assert.deepEqual(parseSearch({ docs: bad }), []);
   assert.deepEqual(parseSearch({ docs: [{ ...doc, author_name: [1, "A", "B", "C", "D"], first_publish_year: -1, cover_i: "7", editions: { docs: "x" } }] }), [
-    { work: "OL1W", title: "T", author: "A; B; C", year: null, coverId: null, isbn: null, language: null },
+    { source: "openlibrary", work: "OL1W", title: "T", author: "A; B; C", year: null, cover: null, isbns: [], language: null, blurb: null },
   ]);
   assert.equal(parseSearch({ docs: Array.from({ length: 9 }, (_, n) => ({ key: `/works/OL${n + 1}W`, title: "T" })) }).length, 5);
 });
 
 test("a year or a cover id that is not a positive whole number is ignored, and a title is trimmed", () => {
   const doc = (extra: object) => parseSearch({ docs: [{ key: "/works/OL1W", title: "  Spaced  ", ...extra }] })[0];
-  assert.deepEqual([doc({}).title, doc({ first_publish_year: 1943 }).year, doc({ cover_i: 7 }).coverId], ["Spaced", 1943, 7]);
+  assert.deepEqual([doc({}).title, doc({ first_publish_year: 1943 }).year, doc({ cover_i: 7 }).cover], ["Spaced", 1943, coverUrl(7)]);
   for (const bad of [0, -3, 7.5, "7", null, Number.NaN]) {
-    assert.deepEqual([doc({ first_publish_year: bad }).year, doc({ cover_i: bad }).coverId, doc({ editions: { docs: [{ cover_i: bad, language: ["ind"] }] } }).coverId], [null, null, null], String(bad));
+    assert.deepEqual([doc({ first_publish_year: bad }).year, doc({ cover_i: bad }).cover, doc({ editions: { docs: [{ cover_i: bad, language: ["ind"] }] } }).cover], [null, null, null], String(bad));
   }
 });
 
-test("the first valid ISBN in the edition is used, and an ISBN-10 becomes an ISBN-13", () => {
+test("the valid ISBNs of the edition are kept once each, and an ISBN-10 becomes an ISBN-13", () => {
   const docs = (isbn: unknown) => ({ docs: [{ key: "/works/OL1W", title: "T", editions: { docs: [{ isbn, language: ["ind"] }] } }] });
-  assert.equal(parseSearch(docs(["123", "0156012197", "9789793062792"]))[0].isbn, "9780156012195");
-  assert.equal(parseSearch(docs(["123", 5]))[0].isbn, null);
-  assert.equal(parseSearch(docs("9789793062792"))[0].isbn, null);
+  assert.deepEqual(parseSearch(docs(["123", "0156012197", "9789793062792", "9780156012195"]))[0].isbns, ["9780156012195", "9789793062792"]);
+  assert.deepEqual(parseSearch(docs(["123", 5]))[0].isbns, []);
+  assert.deepEqual(parseSearch(docs("9789793062792"))[0].isbns, []);
 });
 
 test("a lookup by ISBN takes the work whose edition has that ISBN, else the first hit, else nothing", () => {
@@ -117,10 +117,13 @@ test("the work page link is built only from a well-formed work id", () => {
 });
 
 test("the title is searched first with the author, then the original title", () => {
-  assert.deepEqual(queriesOf({ title: "Pangeran Kecil", author: "", original: "" }), ["Pangeran Kecil"]);
-  assert.deepEqual(queriesOf({ title: " Pangeran  Kecil ", author: " Antoine ", original: "Le Petit Prince" }), ["Pangeran Kecil Antoine", "Le Petit Prince Antoine"]);
-  assert.deepEqual(queriesOf({ title: "Le Petit Prince", author: "", original: "Le Petit Prince" }), ["Le Petit Prince"]);
-  assert.deepEqual(queriesOf({ title: "", author: "", original: "Le Petit Prince" }), ["Le Petit Prince"]);
+  const title = (name: string, author = "") => ({ kind: "title" as const, title: name, author });
+  assert.deepEqual(queriesOf({ title: "Pangeran Kecil", author: "", original: "" }), [title("Pangeran Kecil")]);
+  assert.deepEqual(queriesOf({ title: " Pangeran  Kecil ", author: " Antoine ", original: "Le Petit Prince" }), [title("Pangeran Kecil", "Antoine"), title("Le Petit Prince", "Antoine")]);
+  assert.deepEqual(queriesOf({ title: "Le Petit Prince", author: "", original: "Le Petit Prince" }), [title("Le Petit Prince")]);
+  assert.deepEqual(queriesOf({ title: "", author: "", original: "Le Petit Prince" }), [title("Le Petit Prince")]);
+  assert.equal(phraseOf(title("Pangeran Kecil", "Antoine")), "Pangeran Kecil Antoine");
+  assert.equal(phraseOf(title("Pangeran Kecil")), "Pangeran Kecil");
   assert.deepEqual(queriesOf({ title: "", author: "Antoine", original: "" }), []);
   assert.deepEqual(queriesOf({ title: " ", author: "", original: " " }), []);
 });
@@ -151,7 +154,7 @@ test("filling an existing book adds only what it lacks and never replaces what i
     language: "id",
     cover: "https://covers.openlibrary.org/b/id/15122195-M.jpg",
   });
-  assert.deepEqual(fillPatch({ title: "Bumi Manusia", data: null }, { ...hit, author: "", coverId: null, language: null }, ""), { ol: "OL307247W" });
+  assert.deepEqual(fillPatch({ title: "Bumi Manusia", data: null }, { ...hit, author: "", cover: null, language: null }, ""), { ol: "OL307247W" });
 });
 
 test("filling a book whose title is not the hit's title writes nothing, so another work's cover, key and blurb never land on it", () => {
@@ -212,11 +215,12 @@ test("tapping a result on an empty form fills the author, the ISBN and the langu
   assert.deepEqual(next.found, {
     title: "Laskar Pelangi",
     cover: "https://covers.openlibrary.org/b/id/7079796-M.jpg",
-    ol: "OL15302003W",
+    source: "openlibrary",
+    work: "OL15302003W",
     auto: { author: "Andrea Hirata", isbn: "9789793062792", language: "id" },
   });
   assert.deepEqual(adopt(form({ title: "laskar", author: " ", isbn: "\n" }), laskar()).patch, next.patch);
-  assert.equal(adopt(form({ title: "Laskar Pelangi" }), { ...laskar(), coverId: null }).found.cover, null);
+  assert.equal(adopt(form({ title: "Laskar Pelangi" }), { ...laskar(), cover: null }).found.cover, null);
 });
 
 test("what the user typed is kept, and only that: the description is not asked for when one is typed", () => {
@@ -224,7 +228,7 @@ test("what the user typed is kept, and only that: the description is not asked f
   assert.deepEqual(next.patch, { author: null, original: "", isbn: null, language: null, blurb: null });
   assert.equal(next.wantsBlurb, false);
   assert.deepEqual(next.found.auto, {});
-  assert.deepEqual(adopt(form({ title: "Laskar Pelangi" }), { ...laskar(), author: "", isbn: null, language: null }).found.auto, {});
+  assert.deepEqual(adopt(form({ title: "Laskar Pelangi" }), { ...laskar(), author: "", isbns: [], language: null }).found.auto, {});
 });
 
 test("a hit under another title gives its original title and author, but not the ISBN and language of an edition the user may not own", () => {
@@ -243,7 +247,7 @@ test("picking a second result replaces everything the first pick filled, and wri
   const second = take({ ...withBlurb, title: "Bumi Manusia" }, bumi());
   assert.deepEqual(fieldsOf(second), { title: "Bumi Manusia", author: "Pramoedya Ananta Toer", original: "", isbn: "", language: "id", blurb: "" });
   assert.deepEqual(second.found?.auto, { author: "Pramoedya Ananta Toer", language: "id" });
-  assert.equal(second.found?.ol, "OL307247W");
+  assert.equal(second.found?.work, "OL307247W");
 });
 
 test("picking again keeps a field the user edited after the first pick, and replaces the rest", () => {
@@ -492,4 +496,77 @@ test("a blank, missing or non-text author never matches", () => {
   assert.equal(sameAuthor(null, "Anyone"), false);
   assert.equal(sameAuthor(5, "5"), false);
   assert.equal(sameAuthor(["Anyone"], "Anyone"), false);
+});
+
+const isbn13 = (n: number) => {
+  const body = `978${String(n).padStart(9, "0")}`;
+  const sum = [...body].reduce((total, digit, at) => total + Number(digit) * (at % 2 === 0 ? 1 : 3), 0);
+  return `${body}${(10 - (sum % 10)) % 10}`;
+};
+
+test("the edition keeps at most five ISBNs, and a year or cover id of 1 is a number", () => {
+  const edition = (count: number) => ({ docs: [{ key: "/works/OL1W", title: "T", first_publish_year: 1, cover_i: 1, editions: { docs: [{ language: ["ind"], isbn: Array.from({ length: count }, (_, n) => isbn13(n + 1)) }] } }] });
+  assert.equal(parseSearch(edition(5))[0].isbns.length, 5);
+  assert.deepEqual(parseSearch(edition(6))[0].isbns, parseSearch(edition(5))[0].isbns);
+  assert.deepEqual([parseSearch(edition(1))[0].year, parseSearch(edition(1))[0].cover], [1, coverUrl(1)]);
+});
+
+test("a page link exists for a Google volume id and an Open Library work, and for nothing malformed", () => {
+  assert.equal(pageOf("google", "Lp1AbCdEfGhI"), "https://books.google.com/books?id=Lp1AbCdEfGhI");
+  assert.equal(pageOf("openlibrary", "OL15302003W"), "https://openlibrary.org/works/OL15302003W");
+  for (const bad of ["", "a/b", "a b", "x".repeat(33), "id&x=1", "../x"]) assert.equal(pageOf("google", bad), null, bad);
+  assert.equal(pageOf("openlibrary", "Lp1AbCdEfGhI"), null);
+  assert.equal(pageOf("google", "OL15302003W"), "https://books.google.com/books?id=OL15302003W");
+});
+
+const hit = (extra: Partial<Hit>): Hit => ({ source: "google", work: "Vol1AbCdEfGh", title: "Pangeran Kecil", author: "Antoine de Saint-Exupéry", year: null, cover: null, isbns: [], language: null, blurb: null, ...extra });
+
+test("one book is one key: an Open Library work by its id, a Google volume by folded title and author names in any order", () => {
+  assert.equal(workKey(hit({ source: "openlibrary", work: "OL1W" })), "OL1W");
+  assert.notEqual(workKey(hit({ source: "openlibrary", work: "OL1W" })), workKey(hit({ source: "openlibrary", work: "OL2W" })));
+  assert.equal(workKey(hit({ work: "A1" })), workKey(hit({ work: "B2", title: " PANGERAN  kecil ", author: "Antoine de Saint-Exupery" })));
+  assert.equal(workKey(hit({ author: "A One; B Two" })), workKey(hit({ author: "B Two; A One" })));
+  assert.notEqual(workKey(hit({})), workKey(hit({ author: "Someone Else" })));
+  assert.notEqual(workKey(hit({})), workKey(hit({ title: "Le Petit Prince" })));
+  assert.notEqual(workKey(hit({ source: "openlibrary", work: "OL1W" })), workKey(hit({ work: "OL1W" })));
+});
+
+test("only an Open Library hit with no description of its own needs one fetched", () => {
+  assert.equal(lacksBlurb(hit({ source: "openlibrary", blurb: null })), true);
+  assert.equal(lacksBlurb(hit({ source: "openlibrary", blurb: "x" })), false);
+  assert.equal(lacksBlurb(hit({ source: "google", blurb: null })), false);
+  assert.equal(lacksBlurb(hit({ source: "google", blurb: "x" })), false);
+});
+
+test("a blurb reads at most 4000 characters of its input, so what follows the cap never counts", () => {
+  assert.equal(BLURB_INPUT_MAX, 4000);
+  assert.equal(blurbOf(`${"a ".repeat(BLURB_INPUT_MAX / 2)}tail`), `${"a ".repeat(249)}a…`);
+  assert.equal(blurbOf(" ".repeat(BLURB_INPUT_MAX) + "late"), null);
+  assert.equal(blurbOf(" ".repeat(BLURB_INPUT_MAX - 4) + "last"), "last");
+  assert.equal(blurbOf("x".repeat(BLURB_INPUT_MAX - 1) + "\n\nsecond"), `${"x".repeat(500)}…`);
+});
+
+test("a hostile description of 200 KB or 1 MB gives a short plain blurb", () => {
+  for (const size of [200_000, 1_000_000]) {
+    for (const run of ["<p", "&amp;", "<", "<a ", " ", "[", "[a](", "[a](b", "](", "\u0000", "\n", "\n ", "-"]) {
+      const hostile = run.repeat(Math.ceil(size / run.length));
+      const blurb = blurbOf(hostile);
+      assert.ok(blurb === null || Array.from(blurb).length <= 501, run);
+      assert.ok(blurb === null || !/[\u0000-\u0008]/.test(blurb), run);
+    }
+  }
+});
+
+test("unlink keeps the label of a link and drops its target, exactly as the pattern it replaced did", () => {
+  const old = (text: string) => text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  const parts = ["[", "]", "(", ")", "a", " ", "[a](b)", "](", "x"];
+  let seed = 7;
+  const next = () => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed);
+  for (let round = 0; round < 3000; round++) {
+    const text = Array.from({ length: next() % 14 }, () => parts[next() % parts.length]).join("");
+    assert.equal(unlink(text), old(text), text);
+  }
+  assert.equal(unlink("Read [more](https://example.com/x) now, [a](b)[c](d)"), "Read more now, ac");
+  assert.equal(unlink("[a [b](c) d]"), "a [b d]");
+  assert.equal(unlink("[a](b"), "[a](b");
 });
