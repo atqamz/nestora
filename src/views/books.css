@@ -503,9 +503,11 @@ button.where {
 }
 
 .hit-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
   margin: 0;
-  padding: 0 var(--s3) var(--s2);
+  padding: 0 var(--s3);
   overflow-wrap: anywhere;
 }
 

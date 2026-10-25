@@ -60,7 +60,7 @@ test("the client URL is the route with the query as data", () => {
   assert.equal(paramsOf({ kind: "title", title: "x", author: "y" }).toString(), "title=x&author=y");
 });
 
-const good = (extra: object = {}): Hit => ({ source: "google", work: "Vol1AbCdEfGh", title: "Bumi Manusia", author: "Pramoedya Ananta Toer", year: 2005, cover: "https://books.google.com/books/content?id=Vol1AbCdEfGh", isbns: ["9789793062792"], language: "id", blurb: "Invented.", ...extra });
+const good = (extra: object = {}): Hit => ({ source: "google", work: "Vol1AbCdEfGh", title: "Bumi Manusia", author: "Pramoedya Ananta Toer", year: 2005, cover: "https://books.google.com/books/content?id=Vol1AbCdEfGh", isbns: ["9789793062792"], language: "id", blurb: null, ...extra });
 
 test("a good answer parses to the same hits, and at most eight", () => {
   assert.deepEqual(parseLookup({ hits: [good(), good({ source: "openlibrary", work: "OL1W", cover: null, blurb: null, isbns: [], language: null, year: null })] }), [good(), good({ source: "openlibrary", work: "OL1W", cover: null, blurb: null, isbns: [], language: null, year: null })]);
@@ -101,8 +101,13 @@ test("a hostile hit is dropped, whatever field is bad", () => {
 test("a year that is not a positive whole number is dropped to nothing, a title and blurb are trimmed", () => {
   assert.equal(parseLookup({ hits: [good({ year: -1 })] })[0].year, null);
   assert.equal(parseLookup({ hits: [good({ year: "2005" })] })[0].year, null);
-  const [hit] = parseLookup({ hits: [good({ title: "  T  ", blurb: " B " })] });
+  const [hit] = parseLookup({ hits: [good({ source: "openlibrary", work: "OL1W", title: "  T  ", blurb: " B " })] });
   assert.deepEqual([hit.title, hit.blurb], ["T", " B "]);
+});
+
+test("a Google blurb on the wire is dropped, an Open Library one is kept", () => {
+  const [google, open] = parseLookup({ hits: [good({ blurb: "From Google." }), good({ source: "openlibrary", work: "OL1W", blurb: "From the work." })] });
+  assert.deepEqual([google.blurb, open.blurb], [null, "From the work."]);
 });
 
 const COVER_OK = [

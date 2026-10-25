@@ -1,6 +1,6 @@
 import { isCover } from "../../shared/validate.ts";
 import { toIsbn13 } from "./isbn.ts";
-import { AUTHORS_MAX, ISBNS_MAX, VOLUME, blurbOf, count, dict, phraseOf, strings } from "./openlibrary.ts";
+import { AUTHORS_MAX, ISBNS_MAX, VOLUME, count, dict, phraseOf, strings } from "./openlibrary.ts";
 import type { Hit, Language, Query } from "./openlibrary.ts";
 
 const SITE = "https://www.googleapis.com/books/v1/volumes";
@@ -13,20 +13,11 @@ const TITLE_MAX = 200;
 
 const NAME_MAX = 100;
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'" };
-
-export const googleUrl = (query: Query, key: string) =>
-  `${SITE}?${new URLSearchParams({ q: query.kind === "isbn" ? `isbn:${query.isbn}` : phraseOf(query), maxResults: String(GOOGLE_LIMIT), key })}`;
+export const googleUrl = (query: Query) =>
+  `${SITE}?${new URLSearchParams({ q: query.kind === "isbn" ? `isbn:${query.isbn}` : phraseOf(query), maxResults: String(GOOGLE_LIMIT) })}`;
 
 const clean = (value: unknown, max: number) =>
   typeof value === "string" ? Array.from(value.replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, " ").replace(/\s+/g, " ").trim()).slice(0, max).join("") : "";
-
-export const plain = (html: string) =>
-  html
-    .replace(/<\s*\/p\s*>/gi, "\n\n")
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(amp|lt|gt|quot|#39|apos);/g, (_, name: string) => ENTITIES[name]);
 
 export const googleCover = (link: unknown): string | null => {
   if (typeof link !== "string") return null;
@@ -59,7 +50,7 @@ const isbnsOf = (identifiers: unknown) =>
 
 const hitOf = (item: unknown): Hit | null => {
   const { id, volumeInfo } = dict(item);
-  const { title, authors, publishedDate, language, industryIdentifiers, imageLinks, description } = dict(volumeInfo);
+  const { title, authors, publishedDate, language, industryIdentifiers, imageLinks } = dict(volumeInfo);
   const links = dict(imageLinks);
   const name = clean(title, TITLE_MAX);
   if (typeof id !== "string" || !VOLUME.test(id) || name === "") return null;
@@ -76,7 +67,7 @@ const hitOf = (item: unknown): Hit | null => {
     cover: googleCover(links.thumbnail) ?? googleCover(links.smallThumbnail),
     isbns: isbnsOf(industryIdentifiers),
     language: languageOf(language),
-    blurb: typeof description === "string" ? blurbOf(plain(description)) : null,
+    blurb: null,
   };
 };
 

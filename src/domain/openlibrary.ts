@@ -27,6 +27,8 @@ export const AUTHORS_MAX = 3;
 
 const BLURB_MAX = 500;
 
+export const BLURB_INPUT_MAX = 4000;
+
 export const ISBNS_MAX = 5;
 
 export const WORK = /^OL\d{1,12}W$/;
@@ -98,11 +100,27 @@ export const pickIsbn = (hits: Hit[], isbn: string): Hit | null =>
 
 export const parseIsbn = (body: unknown, isbn: string): Hit | null => pickIsbn(parseSearch(body), isbn);
 
+export const unlink = (text: string) => {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf("[", at);
+    const close = open === -1 ? -1 : text.indexOf("]", open + 1);
+    if (close === -1) return out + text.slice(at);
+    if (text[close + 1] !== "(") {
+      out += text.slice(at, close + 1);
+      at = close + 1;
+      continue;
+    }
+    const end = text.indexOf(")", close + 2);
+    if (end === -1) return out + text.slice(at);
+    out += text.slice(at, open) + text.slice(open + 1, close);
+    at = end + 1;
+  }
+};
+
 export const blurbOf = (raw: string): string | null => {
-  const flat = raw
-    .trim()
-    .split(/\r?\n\s*\r?\n|-{5,}/)[0]
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  const flat = unlink(raw.slice(0, BLURB_INPUT_MAX).trim().split(/\r?\n\s*\r?\n|-{5,}/)[0])
     .replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();

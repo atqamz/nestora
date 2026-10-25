@@ -556,7 +556,7 @@ export const text = {
       failed: "The book lookup did not answer. Keep typing.",
       slow: "The book lookup is slow. Keep typing.",
       empty: "No match. Keep typing.",
-      credit: { google: "Details from Google Books", openlibrary: "Details from Open Library", both: "Details from Google Books and Open Library" },
+      credit: { google: "Details from Google Books", openlibrary: "Details from Open Library" },
       powered: "Powered by Google",
       open: "Google Books",
       openNamed: (title: string) => `Open ${title} on Google Books`,

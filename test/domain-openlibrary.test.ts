@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { draftFor } from "../src/domain/draft.ts";
-import { adopt, arrive, held, coverUrl, lacksBlurb, pageOf, workKey, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, phraseOf, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
+import { BLURB_INPUT_MAX, adopt, arrive, blurbOf, held, coverUrl, unlink, lacksBlurb, pageOf, workKey, fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, phraseOf, queriesOf, release, sameAuthor, sameBook, sameTitle, searchUrl, settle, workPage, workUrl } from "../src/domain/openlibrary.ts";
 import type { Hit, Typed } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -536,4 +536,37 @@ test("only an Open Library hit with no description of its own needs one fetched"
   assert.equal(lacksBlurb(hit({ source: "openlibrary", blurb: "x" })), false);
   assert.equal(lacksBlurb(hit({ source: "google", blurb: null })), false);
   assert.equal(lacksBlurb(hit({ source: "google", blurb: "x" })), false);
+});
+
+test("a blurb reads at most 4000 characters of its input, so what follows the cap never counts", () => {
+  assert.equal(BLURB_INPUT_MAX, 4000);
+  assert.equal(blurbOf(`${"a ".repeat(BLURB_INPUT_MAX / 2)}tail`), `${"a ".repeat(249)}a…`);
+  assert.equal(blurbOf(" ".repeat(BLURB_INPUT_MAX) + "late"), null);
+  assert.equal(blurbOf(" ".repeat(BLURB_INPUT_MAX - 4) + "last"), "last");
+  assert.equal(blurbOf("x".repeat(BLURB_INPUT_MAX - 1) + "\n\nsecond"), `${"x".repeat(500)}…`);
+});
+
+test("a hostile description of 200 KB or 1 MB gives a short plain blurb", () => {
+  for (const size of [200_000, 1_000_000]) {
+    for (const run of ["<p", "&amp;", "<", "<a ", " ", "[", "[a](", "[a](b", "](", "\u0000", "\n", "\n ", "-"]) {
+      const hostile = run.repeat(Math.ceil(size / run.length));
+      const blurb = blurbOf(hostile);
+      assert.ok(blurb === null || Array.from(blurb).length <= 501, run);
+      assert.ok(blurb === null || !/[\u0000-\u0008]/.test(blurb), run);
+    }
+  }
+});
+
+test("unlink keeps the label of a link and drops its target, exactly as the pattern it replaced did", () => {
+  const old = (text: string) => text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  const parts = ["[", "]", "(", ")", "a", " ", "[a](b)", "](", "x"];
+  let seed = 7;
+  const next = () => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed);
+  for (let round = 0; round < 3000; round++) {
+    const text = Array.from({ length: next() % 14 }, () => parts[next() % parts.length]).join("");
+    assert.equal(unlink(text), old(text), text);
+  }
+  assert.equal(unlink("Read [more](https://example.com/x) now, [a](b)[c](d)"), "Read more now, ac");
+  assert.equal(unlink("[a [b](c) d]"), "a [b d]");
+  assert.equal(unlink("[a](b"), "[a](b");
 });

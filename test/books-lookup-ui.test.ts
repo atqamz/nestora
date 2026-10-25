@@ -29,9 +29,9 @@ test("the detail names the cover for a screen reader, and the lists leave it dec
 
 test("the results are a labelled list of real buttons that are at least a row tall, with a visible focus ring, and the credit sits under them", () => {
   const view = read("ui/book-lookup.tsx");
-  assert.match(view, /<ul className="hits" aria-label=\{WORDS\.results\[source \?\? "openlibrary"\]\}>/);
+  assert.match(view, /<ul className="hits" aria-label=\{WORDS\.results\[first\.source\]\}>/);
   assert.match(view, /<button type="button" className="hit" onClick=\{\(\) => accept\(hit\)\}>/);
-  assert.match(view, /<\/ul>\s*<Credit source=\{source\} \/>/);
+  assert.match(view, /<\/ul>\s*<Credit source=\{first\.source\} \/>/);
   const css = read("views/books.css");
   assert.match(rule(css, ".hit"), /min-height:\s*var\(--row-min\)/);
   assert.match(rule(css, ".hit"), /width:\s*100%/);
@@ -45,7 +45,7 @@ test("every state has plain words, and each tells the user typing goes on", () =
   assert.equal(lookup.empty, "No match. Keep typing.");
   assert.match(lookup.failed, /Keep typing\.$/);
   assert.match(lookup.slow, /Keep typing\.$/);
-  assert.deepEqual(lookup.credit, { google: "Details from Google Books", openlibrary: "Details from Open Library", both: "Details from Google Books and Open Library" });
+  assert.deepEqual(lookup.credit, { google: "Details from Google Books", openlibrary: "Details from Open Library" });
   assert.deepEqual(lookup.results, { google: "Google Books search results", openlibrary: "Open Library results" });
   assert.equal(lookup.powered, "Powered by Google");
   assert.match(lookup.searching, /Searching/);
@@ -110,7 +110,9 @@ test("Google results carry the Powered by Google logo beside the credit and a li
   assert.match(view, /\{source === "google" && <img className="powered" src=\{POWERED_BY\} alt=\{WORDS\.powered\}/);
   assert.match(view, /\{hit\.source === "google" && \(\s*<a className="hint hit-link" href=\{pageOf\("google", hit\.work\) \?\? undefined\} target="_blank" rel="noopener noreferrer"/);
   assert.equal(text.books.lookup.openNamed("Bumi Manusia"), "Open Bumi Manusia on Google Books");
-  assert.match(rule(read("views/books.css"), ".hit-link"), /display:\s*block/);
+  assert.match(rule(read("views/books.css"), ".hit-link"), /display:\s*flex/);
+  assert.match(rule(read("views/books.css"), ".hit-link"), /min-height:\s*var\(--target-min\)/);
+  assert.match(read("tokens.css"), /--target-min:\s*44px/);
 });
 
 test("a stored book credits the source it was filled from, linked to that source's page", () => {

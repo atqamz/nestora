@@ -175,7 +175,7 @@ test("a Worker body that is not JSON counts as an unreachable Worker", async () 
   assert.equal(out.kind === "ok" && out.value[0].source, "openlibrary");
 });
 
-test("several Google editions of one book, same title and author, are one book for a title fill, and it writes gb and the Google blurb with no Open Library request", async () => {
+test("several Google editions of one book, same title and author, are one book for a title fill, and it writes gb and no blurb with no Open Library request", async () => {
   const t = routed(reply(wire("laskar-pelangi")));
   const out = await fillTitle(lookup(t.fetcher), bookOf("Laskar Pelangi", { author: "Andrea Hirata" }));
   assert.equal(out.kind, "patch");
@@ -183,7 +183,7 @@ test("several Google editions of one book, same title and author, are one book f
   assert.equal(out.patch.gb, "Lp1AbCdEfGhI");
   assert.equal(out.patch.ol, undefined);
   assert.equal(out.patch.language, "id");
-  assert.equal(out.patch.blurb, "Invented synopsis of a school on an island. Second line.");
+  assert.equal(out.patch.blurb, undefined);
   assert.match(out.patch.cover, /^https:\/\/books\.google\.com\/books\/content\?id=Lp1AbCdEfGhI/);
   assert.equal(out.patch.isbn, undefined);
   assert.equal(t.calls.length, 1);
@@ -250,4 +250,17 @@ test("the Find pass backs off on a busy Worker, reads the wait, and then fills f
   assert.deepEqual(pauses, [30000]);
   assert.equal(saved[0]?.gb, "Lp1AbCdEfGhI");
   assert.equal(inner.own().length, 2);
+});
+
+test("a Google blurb that reaches the browser anyway is never written, by a title fill or a fill by ISBN, and no Open Library request is made for it", async () => {
+  const hits = wire("laskar-pelangi").hits.map((hit) => ({ ...hit, blurb: "Google's own synopsis." }));
+  const title = routed(reply({ hits }));
+  const byTitle = await fillTitle(lookup(title.fetcher), bookOf("Laskar Pelangi", { author: "Andrea Hirata" }));
+  assert.equal(byTitle.kind === "patch" && byTitle.patch.blurb, undefined);
+  assert.equal(title.calls.length, 1);
+  const code = routed(reply({ hits }));
+  const byIsbn = await fillBook(lookup(code.fetcher), "9789793062792", bookOf("Laskar Pelangi"));
+  assert.equal(byIsbn.kind === "patch" && byIsbn.patch.blurb, undefined);
+  assert.equal(byIsbn.kind === "patch" && byIsbn.patch.gb, "Lp1AbCdEfGhI");
+  assert.equal(code.calls.length, 1);
 });

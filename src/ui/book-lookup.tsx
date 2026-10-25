@@ -19,9 +19,9 @@ const WORDS = text.books.lookup;
 const notice = (state: string) =>
   state === "busy" ? WORDS.searching : state === "offline" ? WORDS.offline : state === "failed" ? WORDS.failed : state === "slow" ? WORDS.slow : state === "empty" ? WORDS.empty : state === "mismatch" ? WORDS.mismatch : state === "changed" ? WORDS.changed : "";
 
-export function Credit({ source, work }: { source: Source | null; work?: string | null }) {
-  const page = source !== null && work ? pageOf(source, work) : null;
-  const line = WORDS.credit[source ?? "both"];
+export function Credit({ source, work }: { source: Source; work?: string | null }) {
+  const page = work ? pageOf(source, work) : null;
+  const line = WORDS.credit[source];
   return (
     <p className="hint credit">
       {page === null ? (
@@ -38,15 +38,15 @@ export function Credit({ source, work }: { source: Source | null; work?: string 
 
 export function BookLookup({ form }: { form: BookForm }) {
   const { search, accept } = form.fields;
-  const source = search.hits[0]?.source ?? null;
+  const [first] = search.hits;
   return (
     <div className="lookup">
       <p className="hint look-note" role="status">
         {notice(search.state)}
       </p>
-      {search.hits.length > 0 && (
+      {first !== undefined && (
         <>
-          <ul className="hits" aria-label={WORDS.results[source ?? "openlibrary"]}>
+          <ul className="hits" aria-label={WORDS.results[first.source]}>
             {search.hits.map((hit) => (
               <li key={hit.work}>
                 <button type="button" className="hit" onClick={() => accept(hit)}>
@@ -64,7 +64,7 @@ export function BookLookup({ form }: { form: BookForm }) {
               </li>
             ))}
           </ul>
-          <Credit source={source} />
+          <Credit source={first.source} />
         </>
       )}
     </div>

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createAuthenticator } from "../worker/auth.ts";
 import { createWorker } from "../worker/index.ts";
 import type { Bindings } from "../worker/index.ts";
-import { EMPTY_SECONDS, FOUND_SECONDS, RETRY_SECONDS } from "../worker/lookup.ts";
+import { CACHE_SECONDS, OPEN_LIBRARY_AGENT, RETRY_SECONDS } from "../worker/lookup.ts";
 import type { Store } from "../worker/lookup.ts";
 import { googleUrl } from "../src/domain/googlebooks.ts";
 import { isbnUrl, searchUrl } from "../src/domain/openlibrary.ts";
@@ -76,7 +76,7 @@ test("a title lookup asks Google with a plain query and the key, and returns its
   assert.deepEqual(hits[0].isbns, ["9789793062792"]);
   assert.equal(t.google(), 1);
   assert.equal(t.open(), 0);
-  assert.equal(t.calls[0].url, googleUrl({ kind: "title", title: "laskar pelangi", author: "andrea hirata" }, KEY));
+  assert.equal(t.calls[0].url, googleUrl({ kind: "title", title: "laskar pelangi", author: "andrea hirata" }));
   assert.equal(new URL(t.calls[0].url).searchParams.get("q"), "laskar pelangi andrea hirata");
 });
 
@@ -88,14 +88,20 @@ test("an ISBN lookup asks Google for isbn:<13>", async () => {
   assert.equal((await hitsOf(res)).length, 4);
 });
 
-test("the upstream request carries no credentials, follows no redirect and asks for json", async () => {
-  const t = setup(laskar);
+test("the upstream requests carry no credentials, follow no redirect and ask for json, Google with the key in a header and Open Library with an identifying agent", async () => {
+  const t = setup(() => reply({ totalItems: 0 }), () => reply(sample("openlibrary", "laskar-pelangi-search")));
   await t.get(QUERY);
-  const init = t.calls[0].init ?? {};
-  assert.equal(init.redirect, "manual");
-  assert.equal(init.credentials, undefined);
-  assert.deepEqual(init.headers, { accept: "application/json" });
-  assert.ok(init.signal instanceof AbortSignal);
+  const [google, open] = t.calls.map((call) => call.init ?? {});
+  for (const init of [google, open]) {
+    assert.equal(init.redirect, "manual");
+    assert.equal(init.credentials, undefined);
+    assert.ok(init.signal instanceof AbortSignal);
+  }
+  assert.deepEqual(google.headers, { accept: "application/json", "x-goog-api-key": KEY });
+  assert.deepEqual(open.headers, { accept: "application/json", "user-agent": "Nestora/1.0 (+https://nestora.atqamz.com)" });
+  assert.equal(OPEN_LIBRARY_AGENT, "Nestora/1.0 (+https://nestora.atqamz.com)");
+  assert.doesNotMatch(OPEN_LIBRARY_AGENT, /@/);
+  assert.ok(!t.calls[0].url.includes(KEY) && !t.calls[1].url.includes(KEY));
 });
 
 test("every cover that leaves the route is on the registry's allow-list and https", async () => {
@@ -130,21 +136,65 @@ test("the first source with answers wins and nothing is mixed in", async () => {
   assert.equal(t.open(), 0);
 });
 
-test("a found answer is cached for seven days, an empty one for an hour, both under a key without the secret", async () => {
+test("every cached answer, found, empty or from Open Library, is kept for at most an hour, under a key without the secret", async () => {
   const found = setup(laskar);
   await found.get(QUERY);
   assert.equal(found.cache.puts.length, 1);
   const [url] = found.cache.puts;
-  assert.equal(found.cache.entries.get(url)?.control, `public, max-age=${FOUND_SECONDS}`);
-  assert.equal(FOUND_SECONDS, 604800);
+  assert.equal(found.cache.entries.get(url)?.control, "public, max-age=3600");
+  assert.equal(CACHE_SECONDS, 3600);
   assert.equal(new URL(url).origin, "https://lookup.invalid");
   assert.ok(!url.includes(KEY));
   assert.ok(![...found.cache.entries.values()].some((entry) => entry.body.includes(KEY)));
 
   const empty = setup(() => reply({ totalItems: 0 }));
   await empty.get(QUERY);
-  assert.equal(empty.cache.entries.get(empty.cache.puts[0])?.control, `public, max-age=${EMPTY_SECONDS}`);
-  assert.equal(EMPTY_SECONDS, 3600);
+  assert.equal(empty.cache.entries.get(empty.cache.puts[0])?.control, "public, max-age=3600");
+
+  const open = setup(() => reply({ totalItems: 0 }), () => reply(sample("openlibrary", "laskar-pelangi-search")));
+  await open.get(QUERY);
+  assert.equal(open.cache.entries.get(open.cache.puts[0])?.control, "public, max-age=3600");
+});
+
+test("a stored answer older than an hour is not served, whatever the cache says, and is asked for again", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const t = setup(laskar);
+    await t.get(QUERY);
+    mock.timers.tick(3_599_999);
+    await t.get(QUERY);
+    assert.equal(t.google(), 1);
+    mock.timers.tick(1);
+    await t.get(QUERY);
+    assert.equal(t.google(), 2);
+    assert.equal(t.cache.puts.length, 2);
+    mock.timers.tick(3_599_000);
+    await t.get(QUERY);
+    assert.equal(t.google(), 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("an entry stamped in the future, without a stamp or with a bad one is not served", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_800_000_000_000 });
+  try {
+    const hits = [{ source: "google", work: "Vol1AbCdEfGh", title: "Stored", author: "", year: null, cover: null, isbns: [], language: null, blurb: null }];
+    for (const stored of [{ hits, at: 1_800_000_000_001 }, { hits }, { hits, at: "now" }, { hits, at: null }, { hits, at: Number.NaN }]) {
+      const t = setup(laskar);
+      const key = `https://lookup.invalid/v1?${new URLSearchParams({ title: "laskar pelangi", author: "andrea hirata" })}`;
+      await t.cache.store.put(new Request(key), Response.json(stored));
+      assert.equal((await hitsOf(await t.get(QUERY)))[0].title, "Laskar Pelangi", JSON.stringify(stored));
+      assert.equal(t.google(), 1);
+    }
+    const fresh = setup(laskar);
+    const key = `https://lookup.invalid/v1?${new URLSearchParams({ title: "laskar pelangi", author: "andrea hirata" })}`;
+    await fresh.cache.store.put(new Request(key), Response.json({ hits, at: 1_800_000_000_000 }));
+    assert.equal((await hitsOf(await fresh.get(QUERY)))[0].title, "Stored");
+    assert.equal(fresh.google(), 0);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("a repeat of the same lookup, however it is spelled, is answered from the cache with no upstream call", async () => {
@@ -282,7 +332,7 @@ test("hostile fields from Google come out as safe, bounded, plain data", async (
   assert.deepEqual(hits.hits.map((hit) => hit.work), ["Vol1AbCdEfGh", "Vol2AbCdEfGh", "Vol3AbCdEfGh", "Vol4AbCdEfGh"]);
   const [first, long, plain, bare] = hits.hits;
   assert.equal(first.title, "<script>alert(1)</script>Judul");
-  assert.equal(first.blurb, "Isi & lagi");
+  assert.equal(first.blurb, null);
   assert.equal(first.cover, "https://books.google.com/books/content?id=Vol1AbCdEfGh");
   assert.deepEqual(first.isbns, ["9789793062792"]);
   assert.equal(first.author.split("; ")[1].length, 100);
@@ -421,14 +471,59 @@ test("a status below 500 other than 429 is a plain failure, 500 is a busy one", 
   assert.equal((await setup(() => reply({}, 428)).get(QUERY)).status, 502);
 });
 
-test("one hit is cached for seven days, and one Open Library hit is enough after a failing Google", async () => {
+test("one hit is cached for an hour, and one Open Library hit is enough after a failing Google", async () => {
   const one = reply({ items: [{ id: "Vol1AbCdEfGh", volumeInfo: { title: "Solo" } }] });
   const t = setup(() => one.clone());
   await t.get(QUERY);
-  assert.equal(t.cache.entries.get(t.cache.puts[0])?.control, `public, max-age=${FOUND_SECONDS}`);
+  assert.equal(t.cache.entries.get(t.cache.puts[0])?.control, "public, max-age=3600");
   const doc = { key: "/works/OL1W", title: "Solo" };
   const after = setup(() => reply({}, 500), () => reply({ docs: [doc] }));
   const res = await after.get(QUERY);
   assert.equal(res.status, 200);
   assert.deepEqual((await hitsOf(res)).map((hit) => hit.work), ["OL1W"]);
+});
+
+test("a Google answer that counts volumes but lists none is an upstream oddity: Open Library answers and nothing is cached", async () => {
+  for (const body of [{ totalItems: 1 }, { totalItems: 7 }, { totalItems: 7, items: [] }, { totalItems: 3, items: [{ id: "a/b", volumeInfo: { title: "T" } }] }]) {
+    const t = setup(() => reply(body), () => reply(sample("openlibrary", "laskar-pelangi-search")));
+    assert.equal((await hitsOf(await t.get(QUERY)))[0].source, "openlibrary", JSON.stringify(body));
+    assert.equal(t.cache.puts.length, 0);
+    await t.get(QUERY);
+    assert.equal(t.google(), 2);
+    const bare = await setup(() => reply(body), () => reply({ docs: [] })).get(QUERY);
+    assert.equal(bare.status, 502);
+  }
+});
+
+test("a Google answer that counts nothing is a definite empty one", async () => {
+  for (const body of [{ totalItems: 0 }, { totalItems: 0, items: [] }, { kind: "books#volumes" }]) {
+    const t = setup(() => reply(body));
+    assert.deepEqual(await hitsOf(await t.get(QUERY)), []);
+    assert.equal(t.cache.puts.length, 1, JSON.stringify(body));
+  }
+});
+
+test("only a 200 is read: another success status with a good body is a failure", async () => {
+  for (const status of [201, 203, 206, 299]) {
+    const res = await setup(() => new Response(JSON.stringify(sample("google", "laskar-pelangi")), { status }), () => new Response(JSON.stringify({ docs: [] }), { status })).get(QUERY);
+    assert.equal(res.status, 502, String(status));
+  }
+});
+
+test("a response over the cap is cancelled, not drained", async () => {
+  let cancelled = false;
+  let pulls = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new TextEncoder().encode("x".repeat(400_000)));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const t = setup(() => new Response(body), () => reply(sample("openlibrary", "laskar-pelangi-search")));
+  assert.equal((await hitsOf(await t.get(QUERY)))[0].source, "openlibrary");
+  assert.equal(cancelled, true);
+  assert.ok(pulls <= 4, String(pulls));
 });

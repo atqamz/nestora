@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { POWERED_BY, googleCover, googleUrl, parseGoogle, plain } from "../src/domain/googlebooks.ts";
+import { POWERED_BY, googleCover, googleUrl, parseGoogle } from "../src/domain/googlebooks.ts";
 import { fillPatch, sameAuthor } from "../src/domain/openlibrary.ts";
 import { isCover } from "../shared/validate.ts";
 
@@ -11,7 +11,7 @@ const volume = (info: object, id = "Vol1AbCdEfGh") => ({ items: [{ id, volumeInf
 
 const one = (info: object, id?: string) => parseGoogle(volume(info, id))[0];
 
-test("a volume carries the id, title, authors, year, language, ISBN-13s, https cover and plain blurb", () => {
+test("a volume carries the id, title, authors, year, language, ISBN-13s, https cover and no blurb", () => {
   const [first, second, third, fourth] = parseGoogle(sample("laskar-pelangi"));
   assert.deepEqual(first, {
     source: "google",
@@ -22,9 +22,9 @@ test("a volume carries the id, title, authors, year, language, ISBN-13s, https c
     cover: "https://books.google.com/books/content?id=Lp1AbCdEfGhI&printsec=frontcover&img=1&source=gbs_api",
     isbns: ["9789793062792"],
     language: "id",
-    blurb: "Invented synopsis of a school on an island. Second line.",
+    blurb: null,
   });
-  assert.deepEqual([second.year, second.isbns, second.blurb], [2013, ["9789791227780"], "Another printing."]);
+  assert.deepEqual([second.year, second.isbns, second.blurb], [2013, ["9789791227780"], null]);
   assert.deepEqual([third.language, third.isbns, third.cover], ["en", ["9780374246310"], null]);
   assert.deepEqual([fourth.author, fourth.isbns, fourth.title], ["", [], "Laskar Pelangi (Edisi Anak)"]);
 });
@@ -67,12 +67,12 @@ test("at most eight volumes, and one hit per id", () => {
 
 test("the year is the first four digits of the date, else nothing", () => {
   assert.deepEqual(["2008", "2008-01", "2008-01-31", "1999-12-31T00:00:00Z"].map((publishedDate) => one({ publishedDate }).year), [2008, 2008, 2008, 1999]);
-  for (const publishedDate of ["", "x", "20", "0000", 2008, null, "'08"]) assert.equal(one({ publishedDate }).year, null, String(publishedDate));
+  for (const publishedDate of ["", "x", "20", "0000", 2008, null, "'08", "x2008", " 2008", "c. 2008"]) assert.equal(one({ publishedDate }).year, null, String(publishedDate));
 });
 
 test("the language is id, en, other, or unknown", () => {
   assert.deepEqual(["id", "en", "fr", "jv"].map((language) => one({ language }).language), ["id", "en", "other", "other"]);
-  for (const language of ["und", "", "ID", "indonesian", 5, null]) assert.equal(one({ language }).language, null, String(language));
+  for (const language of ["und", "", "ID", "indonesian", "e", "abcd", "id-ID", "i d", 5, null]) assert.equal(one({ language }).language, null, String(language));
 });
 
 test("ISBNs: both kinds become ISBN-13 once each, other identifiers and bad checksums are ignored", () => {
@@ -93,6 +93,7 @@ test("a cover link becomes an https link without zoom and curl, and only a regis
   assert.equal(googleCover("https://books.google.com/books/publisher/content/images/frontcover/abc?fife=w200-h300"), "https://books.google.com/books/publisher/content/images/frontcover/abc?fife=w200-h300");
   assert.equal(googleCover("http://books.googleusercontent.com/x/abc=s128"), "https://books.googleusercontent.com/x/abc=s128");
   assert.equal(googleCover("https://books.google.com/books/content?id=abc#frag"), "https://books.google.com/books/content?id=abc");
+  assert.equal(googleCover("https://books.google.com/books/content?id=abc&back=http://example.test/x"), "https://books.google.com/books/content?id=abc&back=http%3A%2F%2Fexample.test%2Fx");
   for (const bad of [
     "javascript:alert(1)",
     "data:image/png;base64,AAAA",
@@ -127,28 +128,32 @@ test("the cover is the thumbnail, else the small one, and a hostile link means n
   assert.ok(isCover(cover));
 });
 
-test("a description loses its tags, keeps its entities as text and stops at the first paragraph", () => {
-  assert.equal(plain("<p>One &amp; two</p><p>Three</p>"), "One & two\n\nThree\n\n");
-  assert.equal(plain("a<br>b<br/>c<BR />d"), "a\nb\nc\nd");
-  assert.equal(plain("&lt;script&gt;x&lt;/script&gt;"), "<script>x</script>");
-  assert.equal(plain("&amp;lt;"), "&lt;");
-  assert.equal(plain("<a href='javascript:1'>link</a> <b>bold</b>"), "link bold");
-  assert.equal(one({ description: "<p>First <b>para</b></p><p>Second</p>" }).blurb, "First para");
-  assert.equal(one({ description: "x".repeat(900) }).blurb?.length, 501);
-  for (const description of ["", " ", "<p></p>", 5, null]) assert.equal(one({ description }).blurb, null, String(description));
+test("a description is never kept, whatever it holds", () => {
+  for (const description of ["<p>First <b>para</b></p><p>Second</p>", "x".repeat(900), "", " ", 5, null]) assert.equal(one({ description }).blurb, null, String(description));
 });
 
-test("the request is a plain query with the key, never an intitle or inauthor operator", () => {
-  const url = new URL(googleUrl({ kind: "title", title: "laskar pelangi", author: "andrea hirata" }, "KEYVALUE"));
+test("a hostile volume with 200 KB or 1 MB fields gives bounded plain data and no blurb", () => {
+  const runs = ["<p", "&amp;", "<", "<a ", " ", "[", "\u0000", "\n"];
+  for (const size of [200_000, 1_000_000]) {
+    for (const run of runs) {
+      const hostile = run.repeat(Math.ceil(size / run.length));
+      const hit = one({ title: hostile, authors: [hostile], description: hostile, language: hostile, publishedDate: hostile });
+      assert.ok(hit === undefined || (Array.from(hit.title).length <= 200 && hit.author.length <= 100), run);
+      assert.deepEqual(hit === undefined ? [null, null, null] : [hit.blurb, hit.language, hit.year], [null, null, null], run);
+    }
+  }
+});
+
+test("the request is a plain query without the key, never an intitle or inauthor operator", () => {
+  const url = new URL(googleUrl({ kind: "title", title: "laskar pelangi", author: "andrea hirata" }));
   assert.equal(`${url.origin}${url.pathname}`, "https://www.googleapis.com/books/v1/volumes");
-  assert.deepEqual([...url.searchParams.keys()], ["q", "maxResults", "key"]);
+  assert.deepEqual([...url.searchParams.keys()], ["q", "maxResults"]);
   assert.equal(url.searchParams.get("q"), "laskar pelangi andrea hirata");
   assert.equal(url.searchParams.get("maxResults"), "8");
-  assert.equal(url.searchParams.get("key"), "KEYVALUE");
   assert.doesNotMatch(url.href, /intitle|inauthor/);
-  assert.equal(new URL(googleUrl({ kind: "title", title: "pangeran kecil", author: "" }, "k")).searchParams.get("q"), "pangeran kecil");
-  assert.equal(new URL(googleUrl({ kind: "isbn", isbn: "9789793062792" }, "k")).searchParams.get("q"), "isbn:9789793062792");
-  assert.equal(new URL(googleUrl({ kind: "title", title: "a&b=c #d", author: "" }, "k")).searchParams.get("q"), "a&b=c #d");
+  assert.equal(new URL(googleUrl({ kind: "title", title: "pangeran kecil", author: "" })).searchParams.get("q"), "pangeran kecil");
+  assert.equal(new URL(googleUrl({ kind: "isbn", isbn: "9789793062792" })).searchParams.get("q"), "isbn:9789793062792");
+  assert.equal(new URL(googleUrl({ kind: "title", title: "a&b=c #d", author: "" })).searchParams.get("q"), "a&b=c #d");
 });
 
 test("the guards run unchanged on Indonesian cases: a translation with the original in parentheses, a series number, a transliterated author, an empty author", () => {
@@ -170,17 +175,16 @@ test("the guards run unchanged on Indonesian cases: a translation with the origi
   assert.equal(sameAuthor("Andrea Hirata", none.author), false);
 });
 
-test("filling from a volume writes its id under gb, takes its own blurb, and never the ISBN or a language from another title", () => {
+test("filling from a volume writes its id under gb, never a blurb from Google, and never the ISBN or a language from another title", () => {
   const [first, , english] = parseGoogle(sample("laskar-pelangi"));
   assert.deepEqual(fillPatch({ title: "Laskar Pelangi", data: null }, first, null), {
     author: "Andrea Hirata",
     language: "id",
     cover: first.cover,
     gb: first.work,
-    blurb: first.blurb,
   });
   assert.equal(fillPatch({ title: "Laskar Pelangi", data: { original_title: "The Rainbow Troops" } }, english, null)?.language, undefined);
-  assert.equal(fillPatch({ title: "Laskar Pelangi", data: { blurb: "Mine", author: "Mine" } }, first, null)?.blurb, undefined);
+  assert.equal(fillPatch({ title: "Laskar Pelangi", data: { author: "Mine" } }, first, null)?.blurb, undefined);
 });
 
 const isbn13 = (n: number) => {
@@ -194,8 +198,4 @@ test("at most five ISBNs are kept, and the Google Books logo is the one Google h
   assert.equal(ids(5).length, 5);
   assert.deepEqual(ids(6), ids(5));
   assert.equal(POWERED_BY, "https://books.google.com/googlebooks/images/poweredby.png");
-});
-
-test("the five entities Google uses are decoded once", () => {
-  assert.equal(plain("it&#39;s &quot;x&quot; &apos;y&apos; &lt;&gt; &amp;"), "it's \"x\" 'y' <> &");
 });

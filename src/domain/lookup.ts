@@ -58,7 +58,7 @@ const hitOf = (raw: unknown): Hit | null => {
     cover: cover as string | null,
     isbns: codes,
     language: language as Language | null,
-    blurb: blurb as string | null,
+    blurb: source === "google" ? null : (blurb as string | null),
   };
 };
 
