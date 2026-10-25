@@ -14,7 +14,7 @@ export function Them() {
   const single = them.routines.length === 1;
   return (
     <section className="group rt-them" aria-labelledby="rt-them">
-      <h3 id="rt-them">{copy.them.title}</h3>
+      <h2 id="rt-them">{copy.them.title}</h2>
       {them.slots.length === 0 ? (
         <p className="empty">{copy.them.empty}</p>
       ) : (

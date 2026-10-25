@@ -120,7 +120,7 @@
   display: none;
 }
 
-.rt-today summary h3 {
+.rt-today summary h2 {
   margin: 0;
   min-width: 0;
 }
@@ -143,13 +143,14 @@
   margin-top: var(--s1);
 }
 
-.rt-block h4 {
+.rt-block h3 {
   margin: 0 0 var(--s1);
+  line-height: inherit;
   font-size: var(--fs-meta);
   font-weight: 700;
 }
 
-.rt-block h4 a {
+.rt-block h3 a {
   display: inline-flex;
   align-items: center;
   min-width: 0;
@@ -158,7 +159,7 @@
   text-decoration: none;
 }
 
-.rt-block h4 span {
+.rt-block h3 span {
   display: inline-block;
   min-width: 8ch;
   margin-left: var(--s3);
