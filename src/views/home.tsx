@@ -16,7 +16,7 @@ function NextUp() {
   if (rows.length === 0) return null;
   return (
     <section className="group" aria-labelledby="home-next">
-      <h3 id="home-next">{text.books.nextUp}</h3>
+      <h2 id="home-next">{text.books.nextUp}</h2>
       <ul className="rows">
         {rows.map((book) => (
           <BookRow key={book.id} book={book} copies={copies.get(book.id) ?? []} places={places} />
@@ -36,6 +36,7 @@ export function Home() {
       <Capture />
       <Today />
       <Them />
+      <h2 className="visually-hidden">{text.week.heading}</h2>
       <Week />
       <NextUp />
     </>

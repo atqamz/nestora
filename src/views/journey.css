@@ -286,7 +286,8 @@
   margin: var(--s5) 0 0;
 }
 
-.group h3 {
+.group h2,
+.group > h3 {
   display: flex;
   align-items: baseline;
   gap: var(--s2);
@@ -295,12 +296,12 @@
   line-height: 1;
 }
 
-.group h3 span {
+.group > h3 span {
   color: var(--ink-2);
   font-weight: 500;
 }
 
-.group h3[data-late] {
+.group > h3[data-late] {
   color: var(--late);
 }
 

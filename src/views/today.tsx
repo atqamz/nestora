@@ -35,7 +35,7 @@ export function Today() {
   if (!owned || blocks.length === 0) {
     return (
       <section className="group rt-today" aria-labelledby="rt-today">
-        <h3 id="rt-today">{copy.today(formatDay(day, day))}</h3>
+        <h2 id="rt-today">{copy.today(formatDay(day, day))}</h2>
         <p className="empty">{owned ? copy.nothingToday : copy.emptyHome}</p>
         {trail}
       </section>
@@ -45,18 +45,18 @@ export function Today() {
     <section className="group rt-today" aria-labelledby="rt-today">
       <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
         <summary>
-          <h3 id="rt-today">{copy.today(formatDay(day, day))}</h3>
+          <h2 id="rt-today">{copy.today(formatDay(day, day))}</h2>
           {total > 0 && <span className="rt-tally">{finished ? copy.allDone : copy.progress(done, total)}</span>}
         </summary>
         {blocks.map(({ routine, actions, label, progress, side }) => {
           const strip = weekStrip(routine, actionsOf(items, routine), day, side);
           return (
             <div key={routine.id} className="rt-block">
-              <h4>
+              <h3>
                 <a href={`#/routines/${routine.id}`}>{label === null ? routine.title : `${routine.title} · ${label}`}</a>
                 <span>{momentLabel(momentOf(routine))}</span>
                 {progress.total > 0 && <span>{copy.progress(progress.done, progress.total)}</span>}
-              </h4>
+              </h3>
               {strip !== null && <RoutineWeek strip={strip} compact />}
               <ul className="rows">
                 {actions
