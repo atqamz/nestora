@@ -408,7 +408,7 @@ test("the stored hash is compared only through same(), for every row, with no ea
 test("run_worker_first gains /feed/* and the asset settings are otherwise unchanged", () => {
   const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8")) as { assets: Record<string, unknown>; routes: unknown; env: { dev: { routes: unknown[] } } };
   assert.deepEqual(config.assets, { not_found_handling: "single-page-application", run_worker_first: ["/api/*", "/design/*", "/feed/*"] });
-  assert.deepEqual(config.routes, [{ pattern: "wp.atqamz.com", custom_domain: true }]);
+  assert.deepEqual(config.routes, [{ pattern: "wp.atqamz.com", custom_domain: true }, { pattern: "nestora.atqamz.com", custom_domain: true }]);
 });
 
 test("nothing else changed for the other routes: /api and /design still need a partner, anything else is a 404 before authentication", async () => {

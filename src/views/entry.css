@@ -60,10 +60,9 @@ main.entry {
 .entry-brand {
   display: block;
   margin-bottom: var(--s7);
-  font: 800 2.75rem / 1 var(--font-display);
+  font: 800 min(2.75rem, 15vw) / 1 var(--font-display);
   font-stretch: var(--stretch-display);
   letter-spacing: -0.02em;
-  text-transform: lowercase;
 }
 
 .entry-body h1 {

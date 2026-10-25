@@ -1,7 +1,7 @@
-# WP
+# Nestora
 
 Mobile-first PWA that tracks a household's planning in one place.
-React + TypeScript SPA served by a Cloudflare Worker with D1.
+React + TypeScript SPA served by a Cloudflare Worker with D1. During the move to a new name the app answers on both `wp.atqamz.com` and `nestora.atqamz.com`.
 
 ## Run locally
 
@@ -45,6 +45,19 @@ npm run check
 ## Bootstrap
 
 The top-level D1 binding in `wrangler.jsonc` holds the real production `database_id`. Only `env.dev` keeps the all-zero placeholder, which must never reach production. The bootstrap that created the database is in section 8 of `docs/infra.md` on the `docs` branch (`git show docs:docs/infra.md`).
+
+## Names that still say wp
+
+The product is called Nestora. These internal identifiers keep the old name because renaming them costs data or a migration for no user benefit:
+
+| Identifier | Why it stays |
+|---|---|
+| Worker script `wp`, `dist/wp/` | the deploy target and the build path follow it |
+| D1 database `wp`, KV binding and title | a new database means export, import and a new epoch |
+| IndexedDB `wp-a`, `wp-b`, legacy `wp`, `localStorage` `wp-side` and `wp-theme`, `sessionStorage` `wp.timer.*` | a rename would orphan data already on the devices |
+| `X-Wp-Side` header | both sides must agree during a deploy |
+| Feed UID suffix `@wp.atqamz.com` | a new suffix re-creates every event in subscribed calendars |
+| `wp-private/` in `.gitignore`, the live host `wp.atqamz.com` | still the live host and a local folder name |
 
 ## License
 

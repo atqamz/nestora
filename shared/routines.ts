@@ -40,7 +40,8 @@ const digit = (text: string, at: number) => {
   return value >= 0 && value <= 9 ? value : NaN;
 };
 
-const epochDay = (date: string) => {
+const epochDay = (input: string) => {
+  const date = String(input);
   const year = digit(date, 0) * 1000 + digit(date, 1) * 100 + digit(date, 2) * 10 + digit(date, 3);
   const month = digit(date, 5) * 10 + digit(date, 6);
   const day = digit(date, 8) * 10 + digit(date, 9);
