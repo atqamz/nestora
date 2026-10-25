@@ -1,7 +1,7 @@
 # WP
 
 Mobile-first PWA that tracks a household's planning in one place.
-React + TypeScript SPA served by a Cloudflare Worker with D1.
+React + TypeScript SPA served by a Cloudflare Worker with D1. During the move to a new name the app answers on both `wp.atqamz.com` and `nestora.atqamz.com`.
 
 ## Run locally
 

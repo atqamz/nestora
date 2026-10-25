@@ -229,6 +229,14 @@ for (const [name, headers] of [
   });
 }
 
+for (const [origin, status] of [["https://nestora.atqamz.com", 200], ["https://wp.atqamz.com", 403], ["https://evil.example.test", 403]] as const) {
+  test(`POST /api/sync on nestora.atqamz.com with Origin ${origin} is ${status}`, async () => {
+    const { env } = setup();
+    const res = await worker.fetch(new Request("https://nestora.atqamz.com/api/sync", { method: "POST", body: JSON.stringify({ mutations: [] }), headers: { ...JSON_HEADERS, origin } }), env);
+    assert.equal(res.status, status);
+  });
+}
+
 for (const [name, headers] of [
   ["no Origin and no Sec-Fetch-Site", {}],
   ["the same-origin Origin", { origin: "https://wp.example.test" }],
