@@ -8,7 +8,7 @@ import { text } from "../src/ui/text.ts";
 import { client, idOf } from "./store-client.ts";
 import { createServer } from "./store-server.ts";
 
-const blank: BookInput = { kind: "shelf", title: "Laskar Pelangi", author: "", original: "", isbn: "", language: "", blurb: "", cover: "", ol: "", ownerPick: null, placePick: null };
+const blank: BookInput = { kind: "shelf", title: "Laskar Pelangi", author: "", original: "", isbn: "", language: "", blurb: "", cover: "", ol: "", gb: "", ownerPick: null, placePick: null };
 
 const world = async (me: "a" | "b" = "a") => {
   const { store } = client(createServer(), me);

@@ -1,6 +1,7 @@
 import { toIsbn13 } from "../domain/isbn.ts";
 import { fresh } from "../domain/scan.ts";
-import { fillPatch, isbnUrl, parseBlurb, parseIsbn, parseSearch, queriesOf, sameAuthor, sameBook, searchUrl, workUrl } from "../domain/openlibrary.ts";
+import { lookupUrl, parseLookup } from "../domain/lookup.ts";
+import { fillPatch, isbnUrl, lacksBlurb, parseBlurb, parseIsbn, parseSearch, phraseOf, pickIsbn, queriesOf, sameAuthor, sameBook, searchUrl, workKey, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
 
 export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale"; retry?: number };
@@ -21,7 +22,9 @@ const delayOf = (header: string | null) => {
   return Number.isFinite(ms) ? Math.max(0, ms) : 0;
 };
 
-type Options = { fetcher?: Fetcher; online?: () => boolean; wait?: number; timeout?: number; remember?: number };
+type Options = { fetcher?: Fetcher; online?: () => boolean; wait?: number; timeout?: number; remember?: number; worker?: boolean };
+
+const ours = (res: Response) => [429, 502, 503].includes(res.status) && res.headers.get("content-type")?.includes("application/json") === true;
 
 export const createLookup = ({
   fetcher = (url, init) => fetch(url, init),
@@ -29,6 +32,7 @@ export const createLookup = ({
   wait = 400,
   timeout = 8000,
   remember = 50,
+  worker = true,
 }: Options = {}): Lookup => {
   let current: AbortController | null = null;
   let searching = false;
@@ -47,7 +51,7 @@ export const createLookup = ({
       signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
     });
 
-  const get = async <T>(signal: AbortSignal, url: string, parse: (body: unknown) => T): Promise<Outcome<T>> => {
+  const get = async <T>(signal: AbortSignal, url: string, parse: (body: unknown) => T, own = false): Promise<Outcome<T>> => {
     if (cache.has(url)) return { kind: "ok", value: cache.get(url) as T };
     if (!online()) return { kind: "offline" };
     const limit = new AbortController();
@@ -60,15 +64,18 @@ export const createLookup = ({
     try {
       let res: Response;
       try {
-        res = await fetcher(url, { signal: limit.signal, credentials: "omit", referrerPolicy: "no-referrer" });
+        res = await fetcher(url, { signal: limit.signal, credentials: own ? "same-origin" : "omit", referrerPolicy: "no-referrer", ...(own && { redirect: "manual" as const }) });
       } catch {
         return lost("offline");
       }
       try {
-        if (res.status !== 200) return lost("failed", res.status === 429 || res.status >= 500 ? delayOf(res.headers.get("retry-after")) : undefined);
+        if (res.status !== 200) {
+          if (own && !ours(res)) return lost("offline");
+          return lost("failed", res.status === 429 || res.status >= 500 ? delayOf(res.headers.get("retry-after")) : undefined);
+        }
         value = parse(await res.json());
       } catch {
-        return lost("failed");
+        return lost(own ? "offline" : "failed");
       }
     } finally {
       clearTimeout(timer);
@@ -78,6 +85,14 @@ export const createLookup = ({
     return signal.aborted ? { kind: "stale" } : { kind: "ok", value };
   };
 
+  const find = async <T>(signal: AbortSignal, own: string, direct: string, parseOwn: (body: unknown) => T, parseDirect: (body: unknown) => T): Promise<Outcome<T>> => {
+    if (worker) {
+      const out = await get(signal, own, parseOwn, true);
+      if (out.kind !== "offline" || !online()) return out;
+    }
+    return get(signal, direct, parseDirect);
+  };
+
   return {
     search: async (input) => {
       const signal = begin(true);
@@ -85,12 +100,12 @@ export const createLookup = ({
       let last: Outcome<Hit[]> = { kind: "ok", value: [] };
       for (const query of queriesOf(input)) {
         if (signal.aborted) return { kind: "stale" };
-        last = await get(signal, searchUrl(query), parseSearch);
+        last = await find(signal, lookupUrl(query), searchUrl(phraseOf(query)), parseLookup, parseSearch);
         if (last.kind !== "ok" || last.value.length > 0) return last;
       }
       return last;
     },
-    byIsbn: (isbn) => get(begin(), isbnUrl(isbn), (body) => parseIsbn(body, isbn)),
+    byIsbn: (isbn) => find(begin(), lookupUrl({ kind: "isbn", isbn }), isbnUrl(isbn), (body) => pickIsbn(parseLookup(body), isbn), (body) => parseIsbn(body, isbn)),
     blurb: (work) => get(begin(), workUrl(work), parseBlurb),
     cancel: () => searching && current?.abort(),
     stop: () => current?.abort(),
@@ -126,7 +141,7 @@ type Typed = () => { title: string; data: Record<string, unknown> | null };
 
 const complete = async (lookup: Lookup, hit: Hit, read: Typed): Promise<Filled> => {
   if (fillPatch(read(), hit, null) === null) return { kind: "mismatch" };
-  const wanted = read().data?.blurb === undefined ? await lookup.blurb(hit.work) : null;
+  const wanted = read().data?.blurb === undefined && lacksBlurb(hit) ? await lookup.blurb(hit.work) : null;
   if (wanted !== null && wanted.kind !== "ok" && (wanted.kind !== "failed" || wanted.retry !== undefined)) return wanted;
   const patch = fillPatch(read(), hit, wanted?.kind === "ok" ? wanted.value : null);
   if (patch === null) return { kind: "mismatch" };
@@ -147,7 +162,7 @@ export const fillTitle = async (lookup: Lookup, read: Typed): Promise<Filled | {
   if (found.kind !== "ok") return found;
   const titled = found.value.filter((candidate) => fillPatch(read(), candidate, null) !== null);
   const confirmed = titled.filter((candidate) => sameAuthor(data?.author, candidate.author));
-  if (new Set(confirmed.map((candidate) => candidate.work)).size > 1) return { kind: "unsure" };
+  if (new Set(confirmed.map(workKey)).size > 1) return { kind: "unsure" };
   if (confirmed.length === 0) return titled.length > 0 ? { kind: "unsure" } : { kind: "empty" };
   return complete(lookup, confirmed[0], read);
 };

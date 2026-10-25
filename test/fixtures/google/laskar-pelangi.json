@@ -1,0 +1,234 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 4,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "Lp1AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Lp1AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Laskar Pelangi",
+        "subtitle": "Novel",
+        "authors": [
+          "Andrea Hirata"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2008-01-01",
+        "description": "Invented synopsis of a school on an island.<br>Second line.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "9793062797"
+          },
+          {
+            "type": "ISBN_13",
+            "identifier": "9789793062792"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Lp1AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Lp1AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "id",
+        "previewLink": "http://books.google.com/books?id=Lp1AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Lp1AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Lp1AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Lp1AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Lp2AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Lp2AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Laskar Pelangi",
+        "authors": [
+          "Andrea Hirata"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2013",
+        "description": "Another printing.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9789791227780"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=Lp2AbCdEfGhI&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=Lp2AbCdEfGhI&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "id",
+        "previewLink": "http://books.google.com/books?id=Lp2AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Lp2AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Lp2AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Lp2AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Lp3AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Lp3AbCdEfGhI",
+      "volumeInfo": {
+        "title": "The Rainbow Troops",
+        "authors": [
+          "Andrea Hirata"
+        ],
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2009-05-12",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "0374246319"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "language": "en",
+        "previewLink": "http://books.google.com/books?id=Lp3AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Lp3AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Lp3AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Lp3AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    {
+      "kind": "books#volume",
+      "id": "Lp4AbCdEfGhI",
+      "etag": "ZXRhZ0ZpeHR1cmU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/Lp4AbCdEfGhI",
+      "volumeInfo": {
+        "title": "Laskar Pelangi (Edisi Anak)",
+        "publisher": "Penerbit Contoh",
+        "publishedDate": "2011-06",
+        "industryIdentifiers": [
+          {
+            "type": "OTHER",
+            "identifier": "PKEY:INVENTED1"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 300,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "language": "id",
+        "previewLink": "http://books.google.com/books?id=Lp4AbCdEfGhI&hl=&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=Lp4AbCdEfGhI&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=Lp4AbCdEfGhI"
+      },
+      "saleInfo": {
+        "country": "ID",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "ID",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=Lp4AbCdEfGhI&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    }
+  ]
+}

@@ -21,6 +21,7 @@ export type BookInput = {
   blurb: string;
   cover: string;
   ol: string;
+  gb: string;
   ownerPick: BookOwner | null;
   placePick: string | null;
 };
@@ -44,6 +45,7 @@ export const saveBook = async (items: readonly ItemRow[], create: Store["create"
     blurb: input.blurb.trim().replace(/\s+/g, " "),
     cover: input.cover,
     ol: input.ol,
+    gb: input.gb,
   };
   const data = Object.fromEntries(Object.entries(details).filter(([, value]) => value !== ""));
   const language = input.language === "" ? {} : { language: input.language };

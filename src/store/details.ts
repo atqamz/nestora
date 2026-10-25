@@ -36,7 +36,7 @@ export const paced = (fetcher: Fetcher, gap = GAP_MS, now = () => Date.now(), wa
 
 export const detailsLookup = createLookup({ fetcher: paced((url, init) => fetch(url, init)), wait: 0 });
 
-export const needsDetails = (book: ItemRow) => book.data?.ol == null;
+export const needsDetails = (book: ItemRow) => book.data?.ol == null && book.data?.gb == null;
 
 export const findDetails = async ({
   ids,

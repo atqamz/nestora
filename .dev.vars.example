@@ -1,3 +1,4 @@
 ACCESS_TEAM_DOMAIN=example.test
 ACCESS_AUD=example-aud
 ALLOWED_EMAILS=a@example.test,b@example.test
+GOOGLE_BOOKS_KEY=

@@ -3,14 +3,18 @@ import { toIsbn13 } from "./isbn.ts";
 
 export type Language = "id" | "en" | "other";
 
+export type Source = "google" | "openlibrary";
+
 export type Hit = {
+  source: Source;
   work: string;
   title: string;
   author: string;
   year: number | null;
-  coverId: number | null;
-  isbn: string | null;
+  cover: string | null;
+  isbns: string[];
   language: Language | null;
+  blurb: string | null;
 };
 
 const SITE = "https://openlibrary.org";
@@ -19,19 +23,21 @@ const SEARCH_FIELDS = "key,title,author_name,first_publish_year,cover_i,editions
 
 const LIMIT = 5;
 
-const AUTHORS_MAX = 3;
+export const AUTHORS_MAX = 3;
 
 const BLURB_MAX = 500;
 
-const WORK = /^OL\d{1,12}W$/;
+export const ISBNS_MAX = 5;
+
+export const WORK = /^OL\d{1,12}W$/;
 
 const LANGUAGES: Record<string, Language> = { ind: "id", eng: "en" };
 
-const dict = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {});
+export const dict = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {});
 
-const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []);
+export const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []);
 
-const count = (value: unknown) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null);
+export const count = (value: unknown) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null);
 
 export const searchUrl = (query: string) => `${SITE}/search.json?${new URLSearchParams({ q: query, limit: String(LIMIT), fields: SEARCH_FIELDS })}`;
 
@@ -41,29 +47,44 @@ export const workUrl = (work: string) => `${SITE}/works/${work}.json`;
 
 export const workPage = (work: string) => (WORK.test(work) ? `${SITE}/works/${work}` : null);
 
+export const VOLUME = /^[A-Za-z0-9_-]{1,32}$/;
+
+export const pageOf = (source: Source, work: string) =>
+  source === "google" ? (VOLUME.test(work) ? `https://books.google.com/books?id=${work}` : null) : workPage(work);
+
 export const coverUrl = (id: number) => `https://covers.openlibrary.org/b/id/${id}-M.jpg`;
 
-export const queriesOf = ({ title, author, original }: { title: string; author: string; original: string }): string[] => [
-  ...new Set([title, original].map((name) => [name, author].join(" ").trim().replace(/\s+/g, " ")).filter((query) => query !== author.trim().replace(/\s+/g, " "))),
-];
+export type TitleQuery = { kind: "title"; title: string; author: string };
+
+export type Query = TitleQuery | { kind: "isbn"; isbn: string };
+
+const squash = (value: string) => value.trim().replace(/\s+/g, " ");
+
+export const queriesOf = ({ title, author, original }: { title: string; author: string; original: string }): TitleQuery[] =>
+  [...new Set([title, original].map(squash).filter(Boolean))].map((name) => ({ kind: "title", title: name, author: squash(author) }));
+
+export const phraseOf = ({ title, author }: TitleQuery) => [title, author].filter(Boolean).join(" ");
 
 const hitOf = (doc: unknown): Hit | null => {
-  const { key, title, author_name: authors, first_publish_year: year, cover_i: cover, editions } = dict(doc);
+  const { key, title, author_name: authors, first_publish_year: year, cover_i: coverId, editions } = dict(doc);
   const work = typeof key === "string" ? key.replace(/^\/works\//, "") : "";
   if (!WORK.test(work) || typeof title !== "string" || title.trim() === "") return null;
   const [edition] = Array.isArray(dict(editions).docs) ? (dict(editions).docs as unknown[]) : [];
   const { isbn, language, cover_i: editionCover } = dict(edition);
   const languages = strings(language);
   const single = languages.length <= 1;
-  const code = single ? (strings(isbn).map(toIsbn13).find((value) => value !== null) ?? null) : null;
+  const codes = single ? [...new Set(strings(isbn).map(toIsbn13).filter((value) => value !== null))].slice(0, ISBNS_MAX) : [];
+  const cover = (single ? count(editionCover) : null) ?? count(coverId);
   return {
+    source: "openlibrary",
     work,
     title: title.trim(),
     author: strings(authors).slice(0, AUTHORS_MAX).join("; "),
     year: count(year),
-    coverId: (single ? count(editionCover) : null) ?? count(cover),
-    isbn: code,
+    cover: cover === null ? null : coverUrl(cover),
+    isbns: codes,
     language: languages.length === 1 ? (LANGUAGES[languages[0]] ?? "other") : null,
+    blurb: null,
   };
 };
 
@@ -72,15 +93,12 @@ export const parseSearch = (body: unknown): Hit[] => {
   return Array.isArray(docs) ? docs.flatMap((doc) => hitOf(doc) ?? []).slice(0, LIMIT) : [];
 };
 
-export const parseIsbn = (body: unknown, isbn: string): Hit | null => {
-  const hits = parseSearch(body);
-  return hits.find((hit) => hit.isbn === isbn) ?? hits[0] ?? null;
-};
+export const pickIsbn = (hits: Hit[], isbn: string): Hit | null =>
+  hits.find((hit) => hit.isbns.includes(isbn)) ?? hits.find((hit) => hit.source === "openlibrary") ?? null;
 
-export const parseBlurb = (body: unknown): string | null => {
-  const { description } = dict(body);
-  const raw = typeof description === "string" ? description : dict(description).value;
-  if (typeof raw !== "string") return null;
+export const parseIsbn = (body: unknown, isbn: string): Hit | null => pickIsbn(parseSearch(body), isbn);
+
+export const blurbOf = (raw: string): string | null => {
   const flat = raw
     .trim()
     .split(/\r?\n\s*\r?\n|-{5,}/)[0]
@@ -92,6 +110,12 @@ export const parseBlurb = (body: unknown): string | null => {
   if (flat.length <= BLURB_MAX) return flat;
   const at = flat.lastIndexOf(" ", BLURB_MAX);
   return `${flat.slice(0, at === -1 ? BLURB_MAX : at)}…`;
+};
+
+export const parseBlurb = (body: unknown): string | null => {
+  const { description } = dict(body);
+  const raw = typeof description === "string" ? description : dict(description).value;
+  return typeof raw === "string" ? blurbOf(raw) : null;
 };
 
 export const settle = (typed: string, found: string): { title: string; original: string } => {
@@ -152,13 +176,16 @@ export const sameAuthor = (typed: unknown, found: string) => {
   return wanted.length > 0 && wanted.every((name) => have.includes(name));
 };
 
+export const workKey = (hit: Hit) =>
+  hit.source === "openlibrary" ? hit.work : `${fold(hit.title)}|${hit.author.split(";").map(nameOf).sort().join(",")}`;
+
 export const AUTO = ["author", "original", "isbn", "language", "blurb"] as const;
 
 export type Field = (typeof AUTO)[number];
 
 export type Auto = Partial<Record<Field, string>>;
 
-export type Found = { title: string; cover: string | null; ol: string; auto: Auto };
+export type Found = { title: string; cover: string | null; source: Source; work: string; auto: Auto };
 
 export type Typed = Record<Field | "title", string> & { found: Found | null };
 
@@ -174,15 +201,17 @@ export const adopt = (typed: Typed, hit: Hit) => {
   const fresh: Record<Field, string> = {
     author: hit.author,
     original: edition ? "" : next.original,
-    isbn: edition ? (hit.isbn ?? "") : "",
+    isbn: edition ? (hit.isbns[0] ?? "") : "",
     language: edition ? (hit.language ?? "") : "",
-    blurb: "",
+    blurb: hit.blurb ?? "",
   };
   const patch = patchOf((field) => (mine(typed, field) ? null : fresh[field]));
   const auto: Auto = Object.fromEntries(AUTO.flatMap((field) => (patch[field] ? [[field, patch[field]]] : [])));
-  const found: Found = { title: next.title.trim(), cover: hit.coverId === null ? null : coverUrl(hit.coverId), ol: hit.work, auto };
-  return { title: next.title, patch, wantsBlurb: patch.blurb !== null, found };
+  const found: Found = { title: next.title.trim(), cover: hit.cover, source: hit.source, work: hit.work, auto };
+  return { title: next.title, patch, wantsBlurb: patch.blurb === "" && lacksBlurb(hit), found };
 };
+
+export const lacksBlurb = (hit: Hit) => hit.source === "openlibrary" && hit.blurb === null;
 
 export const held = (found: Found | null, title: string) => (found !== null && fold(found.title) === fold(title) ? found : null);
 
@@ -190,7 +219,7 @@ export const release = (typed: Typed): Patch => patchOf((field) => (typed.found?
 
 export const arrive = (typed: { blurb: string; found: Found | null }, work: string, blurb: string) => {
   const { found } = typed;
-  if (found === null || found.ol !== work || blank(blurb)) return null;
+  if (found === null || found.work !== work || blank(blurb)) return null;
   if (!blank(typed.blurb) && typed.blurb !== found.auto.blurb) return null;
   return { blurb, found: { ...found, auto: { ...found.auto, blurb } } };
 };
@@ -200,9 +229,9 @@ export const fillPatch = (book: { title: string; data: Record<string, unknown> |
   const found: Record<string, string | null> = {
     author: hit.author,
     language: sameTitle(book.title, hit.title) ? hit.language : null,
-    cover: hit.coverId === null ? null : coverUrl(hit.coverId),
-    ol: hit.work,
-    blurb,
+    cover: hit.cover,
+    [hit.source === "google" ? "gb" : "ol"]: hit.work,
+    blurb: blurb ?? hit.blurb,
   };
   return Object.fromEntries(Object.entries(found).filter((entry): entry is [string, string] => entry[1] !== null && entry[1] !== "" && book.data?.[entry[0]] == null));
 };

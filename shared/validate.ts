@@ -24,7 +24,7 @@ const DECIMAL = /^(0|[1-9]\d{0,5})(\.\d{1,4})?$/;
 const URL_SHAPE = /^https?:\/\/[^\s\p{Cc}\p{Cf}\p{Cs}/?#][^\s\p{Cc}\p{Cf}\p{Cs}]*$/iu;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PHOTO_SHAPE = /^[\x21-\x7e]+$/;
-const COVER_SHAPE = /^https:\/\/covers\.openlibrary\.org\/[\x21-\x7e]{1,200}$/;
+const COVER_SHAPE = /^https:\/\/(?:covers\.openlibrary\.org\/|books\.google\.com\/books\/(?:publisher\/)?content[/?]|books\.googleusercontent\.com\/)[\x21-\x7e]{1,200}$/;
 const PHOTO_HOST = /^([a-z0-9-]+\.)*googleusercontent\.com$/;
 const UNWANTED = /(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}]/u;
 export const VISIBLE = /[^\p{Z}\p{C}\p{Default_Ignorable_Code_Point}\s⠀]/u;
@@ -180,7 +180,7 @@ const expected: Record<string, string> = {
   time: "a time as HH:MM from 00:00 to 23:59",
   days: "weekday codes in order, separated by commas, from MO,TU,WE,TH,FR,SA,SU, such as MO,TH",
   isbn: "an ISBN-13 as 13 digits with no hyphens and a valid check digit",
-  cover: "an https URL on covers.openlibrary.org",
+  cover: "an https URL on covers.openlibrary.org, books.google.com or books.googleusercontent.com",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
   stages: `a JSON array of 1 to ${STAGES_MAX} stages, each with a unique key, a unique name of up to ${STAGE_NAME_MAX} characters and a month range from ${MONTH_MIN} to ${MONTH_MAX} that starts after the stage before`,
 };
