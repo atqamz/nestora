@@ -10,7 +10,7 @@ const check: string = JSON.parse(readFileSync(new URL("../package.json", import.
 const guards = check.match(/!? ?grep -q '[^']*' dist\/client\/index\.html/g) ?? [];
 
 const passes = (html: string) => {
-  const file = join(mkdtempSync(join(tmpdir(), "wp-check-")), "index.html");
+  const file = join(mkdtempSync(join(tmpdir(), "nestora-check-")), "index.html");
   writeFileSync(file, html);
   return guards.every((guard) => spawnSync("sh", ["-c", guard.replace("dist/client/index.html", file)]).status === 0);
 };

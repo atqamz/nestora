@@ -170,6 +170,6 @@ export const calendarOf = (rows: readonly ItemRow[], side: Side, now: Date, holi
   const events = entriesOf(rows, side)
     .flatMap((entry) => eventOf(entry, window, held, loosely) ?? [])
     .sort((a, b) => (a.key < b.key ? -1 : 1));
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wp//feed//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:wp", ...ZONE_LINES, ...events.flatMap((event) => event.lines), "END:VCALENDAR"];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Nestora//feed//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Nestora", ...ZONE_LINES, ...events.flatMap((event) => event.lines), "END:VCALENDAR"];
   return lines.map((line) => `${fold(line)}\r\n`).join("");
 };

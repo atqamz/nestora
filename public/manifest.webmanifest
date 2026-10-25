@@ -1,6 +1,7 @@
 {
-  "name": "WP",
-  "short_name": "WP",
+  "id": "/",
+  "name": "Nestora",
+  "short_name": "Nestora",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f7fb",

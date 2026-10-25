@@ -9,8 +9,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 const PORT = 54871;
 const base = `http://127.0.0.1:${PORT}`;
 const root = new URL("..", import.meta.url).pathname;
-const persist = mkdtempSync(join(tmpdir(), "wp-integration-"));
-const env = { ...process.env, CLOUDFLARE_ENV: "dev", WRANGLER_SEND_METRICS: "false", WP_PERSIST_TO: persist };
+const persist = mkdtempSync(join(tmpdir(), "nestora-integration-"));
+const env = { ...process.env, CLOUDFLARE_ENV: "dev", WRANGLER_SEND_METRICS: "false", NESTORA_PERSIST_TO: persist };
 
 const now = "2026-10-01T00:00:00Z";
 

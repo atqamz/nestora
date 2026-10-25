@@ -22,6 +22,11 @@ test("no UI string says Partner", () => {
   assert.deepEqual(all.filter((line) => /partner/i.test(line)), []);
 });
 
+test("no UI string uses the old product name", () => {
+  assert.equal(text.appName, "Nestora");
+  assert.deepEqual(strings(text).filter((line) => /\bwp\b/i.test(line)), []);
+});
+
 test("no source file spells out Partner A or Partner B", () => {
   const files = readdirSync(new URL("../src/", import.meta.url), { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile());
   assert.ok(files.length > 20);
