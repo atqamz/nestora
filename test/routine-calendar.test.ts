@@ -89,19 +89,29 @@ test("a length above one day is a plain problem on the length field, 1440 is the
   assert.match(sheet, /name: "routine-duration", label: form\.duration, type: "int", value: draft\.duration, max: String\(LIMITS\.minutes\)\.length,/);
 });
 
-test("a routine that already holds a length above the cap opens in the sheet, says so, and saves once the length is fixed", async () => {
+test("a routine that already holds a length above the cap stays editable: other edits keep the length, a typed length is checked, and nothing is written for an untouched one", async () => {
   const { store, rows } = await world();
   const made = planOf({ ...blankDraft("a"), title: "Long", start: "07:15", duration: "1440" }, null, [], newId);
   assert.ok(made.ok);
   await store.many(made.steps);
   const old = { ...rows()[0], data: { ...rows()[0].data, duration: 99999 } } as ItemRow;
+  const opened = { routine: old, actions: [] };
   const draft = draftOf(old, []);
   assert.equal(draft.duration, "99999");
   assert.deepEqual(problemsOf(draft).map((problem) => [problem.field, problem.code]), [["duration", "long"]]);
-  assert.deepEqual(problemsOf({ ...draft, duration: "90" }), []);
-  const plan = planOf({ ...draft, duration: "90" }, { routine: old, actions: [] }, [], newId);
-  assert.ok(plan.ok);
-  assert.deepEqual(plan.steps, [{ op: "update", table: "items", id: old.id, change: { data: { duration: 90 } } }]);
+  assert.deepEqual(problemsOf(draft, "99999"), []);
+  const renamed = planOf({ ...draft, title: "Renamed", days: ["MO"], who: "b" }, opened, [], newId);
+  assert.ok(renamed.ok);
+  assert.deepEqual(renamed.steps, [{ op: "update", table: "items", id: old.id, change: { title: "Renamed", who: "b", data: { days: "MO" } } }]);
+  const same = planOf(draft, opened, [], newId);
+  assert.ok(same.ok);
+  assert.deepEqual(same.steps, []);
+  const typed = planOf({ ...draft, duration: "2000" }, opened, [], newId);
+  assert.ok(!typed.ok);
+  assert.deepEqual(typed.problems.map((problem) => [problem.field, problem.code]), [["duration", "long"]]);
+  const shorter = planOf({ ...draft, duration: "60" }, opened, [], newId);
+  assert.ok(shorter.ok);
+  assert.deepEqual(shorter.steps, [{ op: "update", table: "items", id: old.id, change: { data: { duration: 60 } } }]);
 });
 
 test("a routine saved on a timetable keeps no calendar time even if the draft had one", async () => {
