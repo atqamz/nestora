@@ -1,4 +1,4 @@
-# Routines: repeatable lists, a timetable, a training tracker and reminders in wp
+# Routines: repeatable lists, a timetable, a training tracker and reminders in Nestora
 
 Research and design as of 24 October 2026. A decision document, no code. Every claim carries **[verified]** (an official page, a repository, an API description or this repo's code was read on that date) or **[assumed]** (reasoning, a third-party source, or a page that could not be opened).
 
@@ -13,7 +13,7 @@ Research and design as of 24 October 2026. A decision document, no code. Every c
 5. **Integrator layer:** the core knows no vendor. Five tiny capabilities (`Notifier`, `CalendarSink`, `ChecklistSink`, `TrackerSource`, `Exporter`), one adapter per vendor, configured per person in a settings key, secrets in Worker secrets or an encrypted server-only table. Reminders flow through one outbox table drained by a once-a-minute cron, or pulled by an external sender.
 6. **Honest cost:** the layer adds about 8 files, 2 server-only tables and 1 Cron Trigger. Slice 1 needs none of it. With a single channel the "layer" is one interface and one adapter; anything more is built only when a second adapter is.
 7. **Reminders:** first the in-app Today view and a calendar feed (zero risk). Then Web Push from the Worker (free, but iOS only for the app installed to the Home Screen). WhatsApp: the official Cloud API costs about Rp357 per reminder and needs a business number; the free linked-device route breaks WhatsApp's terms and risks the account. Neither is recommended for the personal number (§4).
-8. **Google:** Calendar via a read-only `.ics` feed first; the Calendar API with a narrow app-created-calendar scope only if the feed's delay or missing alarms hurt (§5). Keep has no API for personal accounts; a checklist stays in wp (§6).
+8. **Google:** Calendar via a read-only `.ics` feed first; the Calendar API with a narrow app-created-calendar scope only if the feed's delay or missing alarms hurt (§5). Keep has no API for personal accounts; a checklist stays in Nestora (§6).
 9. **Training:** a day-type tracker (Lower, Upper, Rest plus a few daily items) is plain data in the same model and ships in slice 1. Hevy's API is for Hevy Pro only; the recommendation is no integration, a manual tick and a link to the training app (§7).
 10. **Phasing:** slice 1 (core, Today, check-offs, timetable, tracker, local timers, no adapters) is 4 PRs; slice 2 (the `.ics` feed, the outbox and dispatcher, Web Push) is 3 PRs plus an optional WhatsApp-sender endpoint; slice 3 (Google Calendar API, a tracker source) is 0 to 2 PRs, each only on demand.
 
@@ -21,19 +21,19 @@ Research and design as of 24 October 2026. A decision document, no code. Every c
 
 ## 1. Same product or a second app
 
-| | A. An area in wp | B. A second app in the repo | C. A separate repo |
+| | A. An area in Nestora | B. A second app in the repo | C. A separate repo |
 |---|---|---|---|
 | Worker, D1, Access | The same; the SPA gains 2 routes, the Worker gains a `scheduled` handler later | A second Worker, Access app, domain | All of it twice |
 | Shared code | Store, outbox, sync, export, validators, tokens and shell are reused as they are | Needs `src/store`, `shared/` and `worker/auth.ts` extracted into packages first | Copied and left to drift |
 | Users | The same two accounts, the same `a` and `b` | The same, configured twice | The same, configured twice |
 | Cost | The registry entries, the screens and later the dispatcher | Plus a monorepo refactor of 2 to 3 PRs (`docs/books.md` §1) | Plus a full bootstrap |
 
-**Decision: A, an area in wp.** Routines are household data for the same two people, behind the same login, synced and exported by the same code. Books took the same decision a week ago **[verified, `docs/books.md` §1]**.
-*Trade-off:* wp drifts further from "wedding planner". The visible name can change later at almost no cost (the books document lists the steps); every internal `wp` identifier stays.
+**Decision: A, an area in Nestora.** Routines are household data for the same two people, behind the same login, synced and exported by the same code. Books took the same decision a week ago **[verified, `docs/books.md` §1]**.
+*Trade-off:* Nestora drifts further from "wedding planner". The visible name did change, on 25 October 2026 ([rename plan](rename-nestora.md)); every internal `wp` identifier stays.
 
 **Navigation.** The bottom bar is full: Home, Money, (+), People, Books **[verified, `src/ui/nav.ts`]**.
 - **Decision: no sixth slot.** Home gains a "Today" block under the countdown hero: the routines that apply today, each with its progress, and today's timetable blocks. "All routines" opens `#/routines`, the way "All tasks" opens `#/tasks` today **[verified, `src/views/home.tsx`]**. The Home nav item then covers `home`, `tasks` and `routines` **[verified, the `screens` list in `src/ui/nav.ts`]**.
-- **Why Home:** routines are the one daily-use area. Opening wp every morning for the checklist also keeps the wedding's "This week" in sight, which helps the weekly-use goal of `docs/features.md` §1.4 **[assumed]**.
+- **Why Home:** routines are the one daily-use area. Opening Nestora every morning for the checklist also keeps the wedding's "This week" in sight, which helps the weekly-use goal of `docs/features.md` §1.4 **[assumed]**.
 - *Trade-off:* Home gets longer. After the wedding, Money or People can give up their slot; that is the moment to reconsider a Routines tab.
 - **The (+) sheet** gets no routine chip: routines are created rarely, from `#/routines`.
 
@@ -185,7 +185,7 @@ The weekly pattern (Mon Lower, Tue Upper, …) is computed from the `day_type` a
 - **Exceptions per occurrence:** one moved block, one cancelled evening. Not modelled (§2.3).
 - **Shared steps across variants:** the same line in three evening routines is three rows; editing one does not change the others. Duplicate-and-edit is the price of not nesting.
 - **Deep parameters:** a kind with ten parameters (a full workout program) is a sign that the data belongs in a dedicated app.
-- **More than two people:** `a`, `b` and `both` assume the two accounts, as everywhere in wp.
+- **More than two people:** `a`, `b` and `both` assume the two accounts, as everywhere in Nestora.
 
 ### 2.7 What else changes
 
@@ -222,8 +222,8 @@ interface TrackerSource { activity(of: Side, day: string): Promise<Activity[] | 
 interface Exporter { render(rows: readonly ItemRow[], to: Side): Response }
 ```
 
-- **`Notifier`** sends one reminder to one person. The `title` is the routine's title and the `url` opens it in wp; no action detail ever leaves the app (§9).
-- **`CalendarSink`** replaces the whole set of wp-owned events in a calendar that wp owns. Full replace is idempotent and needs no stored mapping.
+- **`Notifier`** sends one reminder to one person. The `title` is the routine's title and the `url` opens it in Nestora; no action detail ever leaves the app (§9).
+- **`CalendarSink`** replaces the whole set of wp-owned events in a calendar that Nestora owns. Full replace is idempotent and needs no stored mapping.
 - **`ChecklistSink`** mirrors one checklist to an external list app. It is defined so the shape is settled; no adapter is recommended (§6).
 - **`TrackerSource`** reads an external tracker's activity for a day, so an action bound to it can be ticked automatically. It never writes to the tracker.
 - **`Exporter`** turns rows into a file or a feed (`.ics`, CSV). The CSV and JSON export exist already **[verified, `worker/export.ts`]**; the `.ics` feed is the first new one (§5).
@@ -296,7 +296,7 @@ CREATE TABLE secrets (
 
 **One way only.**
 - Sinks write and never read back.
-- Sources read and write only completion marks in wp, at most once per action per day (they record that they ticked, so a manual untick is not undone at the next poll).
+- Sources read and write only completion marks in Nestora, at most once per action per day (they record that they ticked, so a manual untick is not undone at the next poll).
 - No adapter edits a routine. There is no two-way sync to reconcile, by design.
 
 **Testing without the vendor.**
@@ -313,7 +313,7 @@ CREATE TABLE secrets (
 ### 3.6 The data flow
 
 ```
-                         wp Worker (Cloudflare, Free)
+                         Nestora Worker (Cloudflare, Free)
           ┌────────────────────────────────────────────────────────────┐
  phones ──┼─► /api/sync ──► D1 items: routines, actions, done marks    │
  (SPA)    │                     │                                      │
@@ -339,7 +339,7 @@ The "Bag" checklist (owner B, `MO,TU,WE,TH,FR`, `start_time` 07:15, `remind` on)
 
 1. **Monday 00:00 UTC (07:00 in Jakarta), plan.** The occurrence 07:15 is inside the 20-minute window. Two rows are inserted: `d1` (adapter `webpush`) and `d2` (adapter `sender`), both `fire_at` 00:15Z, `pending`.
 2. **00:15 UTC, drain.** `d1`: the `webpush` adapter loads B's subscription from `secrets`, encrypts the payload `{ title: "Bag", url: "/#/routines/<id>" }`, signs the VAPID token and posts it with `Urgency: high` and a short TTL. The push service answers 201: `d1` → `sent`. `d2` is skipped by the drain.
-3. **00:15:40 UTC, the sender polls.** `POST /sender/claim` with its bearer token returns `d2` and marks it `claimed` for 2 minutes. The sender sends "Bag · wp.atqamz.com/#/routines/<id>" and reports `POST /sender/result { id: "d2", ok: true }`: `d2` → `sent`.
+3. **00:15:40 UTC, the sender polls.** `POST /sender/claim` with its bearer token returns `d2` and marks it `claimed` for 2 minutes. The sender sends "Bag · nestora.atqamz.com/#/routines/<id>" and reports `POST /sender/result { id: "d2", ok: true }`: `d2` → `sent`.
 4. **If the sender's machine was off,** `d2` stays `pending` and becomes `dropped` at 00:45Z. B already had the push, and the checklist was on Home all along.
 5. **If B uninstalled the app,** the push service answers 410: `d1` → `failed`, the subscription is deleted, and Settings shows "Web Push needs to be enabled again on this phone".
 
@@ -390,7 +390,7 @@ The research behind each verdict is in §4 to §7.
 | A timer while the phone is locked or the app is in the background | The server | No web API can schedule a future local notification: "The development of Notification Triggers API … has ended" **[verified, developer.chrome.com]**. A `setTimeout` in a suspended iOS web app cannot be relied on **[assumed; no WebKit statement found]** |
 | A fixed-time reminder ("07:15, Bag") | The server, or the calendar | Nothing on the phone runs at 07:15 unless the calendar app or a push wakes it |
 
-So every reminder that must reach a phone that is not looking at wp needs either a calendar (§5) or a push from the server (§3.5). The lazy middle ground for a long wait is the phone's own clock timer, set by hand **[assumed acceptable]**.
+So every reminder that must reach a phone that is not looking at Nestora needs either a calendar (§5) or a push from the server (§3.5). The lazy middle ground for a long wait is the phone's own clock timer, set by hand **[assumed acceptable]**.
 
 ### 4.2 Scheduling on the Cloudflare Free plan
 
@@ -428,7 +428,7 @@ This is how self-hosted assistants such as OpenClaw and Hermes Agent talk on Wha
 
 **What it costs.** No fee to anyone **[verified, there is no price in either project or in Baileys]**. The real costs are a machine that is always on, a second number if the advice above is followed (a prepaid SIM in a spare phone, which must stay active **[assumed]**), and maintenance.
 
-**When the machine is off.** OpenClaw: "Outbound sends require an active WhatsApp listener … sends fail fast otherwise." A reminder due while the machine sleeps is lost, unless the caller keeps it and retries. In wp the outbox does exactly that (§3.5): an undelivered row waits, then is dropped as stale.
+**When the machine is off.** OpenClaw: "Outbound sends require an active WhatsApp listener … sends fail fast otherwise." A reminder due while the machine sleeps is lost, unless the caller keeps it and retries. In Nestora the outbox does exactly that (§3.5): an undelivered row waits, then is dropped as stale.
 
 **The risk, with evidence.**
 - **WhatsApp's terms** (the non-EU terms that apply in Indonesia): users must not send "bulk messaging, auto-messaging, auto-dialing, and the like" or make "any non-personal use of our Services unless otherwise authorized by us", nor access the service "through automated or other means … in impermissible or unauthorized manners"; WhatsApp "may take action with respect to your account, including disabling or suspending your account" **[verified]**. A self-reminder bot is personal use but it is auto-messaging through an unofficial client.
@@ -451,10 +451,10 @@ This is how self-hosted assistants such as OpenClaw and Hermes Agent talk on Wha
 
 **Verdict:** free in money, not in risk. Running it on either partner's own number is a **bad idea**: it breaks the terms with the account the couple live on, and self-chat may not even ring. On a dedicated prepaid number, from a home machine, it is a tolerable experiment whose failure costs only that spare number; never a foundation.
 
-**If it is tried, this is the shape** (a pulled `sender` Notifier, §3.5). The sender lives outside this repo (it runs elsewhere, with its own dependency and lifecycle) and wp never learns anything about WhatsApp:
+**If it is tried, this is the shape** (a pulled `sender` Notifier, §3.5). The sender lives outside this repo (it runs elsewhere, with its own dependency and lifecycle) and Nestora never learns anything about WhatsApp:
 
 ```
- wp Worker (Cloudflare, Free)              home machine, always on              WhatsApp
+ Nestora Worker (Cloudflare, Free)         home machine, always on              WhatsApp
 ┌─────────────────────────────┐  HTTPS   ┌─────────────────────────────┐  WA Web  ┌──────────────┐
 │ deliveries (outbox)         │◄─────────┤ sender: Node + a WA Web lib │─────────►│ bot number   │──► Partner A
 │ POST /sender/claim          │─────────►│ session files (local only)  │          │ (spare SIM)  │──► Partner B
@@ -473,7 +473,7 @@ POST /sender/claim
 Authorization: Bearer <SENDER_TOKEN>
 {"adapter": "wa-1", "limit": 10}
 
-200 {"deliveries": [{"id": "d2", "to": "b", "title": "Bag", "url": "https://wp.atqamz.com/#/routines/<id>", "fire_at": "2026-10-26T00:15:00Z"}]}
+200 {"deliveries": [{"id": "d2", "to": "b", "title": "Bag", "url": "https://nestora.atqamz.com/#/routines/<id>", "fire_at": "2026-10-26T00:15:00Z"}]}
 
 POST /sender/result
 Authorization: Bearer <SENDER_TOKEN>
@@ -489,7 +489,7 @@ A claim holds rows for 120 seconds; the sender remembers the ids it sent, so a r
 - **Protocol.** VAPID signatures use ECDSA on P-256 (RFC 8292), and payloads are encrypted with ECDH on P-256, HKDF-SHA-256 and AES-128-GCM (RFC 8291) **[verified, the RFCs]**. Workers WebCrypto lists ECDSA, ECDH, HKDF and AES-GCM **[verified]**; the page does not name the P-256 curve, which is part of the WebCrypto standard **[assumed supported; one call in `wrangler dev` settles it]**. No library is needed.
 - **iPhone.** Web Push works only for web apps added to the Home Screen, from iOS and iPadOS 16.4; permission must be asked "in response to direct user interaction"; every push must show a notification, or "Safari revokes the push notification permission" **[verified, webkit.org and Apple's documentation]**. From iOS 18.4, Declarative Web Push shows a notification from the payload alone, "without requiring an installed" service worker **[verified, webkit.org]**. A push reaches a closed Home Screen app **[assumed; Apple says delivery is attempted when the device is next online]**.
 - **Android.** Chrome receives pushes while the browser is closed; the OS wakes it **[verified, web.dev push FAQ]**. Chrome requires a service worker and `userVisibleOnly: true` **[verified, MDN]**.
-- **What wp lacks.** wp has no service worker yet **[verified, no `serviceWorker` reference in `src/`]**. A minimal one with only `push` and `notificationclick` handlers is enough for push; the offline cache of `docs/infra.md` §5.7 is separate work.
+- **What Nestora lacks.** Nestora has no service worker yet **[verified, no `serviceWorker` reference in `src/`]**. A minimal one with only `push` and `notificationclick` handlers is enough for push; the offline cache of `docs/infra.md` §5.7 is separate work.
 - **Push services.** Apple's keeps a message "for 30 days or fewer" while a device is offline, caps the payload at 4 KB, answers 410 when a subscription has expired and 429 when one device gets too many; it publishes no numeric quota **[verified, Apple's documentation]**. A timer reminder is sent with `Urgency: high` and a short TTL, so a late one expires instead of arriving an hour later **[verified, RFC 8030 header semantics]**.
 - **Cost.** Free; one subrequest per message **[verified, 50 subrequests per invocation on Free]**.
 
@@ -525,7 +525,7 @@ A claim holds rows for 120 seconds; the sender remembers the ids it sent, so a r
 4. **Optional, behind a flag: a WhatsApp sender** on a dedicated spare number, on a home machine, pulling from the outbox (above). Only if the operator accepts that the spare number can be banned at any time and that the terms forbid it. **Never on either partner's own number.**
 5. **Not built:** the WhatsApp Cloud API (a business product with a monthly bill for two people), Telegram (not read by the couple), and email as a reminder channel (fine later for a weekly digest).
 
-*Trade-off:* the channel the couple read most, WhatsApp, comes last and is optional. In exchange nothing in wp depends on a library that breaks with WhatsApp's protocol, and nobody's account is at stake.
+*Trade-off:* the channel the couple read most, WhatsApp, comes last and is optional. In exchange nothing in Nestora depends on a library that breaks with WhatsApp's protocol, and nobody's account is at stake.
 
 ---
 
@@ -535,7 +535,7 @@ A claim holds rows for 120 seconds; the sender remembers the ids it sent, so a r
 
 | | A. A read-only `.ics` feed (an Exporter) | B. The Calendar API (a CalendarSink) |
 |---|---|---|
-| How | The Worker serves `/feed/<token>.ics`; each partner subscribes once | The Worker creates a "wp" calendar in each partner's account and keeps its events equal to wp's |
+| How | The Worker serves `/feed/<token>.ics`; each partner subscribes once | The Worker creates a "Nestora" calendar in each partner's account and keeps its events equal to Nestora's |
 | Adding it | "To subscribe to a new calendar, you must use a computer web browser. You can't subscribe … in the Google Calendar app for Android, iPhone, or iPad" **[verified, Google Calendar Help]** | Each partner signs in to Google once from Settings and passes the unverified-app screen (below) |
 | Delay after an edit | Not published by Google **[verified: absent from the help pages]**; third parties report 8 to 24 hours, sometimes 48 **[assumed]** | Seconds; one API call per change **[assumed]** |
 | Alerts | Alarms (`VALARM`) inside a subscribed feed are reported as ignored **[assumed: third-party docs and a Google community thread; nothing official]**. Notification settings are personal and "your calendar-level settings determine your notifications for new events" **[verified]**, so each partner sets the subscribed calendar's default alert once **[assumed possible for a subscribed calendar]** | Per-event popup or email reminders, at most 5 overrides, 0 to 40,320 minutes before **[verified]**. "Reminders are private information, specific to an authenticated user" **[verified]**, so each partner's own token writes their own events |
@@ -546,7 +546,7 @@ A claim holds rows for 120 seconds; the sender remembers the ids it sent, so a r
 ### 5.2 OAuth facts for option B
 
 All **[verified]** on Google's documentation on 24 October 2026 unless marked.
-- **Scope.** `https://www.googleapis.com/auth/calendar.app.created`: "Make secondary Google calendars, and see, create, change, and delete events on them." `calendars.insert` and `events.insert` accept it. It cannot read or change any other calendar. Sharing the app's calendar through `acl.insert` needs a broader scope, so each partner gets their own "wp" calendar (or shares it by hand).
+- **Scope.** `https://www.googleapis.com/auth/calendar.app.created`: "Make secondary Google calendars, and see, create, change, and delete events on them." `calendars.insert` and `events.insert` accept it. It cannot read or change any other calendar. Sharing the app's calendar through `acl.insert` needs a broader scope, so each partner gets their own "Nestora" calendar (or shares it by hand).
 - **Sensitivity.** No Calendar scope is restricted; Google names "reading events stored in Google Calendar" as an example of a sensitive scope. Whether `calendar.app.created` is classed as sensitive is not stated **[assumed sensitive; a forum post says the console picker does not list it]**.
 - **Testing status is useless here:** an external app "with a publishing status of "Testing" is issued a refresh token expiring in 7 days", unless it asks only for name, email and profile.
 - **The personal-use path:** "if you are the only user of your app or if your app is used by only a few users, all of whom are known personally to you", publish the app "In production" without verification, and each user advances "through the unverified app screen", with a cap of 100 new users. Refresh tokens are then not limited to 7 days **[assumed, derived: the 7-day rule is stated only for Testing]**; they still die after 6 months unused **[verified]**.
@@ -557,7 +557,7 @@ All **[verified]** on Google's documentation on 24 October 2026 unless marked.
 
 Both options produce the same events, from the shared rule of §2.3.
 
-| wp | iCalendar (`.ics`) and the API's `recurrence[]` |
+| Nestora | iCalendar (`.ics`) and the API's `recurrence[]` |
 |---|---|
 | Item id | `UID` (`<id>@wp.atqamz.com`); `SEQUENCE` from `rev`; `LAST-MODIFIED` from `updated_at`, as already decided **[verified, `docs/features.md` §6.1 #7]** |
 | A `block` `MO` 09:00–12:00 at Place A | `DTSTART;TZID=Asia/Jakarta:20261026T090000`, `DTEND;TZID=Asia/Jakarta:20261026T120000`, `RRULE:FREQ=WEEKLY;BYDAY=MO`, `LOCATION:Place A` |
@@ -575,7 +575,7 @@ The feed carries the last 7 days and the next 90; series are cut there with `UNT
 **Decision: option A, the `.ics` feed, in slice 2.** It puts the timetable and the fixed-time routines into the calendar the couple already read, with zero accounts, zero tokens beyond the feed link and zero lock-in. A timetable changes once a term, so a delay of hours does not matter.
 *Trade-off:* hours of delay after an edit, and alarms that probably depend on each partner's default alert for the subscribed calendar.
 
-**Option B, only if** a partner misses edits or exact alerts, with the minimum scope `calendar.app.created`, published "In production" unverified under the personal-use path, one "wp" calendar per partner, one-way. The same adapter could also act as a `Notifier` for timers (a one-off event with a 0-minute popup in the wp calendar), which would reach both phones through the Google Calendar app without a Home Screen install **[assumed: the speed of Google's sync to the phone is not documented]**.
+**Option B, only if** a partner misses edits or exact alerts, with the minimum scope `calendar.app.created`, published "In production" unverified under the personal-use path, one "Nestora" calendar per partner, one-way. The same adapter could also act as a `Notifier` for timers (a one-off event with a 0-minute popup in the Nestora calendar), which would reach both phones through the Google Calendar app without a Home Screen install **[assumed: the speed of Google's sync to the phone is not documented]**.
 
 ---
 
@@ -585,12 +585,12 @@ The feed carries the last 7 days and the next 90; series are cut there with `UNT
 
 **Unofficial Keep access.** `gkeepapi` "uses the (private) mobile Google Keep API" through `gpsoauth`, which "poses as a Google app" and needs a master token, so called "because they have full access to your account"; "Google occasionally ramps up changes to the Keep data format" **[verified, gkeepapi documentation and gpsoauth README]**. A token with full access to a Google account would have to sit in the Worker, for a private API in Python. **Not an option.**
 
-**Google Tasks.** Available to personal accounts; scopes `tasks` and `tasks.readonly`; a courtesy limit of 50,000 queries a day **[verified]**. Two facts rule it out for wp's checklists:
+**Google Tasks.** Available to personal accounts; scopes `tasks` and `tasks.readonly`; a courtesy limit of 50,000 queries a day **[verified]**. Two facts rule it out for Nestora's checklists:
 - On `due`, "only date information is recorded; the time portion of the timestamp is discarded" **[verified, the Task resource reference]**, and Tasks notifies only when "you add a date and time to your task" **[verified, Tasks Help]**. So a task created through the API cannot ring at 07:15 **[assumed, derived]**.
 - A list shared between two personal accounts is not a documented feature; shared tasks exist only in Workspace spaces and documents **[assumed from the help page's silence]**.
 
 **What is left.**
-- **The checklist stays in wp.** That is the core of slice 1, with a daily reset no external list app offers for free.
+- **The checklist stays in Nestora.** That is the core of slice 1, with a daily reset no external list app offers for free.
 - **A Keep link.** `keep.new` creates a new note **[verified, Google Registry's `.new` list]**. Prefilling its text is not documented **[assumed unsupported]**.
 - **Copy or share as text.** A "Share" button on a checklist sends its lines through the phone's share sheet into Keep, WhatsApp or anywhere, user-triggered, the route `docs/features.md` §5.1 already chose for Keep **[verified]**.
 - **An `.ics` `VTODO`** is not shown by Google Calendar (§5.1), so it is no route either.
@@ -601,11 +601,11 @@ The feed carries the last 7 days and the next 90; series are cut there with `UNT
 
 ## 7. The training tracker and the training app
 
-### 7.1 What wp keeps
+### 7.1 What Nestora keeps
 
 Only the light tracker of §2.5: a day type per weekday (Lower, Upper, Rest) and a few daily items, ticked like any checklist. It is plain data in the open core and ships in slice 1. Exercises, sets, reps, weights and history stay in a training app. No per-set logs, rest timers or progress history are designed here.
 
-**Out of scope, and reasons to leave wp:** body measurements, health metrics, nutrition logs and anything medical. They grow a history, they are health data with their own privacy rules, and dedicated apps already do them well. If the couple ever want them in one place, that is a separate, private app, never the public-repo household hub **[assumed judgement]**.
+**Out of scope, and reasons to leave Nestora:** body measurements, health metrics, nutrition logs and anything medical. They grow a history, they are health data with their own privacy rules, and dedicated apps already do them well. If the couple ever want them in one place, that is a separate, private app, never the public-repo household hub **[assumed judgement]**.
 
 ### 7.2 Hevy: what is free and what is paid
 
@@ -617,7 +617,7 @@ Only the light tracker of §2.5: a day type per weekday (Lower, Upper, Rest) and
 - **Export:** Profile, Settings, "Export & Import Data", "Export Data", then workouts or measurements, as CSV **[assumed: the same help-centre excerpt]**. No Pro requirement is mentioned for it **[assumed]**. A manual CSV is no live signal for a daily tick.
 - **Terms for the API:** none found beyond the description's disclaimer **[verified absence in the description]**.
 
-**What wp would do with it, if a partner has Pro:** a `TrackerSource` that calls `GET https://api.hevyapp.com/v1/workouts/events?since=<the routine day's start in UTC>&page=1&pageSize=10` and, when an updated workout starts on the routine day, ticks the step bound to it ("Workout logged in the training app"). It runs when the Today view opens (one subrequest through a small Worker route) rather than on a cron, so nothing polls while nobody looks. The key is a runtime secret, encrypted in the `secrets` table (§3.3). The body-measurement endpoints are never called.
+**What Nestora would do with it, if a partner has Pro:** a `TrackerSource` that calls `GET https://api.hevyapp.com/v1/workouts/events?since=<the routine day's start in UTC>&page=1&pageSize=10` and, when an updated workout starts on the routine day, ticks the step bound to it ("Workout logged in the training app"). It runs when the Today view opens (one subrequest through a small Worker route) rather than on a cron, so nothing polls while nobody looks. The key is a runtime secret, encrypted in the `secrets` table (§3.3). The body-measurement endpoints are never called.
 
 ### 7.3 Open-source trackers instead
 
@@ -645,7 +645,7 @@ Checked on 24 October 2026 through public repository metadata (GitHub and Codebe
 
 ### 7.4 Decision
 
-**Decision: no integration. wp keeps the day type and a manual tick with an "Open" link to whichever training app a partner uses** (Hevy's free plan included).
+**Decision: no integration. Nestora keeps the day type and a manual tick with an "Open" link to whichever training app a partner uses** (Hevy's free plan included).
 - **Benefit lost:** one tap a day.
 - **What an integration would cost:** a paid plan (Hevy Pro, Liftosaur premium) or a move of the training log to another app (wger), a key per partner, a source adapter, and an API that says it may change or vanish (Hevy) or runs a development build (wger.de).
 - **If a partner already pays for Hevy Pro and wants the auto-tick:** the Hevy `TrackerSource` of §7.2 is one small PR in slice 3. **If they would switch apps for it:** wger on wger.de, the only free, maintained option with phone apps on both platforms and a documented API.
@@ -670,7 +670,7 @@ Checked on 24 October 2026 through public repository metadata (GitHub and Codebe
 **Today on Home**
 ```
 ┌──────────────────────────────────────┐
-│ wp                    ✓     (A)(B)   │
+│ nestora               ✓     (A)(B)   │
 │ ╭──────────────────────────────────╮ │
 │ │  the countdown hero, unchanged   │ │
 │ ╰──────────────────────────────────╯ │
@@ -780,7 +780,7 @@ Checked on 24 October 2026 through public repository metadata (GitHub and Codebe
 
 - **No people, places or health detail in the repo.** Code, fixtures, tests, docs and commit messages use only Partner A and Partner B, Place A and Place B, and invented neutral routines like those in §2.5. No product or brand names of any kind, no quantities or plans taken from real life, no medical words.
 - **The operator's routines are typed into the app at runtime** and travel only through `POST /api/sync` into D1. A pasted list kept as a file lives outside the repo (for example `~/wp-private/`). `.gitignore` ignores `wp-private/`, `*.csv` and `export-*.json` but not `*.txt` or `*.md` **[verified, `.gitignore`]**, so a note saved inside the worktree shows up in `git status`.
-- **Diet, training and personal care are private even inside the app.** wp decided that everything is visible to both partners and built no "private to me" items (decided #4, X6), with "either partner asks later" as the reason to reconsider **[verified, `docs/features.md` §8.1]**. A routine's `private` flag reopens that narrowly:
+- **Diet, training and personal care are private even inside the app.** Nestora decided that everything is visible to both partners and built no "private to me" items (decided #4, X6), with "either partner asks later" as the reason to reconsider **[verified, `docs/features.md` §8.1]**. A routine's `private` flag reopens that narrowly:
   - The Worker filters a private routine and its actions out of `GET /api/sync` and the export for the other partner: the row is skipped when it, or its parent, is private and owned by the other side (a primary-key lookup per changed row) **[assumed cost, small]**.
   - The Worker rejects any mutation by the other partner on those rows.
   - `private` is set only at creation. Turning a shared routine private later cannot pull its rows back from the other phone; "make private" is "duplicate as private, delete the shared one".
@@ -812,7 +812,7 @@ Checked on 24 October 2026 through public repository metadata (GitHub and Codebe
 Slices 1 and 2 are 7 PRs; slice 3 adds 0 to 2. No slice needs a paid plan. Slice 2 uses one more Cron Trigger and one migration; slice 3 a Google Cloud project.
 
 **Risks, most important first.**
-1. **Reminders that do not fire on the iPhone.** Push needs iOS 16.4 or later, the app on the Home Screen and permission from a tap **[verified]**; Focus modes and per-app notification settings can still silence it **[assumed]**. The Wake Lock in the installed app needs iOS 18.4 **[verified]**. Mitigation: everything is on Today anyway, and the calendar feed does not depend on wp at all.
+1. **Reminders that do not fire on the iPhone.** Push needs iOS 16.4 or later, the app on the Home Screen and permission from a tap **[verified]**; Focus modes and per-app notification settings can still silence it **[assumed]**. The Wake Lock in the installed app needs iOS 18.4 **[verified]**. Mitigation: everything is on Today anyway, and the calendar feed does not depend on Nestora at all.
 2. **CPU per cron run.** 10 ms on Free **[verified]**, and a push needs ECDH, HKDF, AES-GCM and an ECDSA signature. Measured in PR 7; at worst one push per run, or a Queue.
 3. **The private filter is new server logic.** A bug would put a private routine on the partner's phone. It ships with its own tests in PR 1.
 4. **Google OAuth.** The unverified-app screen, tokens that die after 6 months unused, an undocumented sensitivity for the narrow scope, and charges for exceeding quotas planned for later in 2026 **[verified facts]**. Only slice 3 is exposed.
@@ -823,7 +823,7 @@ Slices 1 and 2 are 7 PRs; slice 3 adds 0 to 2. No slice needs a paid plan. Slice
 - **Health data grows:** measurements, nutrition, symptoms. A different privacy and retention rule, better served by a dedicated private app than by a public-repo household hub.
 - **Exact alarms become essential** (something that must ring at the minute, every time): a native app, because a web app cannot schedule a local notification (§4.1).
 - **More people:** someone beyond the two partners needs routines of their own; `a`, `b` and `both` assume two.
-- **The WhatsApp sender**, if built, already lives in its own repo: it runs on another machine, with a dependency wp must not carry.
+- **The WhatsApp sender**, if built, already lives in its own repo: it runs on another machine, with a dependency Nestora must not carry.
 
 ---
 
@@ -832,7 +832,7 @@ Slices 1 and 2 are 7 PRs; slice 3 adds 0 to 2. No slice needs a paid plan. Slice
 Each has a default, so the work can go on unanswered.
 
 1. **Should training, diet and personal-care routines be private to their owner** (enforced by the Worker, set once at creation), reopening decided #4 for routines only? *Default:* yes for those; the bag checklist and the timetable are shared.
-2. **After slice 1, which reminder channel:** only the calendar feed, or Web Push too, which means installing wp on the iPhone's Home Screen? *Default:* the feed in slice 2; Web Push built only if timer reminders are missed after two weeks with slice 1.
+2. **After slice 1, which reminder channel:** only the calendar feed, or Web Push too, which means installing Nestora on the iPhone's Home Screen? *Default:* the feed in slice 2; Web Push built only if timer reminders are missed after two weeks with slice 1.
 3. **WhatsApp:** accept no automatic WhatsApp, or try the sender on a spare number from a home machine, knowing that the terms forbid it and the number may be banned? *Default:* no automatic WhatsApp, the share link stays, and never a personal number.
 4. **The training app:** a manual tick plus an "Open" link, or an auto-tick that needs Hevy Pro (or moving the log to wger)? *Default:* manual tick and link, no integration.
 5. **Is a history of ticks wanted** ("how many training days this month")? *Default:* no; the marks reset daily and the `completions` table of §2.4 waits until the question is asked twice.

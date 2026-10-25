@@ -1,4 +1,4 @@
-# Books: the family's book collection in wp
+# Books: the family's book collection in Nestora
 
 Research and design as of 19 October 2026. A decision document, no code. Every claim carries **[verified]** (an endpoint was probed, a page or the code was read on that date) or **[assumed]** (reasoning or an unconfirmed source).
 
@@ -10,7 +10,7 @@ Research and design as of 19 October 2026. A decision document, no code. Every c
 2. **Data:** no new table. Three new `kind`s in `items`: `book` (the work as the couple know it, plus wishlist fields and each partner's reading state), `copy` (a print copy, ebook or borrowed copy, with its ISBN, owner, place and lending state; `parent_id` points to the book), and `place` (the list of locations the couple edit).
 3. **Moves:** moving a copy is two taps (chip, then place) and one row update. The copy keeps its previous place and the move date. There is no move history until someone asks for it.
 4. **Flows:** add by typing, where-is-it search, move, lend, mark read, wish to shelf, and import all work offline once the app is loaded. Lookup and the metadata part of scanning need the network.
-5. **Metadata:** the browser calls Open Library (no key, CORS `*`). An accepted result is copied into the row, so the row is the cache. Google Books is added only through a small Worker route, and only if the operator creates a free key: every keyless Google Books call returned 429 with a quota of 0.
+5. **Metadata:** the browser calls Open Library (no key, CORS `*`). An accepted result is copied into the row, so the row is the cache. Google Books is added only through a small Worker route, and only if the operator creates a free key: every keyless Google Books call returned 429 with a quota of 0. **Built differently, 25 October 2026:** see the update in §4.4.
 6. **Measured coverage:** by the title as written, Open Library found 5 of 11 wishlist titles, and 1 of 6 Indonesian-titled translations. Allowing the original title as well, it found 9 of 11 at work level (one of them partial). It knew 2 of 7 Indonesian ISBNs (0 of 5 from Gramedia), and Google's catalogue knew 6 of 7. So typing stays the main way in.
 7. **Ratings:** each partner gives a 1 to 5 rating of their own. The operator's Goodreads numbers are imported as typed. No rating is ever fetched (the Goodreads API is closed, and Open Library ratings are sparse).
 8. **Scanning:** the native `BarcodeDetector` where supported (yes on Android Chrome; off by default on iOS Safari up to 27.2), and a typed ISBN elsewhere. A WASM decoder (417 KB gzip) is added only if an iPhone user wants it.
@@ -36,9 +36,10 @@ Research and design as of 19 October 2026. A decision document, no code. Every c
 
 **Rename costs, if the product grows into a household app.**
 - **The GitHub repo:** "all existing information, with the exception of project site URLs, is automatically redirected", including git operations **[verified, GitHub docs]**. The exceptions do not apply: there is no GitHub Pages site, and no other workflow uses an action from this repo **[assumed]**. The one rule: never create a new repo under the old name, or the redirects stop **[verified]**.
-- **Keep internal names:** the Worker `wp`, the D1 database `wp`, the KV namespace `wp-design`, the IndexedDB database `wp` and the `wp-theme` key in `localStorage` all stay. Renaming them buys nothing and would cost a migration **[assumed]**.
+- **Keep internal names:** the Worker `wp`, the D1 database `wp`, the KV namespace (`wp-design` then, `nestora-design` since 25 October 2026), the IndexedDB database `wp` and the `wp-theme` key in `localStorage` all stay. Renaming them buys nothing and would cost a migration **[assumed]**.
 - **The domain:** a new hostname means a second custom domain route and the same paths in Access. The deploy check in `ci.yml` hard-codes `wp.atqamz.com` **[verified]**. A phone on the new origin starts with an empty IndexedDB and pulls everything again; only an unsent outbox on the old origin would be lost, so sync on the old origin before switching **[assumed]**.
-- `atqamz/github` (the IaC repo) does not manage wp yet (`docs/infra.md` §7.5), so nothing there needs renaming **[verified, read the section]**.
+- `atqamz/github` (the IaC repo) manages this repository (a row in `repos.go`, `docs/infra.md` §7.5), so its rename went through that repo too ([rename plan](rename-nestora.md), step 3.5). The earlier statement here, that the repo did not manage it yet, was false when the rename was planned.
+- **Done, 25 October 2026:** the product is called Nestora and is served at `nestora.atqamz.com`; `wp.atqamz.com` serves the same Worker during a 30-day soak, and the deploy check in `ci.yml` covers both hosts. The repository is `atqamz/nestora`.
 
 ---
 
@@ -221,7 +222,7 @@ The store is the source of truth, and writes queue in the outbox while offline *
 | Source | Key or account | Limits and terms | Cover | Description | Language | Series | Rating |
 |---|---|---|---|---|---|---|---|
 | **Open Library** | None **[verified]** | 1 request/s unidentified, 3/s with a `User-Agent` naming the app and a contact. "Please do not use our APIs to bulk download metadata" **[verified, developers page]**. Covers: lookups by ISBN, OCLC or LCCN are limited to 100 per IP per 5 minutes, by cover ID or OLID are not; "do not crawl", "use a src URL that points to covers.openlibrary.org" **[verified, covers page]**. CORS `*` on search and covers **[verified, response headers]** | Yes (work and edition) | On the work record (an extra request) **[assumed]** | Yes, per edition and as a list per work **[verified]** | Sometimes: one hit carried `series: ["Tetralogi Buru #1"]` **[verified]** | `ratings_average` and `ratings_count`, sparse (§4.3) **[verified]** |
-| **Google Books API** | Keyless calls failed: 429 with `quota_limit_value: "0"` on every call **[verified, 24 calls]**. A free key comes from a Google Cloud project (Credentials, then Create credentials, then API key; restrict it to the Books API) **[verified, docs]** | About 1,000 queries/day by default, according to user reports **[assumed]**. Branding: "powered by Google" next to results, a link to the Google Books page for every result, and "You may not reorder or otherwise alter the results" **[verified, branding page]**. Content alleged to infringe must be removed on request **[verified, terms]**. No caching clause found **[verified, terms]** | `imageLinks` | `description` | `language` | Field not documented on the page read **[verified]** | `averageRating`, `ratingsCount` **[verified, docs example]** |
+| **Google Books API** | Keyless calls failed: 429 with `quota_limit_value: "0"` on every call **[verified, 24 calls]**. A free key comes from a Google Cloud project (Credentials, then Create credentials, then API key; restrict it to the Books API) **[verified, docs]** | About 1,000 queries/day by default, according to user reports **[assumed]**. Branding: "powered by Google" next to results, a link to the Google Books page for every result, and "You may not reorder or otherwise alter the results" **[verified, branding page]**. Content alleged to infringe must be removed on request **[verified, terms]**. No caching clause found **[verified, terms]** (wrong: section 5e of the Google APIs Terms of Service forbids permanent copies and cached copies kept longer than the cache headers allow; see the update in §4.4) | `imageLinks` | `description` | `language` | Field not documented on the page read **[verified]** | `averageRating`, `ratingsCount` **[verified, docs example]** |
 | **Google Books Dynamic Links** (legacy, keyless) | None | Answers as JSONP, `cb({...})`, which a page can only use by injecting a script **[verified]** | Thumbnail on 3 of 7 Indonesian ISBNs **[verified]** | No | No | No | No |
 | **ISBNdb** | Paid only: Basic US$14.99/month (5,000 searches/day, 1 call/s) with a 7-day trial. A free account has "No API access" **[verified, pricing page]** | Paid | Thumbnail **[verified]** | Synopsis **[verified]** | Yes **[verified]** | No **[assumed]** | No **[assumed]** |
 | **WorldCat (OCLC)** | Requires a library's OCLC Cataloging and Metadata subscription plus FirstSearch or WorldCat Discovery; no individual tier is mentioned **[verified, OCLC page]** | Not available to us | | | | | |
@@ -268,6 +269,15 @@ All rows **[verified, 19 October 2026]**. Dynamic Links returns no title or auth
 **What this means:** recent Indonesian editions are the weak spot of every free, keyless source. Open Library is good for the work behind a translation, through the original title. Google is the only source that knows recent Gramedia ISBNs, and it needs a key. So typing is a first-class path, a scan always keeps the ISBN even when no metadata comes back, and a lookup is a suggestion, never a requirement.
 
 ### 4.4 Decisions
+
+**Update, 25 October 2026: what shipped (the README section "Books lookup" on `main` is the source of truth).** Where the text below says otherwise, this block wins.
+- **Order.** Google Books is asked first, from the Worker (`GET /api/lookup`), and Open Library second, also from the Worker, only when Google returns nothing usable, answers with an error or the key is absent. The first source with answers wins and the two lists are never mixed. The browser calls Open Library directly only when the Worker cannot be reached; offline it shows "Offline: type it in."
+- **Key.** The key (`GOOGLE_BOOKS_KEY`, a Cloudflare Worker secret; the Google Cloud API key is named "nestora books lookup" and restricted to the Books API) is sent only to Google, only in the `x-goog-api-key` request header. It is in no URL, response, log line or cache entry. Without it the route uses Open Library only.
+- **Cache.** Answers are kept in the Workers Cache API for at most 1 hour (`max-age=3600`), and only when Google answered; errors and answers given while Google failed or was not asked are never kept. The client sees `Cache-Control: no-store`. This follows section 5e of the Google APIs Terms of Service, which forbids permanent copies and cached copies kept longer than the cache headers allow.
+- **Google descriptions are never stored.** The Worker drops the description before anything is cached or sent, so a Google hit has no blurb. A book row keeps facts (title, author, ISBN, language, year), the volume id and the cover URL. A blurb comes only from Open Library or from the user.
+- **Covers load from Google in the browser**, straight from Google and without a referrer; the Worker hides only the search, not the covers. They are never copied or proxied.
+- **No analytics, and the route logs nothing,** not even the query.
+- **Open question 2 is answered:** a key exists. The statements below that Google is "only with a key", that the SPA hides Google on `404 not_configured`, and that Google results are shown as their own block describe the earlier design.
 
 **Where the API is called: Open Library from the browser, Google Books through the Worker only with a key, and no cache table.**
 - **Open Library from the browser.** It is keyless with CORS `*` **[verified]**, the rate limit counts against each phone's own IP **[assumed: the docs give a rate, not its unit]**, and it costs no Worker requests. The code lives in `src/store/lookup.ts`, because `npm run check` forbids `fetch` in `src/views`, `src/ui` and `src/hooks` **[verified, `package.json`]**. A Worker proxy would send every lookup from Cloudflare's shared egress addresses, where other tenants' traffic counts against the same per-IP limit **[assumed]**.
@@ -338,7 +348,7 @@ The API is experimental, needs a secure context and also works in workers **[ver
 **Shelf** (`#/books`)
 ```
 ┌──────────────────────────────────────┐
-│ wp                    ✓     (A)(B)   │
+│ nestora               ✓     (A)(B)   │
 │                                      │
 │ Books                                │
 │ ╭─────────╮╭──────────────╮          │
@@ -497,7 +507,7 @@ The first two would point to a second app in this repo with shared packages firs
 Each has a default, so the work can go on unanswered.
 
 1. **Which phones do you two use, and is typing the ISBN (or Live Text) acceptable on an iPhone?** *Default:* native scanning where it works, typed ISBN elsewhere, no WASM decoder.
-2. **Will you create a free Google Books API key** (a Google Cloud project with the Books API enabled and an API key restricted to it, saved with `wrangler secret put GOOGLE_BOOKS_KEY`)? It is the only free source that knows recent Gramedia ISBNs. *Default:* no key; Open Library only, and typing for recent Indonesian editions.
+2. **(Answered 25 October 2026: yes, the key exists.) Will you create a free Google Books API key** (a Google Cloud project with the Books API enabled and an API key restricted to it, saved with `wrangler secret put GOOGLE_BOOKS_KEY`)? It is the only free source that knows recent Gramedia ISBNs. *Default:* no key; Open Library only, and typing for recent Indonesian editions.
 3. **Is Books a fifth slot in the bottom bar** (Home, Money, +, People, Books)? *Default:* yes. After the wedding, Money and People can be reconsidered.
 4. **Is "current place plus previous place" enough, or do you want a full move history** ("where was it in March")? *Default:* current plus previous; history only on request.
 5. **Should the Goodreads numbers in your list be kept as "rated elsewhere"?** *Default:* keep them as typed and never fetch any; your own stars are the main rating.

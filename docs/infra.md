@@ -1,6 +1,6 @@
-# Infra and stack: wp on Cloudflare
+# Infra and stack: Nestora on Cloudflare
 
-Research and decisions as of 6 October 2026. **Status, 6 October 2026:** the design below was approved and built the same day: the scaffold, the shared contract, the Worker, the SPA core and the deployment are on `main` and live at `wp.atqamz.com`. Sections say what is built and what is still plan (the service worker, the on-phone test M9). **Updated on 7 October 2026:** the Worker also serves private design pages from a KV namespace ([§5.3](#53-worker-structure-and-dev-auth)); the app shell is public and Access protects only `/api/*` and `/design/*`, while the app shows its own sign-in screen ([§6](#6-auth)); and the UI was rebuilt in three stages (pull requests 13 to 16, [§5.6](#56-data-and-state-layer)). **Revised on 6 October 2026:** the frontend is now a React + TypeScript + Vite single-page app served by the same Worker, replacing the earlier plan of plain HTML, CSS and JS with no build step. React is a working choice that may be revised, so the design keeps the UI layer replaceable ([brainstorm §6.1](brainstorm.md#61-principles-and-layers)). What this revision supersedes is listed in [§9.3](#93-what-this-revision-supersedes) (this document) and [§9.4](#94-parts-of-docsbrainstormmd-that-are-superseded) (`docs/brainstorm.md`, updated in the same pass).
+Research and decisions as of 6 October 2026. **Status, 6 October 2026:** the design below was approved and built the same day: the scaffold, the shared contract, the Worker, the SPA core and the deployment are on `main` and live at `nestora.atqamz.com` (first on `wp.atqamz.com`, which still serves the same Worker during a 30-day soak, see the [rename plan](rename-nestora.md)). Sections say what is built and what is still plan (the service worker, the on-phone test M9). **Updated on 7 October 2026:** the Worker also serves private design pages from a KV namespace ([§5.3](#53-worker-structure-and-dev-auth)); the app shell is public and Access protects only `/api/*` and `/design/*`, while the app shows its own sign-in screen ([§6](#6-auth)); and the UI was rebuilt in three stages (pull requests 13 to 16, [§5.6](#56-data-and-state-layer)). **Revised on 6 October 2026:** the frontend is now a React + TypeScript + Vite single-page app served by the same Worker, replacing the earlier plan of plain HTML, CSS and JS with no build step. React is a working choice that may be revised, so the design keeps the UI layer replaceable ([brainstorm §6.1](brainstorm.md#61-principles-and-layers)). What this revision supersedes is listed in [§9.3](#93-what-this-revision-supersedes) (this document) and [§9.4](#94-parts-of-docsbrainstormmd-that-are-superseded) (`docs/brainstorm.md`, updated in the same pass).
 
 > **Privacy.** This repo is public. No real emails or first names here: the two users are **Partner A** and **Partner B**, and addresses are written as `<email-partner-a>` and `<email-partner-b>`. Findings from private repos are written generically ("other org's repo", "office repo"), with no code, hostnames, IDs, secret names or people's names. The `atqamz/github` repo is public, so it can be quoted.
 >
@@ -29,7 +29,7 @@ Research and decisions as of 6 October 2026. **Status, 6 October 2026:** the des
 | 17 | The two emails | Local password store (source), Worker secret, and the Access policy. Not in the repo, not in GitHub secrets, **not in D1** (the Worker turns the verified email into `a` or `b`) | Fewer copies, smaller chance of a leak |
 | 18 | CI/CD | GitHub Actions calls `npx` for `vite` and `wrangler` directly; not Workers Builds | One CI system for checks + migrations + build + deploy; Workers Builds only accepts user-owned tokens |
 | 19 | Environment | A single `production`, no preview. Staging later if there's a trigger | Preview URLs are public by default and share D1 unless separated |
-| 20 | Repo settings | A `wp` row in `repos.go` of `atqamz/github` (**done**, §7.5); CI secrets stay `gh secret set` | That repo's own rule: settings there, workflow and dependabot in each repo |
+| 20 | Repo settings | A row for this repository in `repos.go` of `atqamz/github` (**done**, §7.5); CI secrets stay `gh secret set` | That repo's own rule: settings there, workflow and dependabot in each repo |
 | 21 | Dependencies | 5 runtime (`react`, `react-dom`, `jose` and the two fontsource variable font packages) + 8 dev (`vite`, `@vitejs/plugin-react`, `@cloudflare/vite-plugin`, `wrangler`, `typescript`, `@types/react`, `@types/react-dom`, `@types/node`) | Each one is justified in §5.4 |
 
 ---
@@ -95,14 +95,14 @@ Sources: [README](https://github.com/atqamz/github), `AGENTS.md`, `main.go`, `re
 
 ### 2.1 Who manages what
 
-| Resource class | Other org's repo | Office repo | What wp needs |
+| Resource class | Other org's repo | Office repo | What Nestora needs |
 |---|---|---|---|
 | Account | None | Account tokens, Pages, R2, KV, D1 creation | One token of its own, one Worker, one D1 |
 | Zone | One zone, DNS records only | One zone: settings, DNS, redirect rules, routes | Only the `atqamz.com` zone |
 | DNS records | Six explicit records including one wildcard | Many, one zone | One record, created automatically by Custom Domain |
 | Access org | Not managed | App/policy/token in code; **org, team domain, IdP created manually** | One Google IdP and one app |
 | Workers | None | Only routes and subdomain; script from the app repo | The `wp` script deployed by wrangler |
-| D1 / KV | None | Created by IaC, schema in the app repo | D1 `wp` created once through `wrangler d1 create`; one KV namespace `wp-design` for the private design pages ([§5.3](#53-worker-structure-and-dev-auth)) |
+| D1 / KV | None | Created by IaC, schema in the app repo | D1 `wp` created once through `wrangler d1 create`; one KV namespace `nestora-design` for the private design pages ([§5.3](#53-worker-structure-and-dev-auth)) |
 
 ### 2.2 Is the `atqamz.com` zone in their state?
 
@@ -130,13 +130,13 @@ Cloudflare writes that the default assignment method will "favor consistent name
 
 | # | Risk | Mechanism | Mitigation |
 |---|---|---|---|
-| 1 | Two writers for one object | If a wp resource (route, Access app) is someday imported into another IaC, their `apply` can overwrite or delete it. The office repo records one incident: a script declared in two places overwrote each other | All wp objects are prefixed `wp`. Never imported into another repo. The "one writer" rule is written in this repo |
+| 1 | Two writers for one object | If a Nestora resource (route, Access app) is someday imported into another IaC, their `apply` can overwrite or delete it. The office repo records one incident: a script declared in two places overwrote each other | All Nestora objects carry the prefix `wp` (Worker, D1, tokens) or `nestora` (Access app, KV title). Never imported into another repo. The "one writer" rule is written in this repo |
 | 2 | Token swept | An account API token is visible to account admins, and the office repo keeps a token inventory in IaC. A token that isn't listed risks being revoked in a sweep | Token names are prefixed `wp-`. Scoped to one account and one zone. On a shared account, tell the inventory owner |
-| 3 | Access org is a per-account singleton | The team domain, login page, IdP list, global session duration and the "Protect all Workers" application apply across the whole account. If `all_workers` is on, the wp Worker gets that policy too ([docs](https://developers.cloudflare.com/workers/configuration/cloudflare-access/), 18 August 2026) | Check the **Protect all Workers** card in Workers & Pages before deploying. Never turn it on from wp |
-| 4 | A new IdP shows up in another app | Adding an IdP to a shared org can add login options to apps that don't pin an IdP. The default behaviour of an app without `allowed_idps` is **unverified** | Only relevant in scenario B. Pin `allowed_idps` in the wp app and ask the other org's owner to pin too |
+| 3 | Access org is a per-account singleton | The team domain, login page, IdP list, global session duration and the "Protect all Workers" application apply across the whole account. If `all_workers` is on, the Nestora Worker gets that policy too ([docs](https://developers.cloudflare.com/workers/configuration/cloudflare-access/), 18 August 2026) | Check the **Protect all Workers** card in Workers & Pages before deploying. Never turn it on from wp |
+| 4 | A new IdP shows up in another app | Adding an IdP to a shared org can add login options to apps that don't pin an IdP. The default behaviour of an app without `allowed_idps` is **unverified** | Only relevant in scenario B. Pin `allowed_idps` in the Nestora app and ask the other org's owner to pin too |
 | 5 | Shared quota | See §2.5 | Watch the usage dashboard |
 | 6 | Wrong account | Member of several accounts: `wrangler login` gives access to any account, and the `account_id` config says "You might have more than one account" ([docs](https://developers.cloudflare.com/workers/wrangler/configuration/), 5 October 2026) | Always set `CLOUDFLARE_ACCOUNT_ID`, and create a token limited to one account as the [CI docs](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) recommend |
-| 7 | Account plan changed by someone else | Free vs Paid limits change without wp doing anything | **unverified**: which account plan is used |
+| 7 | Account plan changed by someone else | Free vs Paid limits change without Nestora doing anything | **unverified**: which account plan is used |
 | 8 | Unknown records deleted | State-based IaC only changes objects in its own state ([OpenTofu state](https://opentofu.org/docs/language/state/)). The two Cloudflare repos I read have no mass-deletion loop | A real risk only if `atqamz.com` was ever put into that state; the current configuration doesn't do that |
 | 9 | Certificate obstacle | Custom Domain creates a certificate automatically. The `atqamz.com` apex has no CAA, MX or TXT (DoH 6 October 2026), so nothing blocks it | No action needed |
 
@@ -152,25 +152,25 @@ Cloudflare writes that the default assignment method will "favor consistent name
 | Workers Builds | 3,000 minutes/month, 1 concurrent build **across an account** | [Builds limits](https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/) (29 May 2026) |
 | Zero Trust Free | A seat is consumed by every user who performs an authentication event; Free "for up to 50 users" | [Seat management](https://developers.cloudflare.com/cloudflare-one/team-and-resources/users/seat-management/) (1 May 2026), [reference architecture](https://developers.cloudflare.com/reference-architecture/architectures/sase/) |
 
-wp usage: ±200 requests/day, 1 database, 2 seats. **Unverified:** how much the other org's Worker already uses in the same account, and whether that account is on the Free plan.
+Nestora usage: ±200 requests/day, 1 database, 2 seats. **Unverified:** how much the other org's Worker already uses in the same account, and whether that account is on the Free plan.
 
 ### 2.6 Boundary recommendation
 
 **Scenario A (separate accounts): this is the case (answered in M1).** Everything below applies, with no extra caution.
 
-**Scenario B (same account as another org):** add the "Protect all Workers" card check, pin `allowed_idps`, and send one message to the account owner about the `wp-*` tokens. Or move wp to a new personal account (a free Cloudflare account), but Custom Domain needs the `atqamz.com` zone in that account too, and how to move a zone between accounts is **unverified**.
+**Scenario B (same account as another org):** add the "Protect all Workers" card check, pin `allowed_idps`, and send one message to the account owner about the `wp-*` tokens. Or move Nestora to a new personal account (a free Cloudflare account), but Custom Domain needs the `atqamz.com` zone in that account too, and how to move a zone between accounts is **unverified**.
 
-| Owned by wp | Stays owned by others / don't touch |
+| Owned by Nestora | Stays owned by others / don't touch |
 |---|---|
 | Worker `wp` (script, versions, secrets, assets) | All other Workers and their routes |
 | D1 `wp` and its contents | Other databases |
-| KV namespace `wp-design` and its keys | Other namespaces |
-| Custom Domain `wp.atqamz.com` (one DNS record + one certificate) | Other records in `atqamz.com`, zone settings, zone-wide rules |
-| One Access app `wp` (path destinations `/api/*` and `/design/*`, inline policy) | Other Access applications, reusable policies, the `all_workers` application |
+| KV namespace `nestora-design` and its keys | Other namespaces |
+| Custom Domains `nestora.atqamz.com` and, during the soak, `wp.atqamz.com` (one DNS record + one certificate each) | Other records in `atqamz.com`, zone settings, zone-wide rules |
+| One Access app `nestora` (path destinations `/api/*` and `/design/*`, inline policy) | Other Access applications, reusable policies, the `all_workers` application |
 | One Google IdP (the only account-level object; **live**) | The Access org (team domain, login page, global duration), other IdPs |
 | Token `wp-ci` (deploy; `wp-access-setup` was not needed, §7.3) | Other tokens and their inventory |
 
-**Smallest footprint:** Worker, D1, one KV namespace, Custom Domain, Access app, IdP, two tokens. The policy is created **inline** in the app (not reusable), so wp doesn't add an account-level policy object: the API says "Reusable and inline policies are mutually exclusive" ([API reference](https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/applications/methods/create/)).
+**Smallest footprint:** Worker, D1, one KV namespace, Custom Domain, Access app, IdP, two tokens. The policy is created **inline** in the app (not reusable), so Nestora doesn't add an account-level policy object: the API says "Reusable and inline policies are mutually exclusive" ([API reference](https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/applications/methods/create/)).
 
 ---
 
@@ -235,11 +235,11 @@ Reasons:
 
 **Triggers to move to Pulumi Go** (if any one happens):
 
-1. wp needs a third Cloudflare resource type besides Worker, D1 and Access (e.g. R2, a queue, a second hostname, or a permanent staging environment).
+1. Nestora needs a third Cloudflare resource type besides Worker, D1 and Access (e.g. R2, a queue, a second hostname, or a permanent staging environment).
 2. You want Cloudflare settings reviewed through diffs like GitHub settings.
 3. A second person needs to change the Access policy without the dashboard.
 
-If that happens: a **separate repo** (e.g. `atqamz/cloudflare`, same shape as `atqamz/github`: one table, `Protect(true)`, an `adopt` flag), not inside wp, because account-level objects (IdP, tokens, Access org) span projects. The split "IaC holds the edge and account, the app repo holds the code through wrangler" is exactly the office repo's pattern.
+If that happens: a **separate repo** (e.g. `atqamz/cloudflare`, same shape as `atqamz/github`: one table, `Protect(true)`, an `adopt` flag), not inside Nestora, because account-level objects (IdP, tokens, Access org) span projects. The split "IaC holds the edge and account, the app repo holds the code through wrangler" is exactly the office repo's pattern.
 
 ---
 
@@ -258,7 +258,7 @@ Assessment:
 
 1. The Worker gets real async orchestration: retry with backoff to third-party APIs, Workflows or Queues with partial failure.
 2. You decide on Alchemy for other reasons and are ready to accept Effect.
-3. You want to learn Effect for its own sake: do it in an experiment repo, not in wp.
+3. You want to learn Effect for its own sake: do it in an experiment repo, not in Nestora.
 
 ---
 
@@ -280,7 +280,7 @@ Assessment:
 | Tests | `node --test` (the `test` script, no path argument) over `test/`: `shared/`, `src/domain/`, the store, the Worker's auth, sync and export, and the migration. The Worker tests run against a `node:sqlite` stand-in for D1 (`test/sync-db.ts`) that rejects more than 100 bound parameters. One integration test (`test/sync-integration.test.ts`) applies the migrations to a local D1, starts `CLOUDFLARE_ENV=dev vite` and calls the API; it is part of `npm test`. Browser checks (not part of `npm test`, not a dependency in `package.json`) run Playwright through `npx --yes playwright@latest` | Node runs `.ts` directly: type stripping is stable since v24.12.0 and is on in every newer line, needs `.ts` extensions in imports and `import type`, and doesn't run `.tsx` ([Node docs](https://nodejs.org/docs/latest/api/typescript.html)), so `domain/` and `shared/` contain no JSX. **verified locally:** a `node --test` file importing `src/domain/*.ts`, which imports a type from `shared/*.ts`, passes. No component tests; trigger for `vitest` ([5.0.3](https://www.npmjs.com/package/vitest), 30 September 2026) + Testing Library: views gain logic that isn't in `domain/`. `@cloudflare/vitest-plugin` ([1.3.6](https://www.npmjs.com/package/@cloudflare/vitest-plugin), 2 October 2026) peers `vitest ^4.1.0`, so vitest would have to be pinned to 4.x; it is only worth it for per-test D1 isolation inside workerd |
 | PWA | Hand-written service worker + a small Vite plugin | [§5.7](#57-pwa-and-service-worker) |
 | Look | **Built.** Design tokens in `src/tokens.css` (the Ink and rose palette in OKLCH, light and dark, spacing, type scale); two self-hosted variable fonts from fontsource, Mona Sans for display and Hanken Grotesk for text, loaded by `@font-face` rules in the same file; per-device theme (Match this device, Light, Dark) kept in `localStorage` under `wp-theme` and applied before first paint by a small inline script in `index.html`; scrollbars are thin and tokenised, and hidden under `@media (pointer: coarse)` in `src/style.css`; every width condition is in `rem`; the shell is a header and a bottom bar on a phone and a sidebar from 62.5 rem (1000 px at the default text size) | `test/tokens.test.ts` computes contrast ratios from the OKLCH tokens, `test/scrollbars.test.ts` and `test/layout.test.ts` read the CSS as text. No CSS framework and no font host: the public shell makes no request to a third party. How the screens look in a browser is not part of `npm test` |
-| Design pages | **Built.** `/design/<name>/` is served by the Worker from the KV namespace `wp-design` (binding `DESIGN`), after the same Access JWT check as the API | Pages are uploaded by hand and never committed; see [§5.3](#53-worker-structure-and-dev-auth) |
+| Design pages | **Built.** `/design/<name>/` is served by the Worker from the KV namespace `nestora-design` (binding `DESIGN`), after the same Access JWT check as the API | Pages are uploaded by hand and never committed; see [§5.3](#53-worker-structure-and-dev-auth) |
 | Local dev | `npm run dev` = `CLOUDFLARE_ENV=dev vite`: HMR for the SPA, the Worker runs in workerd, D1 is local. There is no seed script and nothing to seed (the app opens empty), and any seed added later must contain **fake data only** | Local D1 comes from `wrangler d1 migrations apply wp --local --env dev`, which `npm run dev` does not run: a fresh `.wrangler` needs it once, and `.wrangler` must be deleted and the migration applied again after any edit to `0001_init.sql` (it is rewritten in place); without it `/api/sync` returns 500 (README); **verified locally** that the Vite dev server reads that database. Dev auth is described in [§5.3](#53-worker-structure-and-dev-auth) |
 | Worker types | `wrangler types` generates `worker-configuration.d.ts` (committed) | No need for `@cloudflare/workers-types`. **verified locally:** it includes the dev-only vars (`AUTH_MODE?`, `DEV_WHO?`) and lists the three secrets as optional `string`, so `authenticate` must treat them as possibly missing (fail closed) |
 
@@ -311,7 +311,10 @@ When `WP_PERSIST_TO` is set, the dev server keeps the local D1 and KV state in t
   "compatibility_date": "2026-10-06",
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "wp.atqamz.com", "custom_domain": true }],
+  "routes": [
+    { "pattern": "wp.atqamz.com", "custom_domain": true },
+    { "pattern": "nestora.atqamz.com", "custom_domain": true }
+  ],
   "assets": { "not_found_handling": "single-page-application", "run_worker_first": ["/api/*", "/design/*"] },
   "d1_databases": [
     { "binding": "DB", "database_name": "wp", "database_id": "783df04a-8254-4586-b705-8d73d0d54ec6", "migrations_dir": "migrations" }
@@ -382,7 +385,7 @@ The `fetch` flow:
 4. `POST /api/sync` first passes the cross-origin check of [§6.4](#64-jwt-verification-in-the-worker), then the body is parsed and applied (`worker/sync.ts`, brainstorm §3.7).
 5. Errors return generic JSON (`{ "error": "<code>" }`, or the `Rejection` shape for sync); an unhandled exception logs only its error name and returns 500. No stack traces or emails in responses or logs.
 
-**Design pages** (**built**, pull request 12). `GET` or `HEAD` on `/design/<name>` or `/design/<name>/`, where `<name>` matches `^[a-z0-9][a-z0-9-]{0,39}$`, returns the text stored under the key `<name>` in the KV namespace `wp-design`, as `text/html; charset=utf-8` with `cache-control: private, no-store`, `x-robots-tag: noindex, nofollow` and `x-content-type-options: nosniff`. Any other method is a 405 with `allow: GET, HEAD`; a name that does not match, a missing key or a deeper path is a 404 JSON. The authentication of step 2 runs first, so no valid JWT means no page, and the Access application protects the same path before the Worker is reached ([§6](#6-auth)). The namespace is bound as `DESIGN` in `wrangler.jsonc`: the namespace id is at the top level, `env.dev` keeps an all-zero placeholder. A page is one self-contained HTML document: the Worker sends the stored text unchanged, and a relative link to another file would be a deeper path, which is a 404. Pages are never committed to the repository. The supervisor uploads and removes them with the Cloudflare CLI; the wrangler commands for the same work are `wrangler kv key put` and `wrangler kv key delete` ([KV commands](https://developers.cloudflare.com/workers/wrangler/commands/kv/); this page was not fetched in this pass, so their exact flags are **unverified**). The steps are in [bootstrap, Design pages](bootstrap.md#design-pages). KV is eventually consistent: a change can take "up to 60 seconds or more" to show in other locations ([how KV works](https://developers.cloudflare.com/kv/concepts/how-kv-works/), quoted in brainstorm §3.2), so a 404 right after an upload does not prove the key is missing.
+**Design pages** (**built**, pull request 12). `GET` or `HEAD` on `/design/<name>` or `/design/<name>/`, where `<name>` matches `^[a-z0-9][a-z0-9-]{0,39}$`, returns the text stored under the key `<name>` in the KV namespace `nestora-design`, as `text/html; charset=utf-8` with `cache-control: private, no-store`, `x-robots-tag: noindex, nofollow` and `x-content-type-options: nosniff`. Any other method is a 405 with `allow: GET, HEAD`; a name that does not match, a missing key or a deeper path is a 404 JSON. The authentication of step 2 runs first, so no valid JWT means no page, and the Access application protects the same path before the Worker is reached ([§6](#6-auth)). The namespace is bound as `DESIGN` in `wrangler.jsonc`: the namespace id is at the top level, `env.dev` keeps an all-zero placeholder. A page is one self-contained HTML document: the Worker sends the stored text unchanged, and a relative link to another file would be a deeper path, which is a 404. Pages are never committed to the repository. The supervisor uploads and removes them with the Cloudflare CLI; the wrangler commands for the same work are `wrangler kv key put` and `wrangler kv key delete` ([KV commands](https://developers.cloudflare.com/workers/wrangler/commands/kv/); this page was not fetched in this pass, so their exact flags are **unverified**). The steps are in [bootstrap, Design pages](bootstrap.md#design-pages). KV is eventually consistent: a change can take "up to 60 seconds or more" to show in other locations ([how KV works](https://developers.cloudflare.com/kv/concepts/how-kv-works/), quoted in brainstorm §3.2), so a 404 right after an upload does not prove the key is missing.
 
 **Dev mode without Access.** The earlier plan used `wrangler dev --var AUTH_MODE:dev ...`; the Vite dev server doesn't take that flag, so the dev-only variables live in the `env.dev` block of `wrangler.jsonc` ([§5.2](#52-frontend-build-a-vite-react-spa-on-the-worker)) and `npm run dev` selects it with `CLOUDFLARE_ENV=dev`. The plugin applies `CLOUDFLARE_ENV` to `vite dev` and `vite build`, and "specifying `CLOUDFLARE_ENV` when running `vite preview` or `wrangler deploy` will have no effect" ([docs](https://developers.cloudflare.com/workers/vite-plugin/reference/cloudflare-environments/), 23 April 2026). Production fails closed because the production build never selects that environment: **verified locally**, `dist/wp/wrangler.json` from a plain `vite build` has empty `vars`, and from `CLOUDFLARE_ENV=dev vite build` it has `AUTH_MODE` and the worker name `wp-dev`. `npm run check` greps the production output for `AUTH_MODE` ([§5.2](#52-frontend-build-a-vite-react-spa-on-the-worker)). Details:
 
@@ -497,13 +500,13 @@ It is added to the `plugins` array next to `react()` and `cloudflare()`. It runs
 
 A short answer to your question: **yes, Cloudflare can do it**. Access + a Google identity provider + an `allow` policy containing exactly two emails. Google only proves who logged in; what restricts it to two accounts is the Access policy.
 
-**Status, 7 October 2026:** Access is live on `wp.atqamz.com` as a self-hosted application (30-day session, SameSite `lax` cookie) whose destinations are the two paths `wp.atqamz.com/api/*` and `wp.atqamz.com/design/*`, with the custom deny URL `https://wp.atqamz.com/?access=denied` (pull request 15; before it the application covered the whole host, and every path answered 302 to the Cloudflare Access login). Every other path, `/` included, is public: it is the app shell (code, icons, manifest), with no data in it. The **Google identity provider is live**: the operator made the Web client in the Google Cloud console and the supervisor created the identity provider from it ([bootstrap, Adding the Google sign-in](bootstrap.md#adding-the-google-sign-in)). The application allows **only the Google identity provider**, with `auto_redirect_to_identity` on, so there is no chooser and One-time PIN is no longer offered; its single policy includes exactly the two allowed emails and nothing else (no email domain, no "everyone"). One-time PIN can be restored as a fallback with one Cloudflare CLI command. The Worker verifies the same Access JWT whichever provider signed the user in, so none of this changes code (expected; confirm in M9).
+**Status, 7 October 2026:** Access is live on `wp.atqamz.com` as a self-hosted application (30-day session, SameSite `lax` cookie) whose destinations are the two paths `wp.atqamz.com/api/*` and `wp.atqamz.com/design/*`, with the custom deny URL `https://wp.atqamz.com/?access=denied` (pull request 15; before it the application covered the whole host, and every path answered 302 to the Cloudflare Access login). Every other path, `/` included, is public: it is the app shell (code, icons, manifest), with no data in it. The **Google identity provider is live**: the operator made the Web client in the Google Cloud console and the supervisor created the identity provider from it ([bootstrap, Adding the Google sign-in](bootstrap.md#adding-the-google-sign-in)). The application allows **only the Google identity provider**, with `auto_redirect_to_identity` on, so there is no chooser and One-time PIN is no longer offered; its single policy includes exactly the two allowed emails and nothing else (no email domain, no "everyone"). One-time PIN can be restored as a fallback with one Cloudflare CLI command. The Worker verifies the same Access JWT whichever provider signed the user in, so none of this changes code (expected; confirm in M9). **Updated 25 October 2026:** the application is named `nestora` (policy `nestora allowed`), covers the same two paths on `nestora.atqamz.com` as well, and its custom deny URL is `https://nestora.atqamz.com/?access=denied`; the old destinations stay during the soak.
 
 **What a visitor sees** (the code is **built**; none of it has been tried on a phone, M9):
 
 | Visitor | What happens |
 |---|---|
-| Opens `https://wp.atqamz.com/` with no session and nothing stored on the device | The shell loads without any login redirect. The first `GET /api/sync` is answered by Access with a redirect, which `src/store/api.ts` reads as "expired", and the app shows its own sign-in screen ("Continue with Google", a link to `/api/login`). Access then sends the browser to Google, and the Worker answers `/api/login` with a 302 to `/` |
+| Opens `https://nestora.atqamz.com/` with no session and nothing stored on the device | The shell loads without any login redirect. The first `GET /api/sync` is answered by Access with a redirect, which `src/store/api.ts` reads as "expired", and the app shows its own sign-in screen ("Continue with Google", a link to `/api/login`). Access then sends the browser to Google, and the Worker answers `/api/login` with a 302 to `/` |
 | Opens it on a phone that already holds data | The app opens on that data. If the session has expired, the sync badge says "Log in again" (also a navigation to `/api/login`) and nothing is lost |
 | Cannot reach the server and holds nothing | The "connect" screen: retry only. It appears when the first pull fails for any reason other than an expired session |
 | Signs in with a Google account that the policy does not allow | Access refuses and sends the browser to the deny URL, `/?access=denied`. The shell loads, `src/domain/access.ts` removes the parameter from the address (`history.replaceState`) and the app shows the wrong-account screen, whose button ("Try another account") is again a link to `/api/login`. Whether Google offers a chooser on that second attempt is **unverified** |
@@ -532,10 +535,10 @@ A short answer to your question: **yes, Cloudflare can do it**. Access + a Googl
 | 3 | Fill in the Authorized JavaScript origin `https://<team>.cloudflareaccess.com` and the redirect URI `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`. **Done** | M | Exactly as in the Cloudflare docs above |
 | 4 | Consent screen status **Testing**, add `<email-partner-a>` and `<email-partner-b>` as test users. **Done** | M | Testing is limited to 100 test users and "authorizations by a test user will expire seven days from the time of consent" ([Google](https://support.google.com/cloud/answer/15549945)), **except** when the app requests only the `openid`, `email` and `profile` scopes. The Cloudflare Google page does not list the scopes it requests, so whether you will be asked to consent every week is **unverified**. The alternative is "Publish app"; Google says verification is not mandatory for non-sensitive scopes ([Google](https://support.google.com/cloud/answer/13463073)). Details in [bootstrap M3](bootstrap.md#m3-google-oauth-client) |
 | 5 | Create the `google` IdP in Zero Trust (`client_id`, `client_secret`, optional PKCE). **Done (supervisor)** from the console-made client; the client file was consumed and deleted | C | The Cloudflare CLI or the dashboard (no script exists). The fields are in the [API reference](https://developers.cloudflare.com/api/resources/zero_trust/subresources/identity_providers/methods/create/) |
-| 6 | Create a `self_hosted` Access app whose destinations are `wp.atqamz.com/api/*` and `wp.atqamz.com/design/*`, with the custom deny URL `https://wp.atqamz.com/?access=denied`, `session_duration` = `720h`, an inline `allow` policy with two `email` rules, and the allowed identity providers. **Done:** created for the whole host with One-time PIN, then Google added, then `allowed_idps` = Google only with `auto_redirect_to_identity` = true, then (pull request 15) the destinations and the deny URL as written here | C | Created once through the Cloudflare CLI ([bootstrap M6](bootstrap.md#m6-create-the-access-app-and-note-the-aud); the destinations and deny URL fields are in the [API reference](https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/applications/methods/create/), which was not re-read in this pass: **unverified**). The app session can go up to "one month" ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/)); 720h = 30 days. Instant auth is recommended when there's only one IdP ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)) |
+| 6 | Create a `self_hosted` Access app named `nestora` whose destinations are `nestora.atqamz.com/api/*` and `nestora.atqamz.com/design/*` (and, during the soak, the same two paths on `wp.atqamz.com`), with the custom deny URL `https://nestora.atqamz.com/?access=denied`, `session_duration` = `720h`, an inline `allow` policy with two `email` rules, and the allowed identity providers. **Done:** created for the whole host with One-time PIN, then Google added, then `allowed_idps` = Google only with `auto_redirect_to_identity` = true, then (pull request 15) the destinations and the deny URL on `wp.atqamz.com`, then (25 October 2026) the same on `nestora.atqamz.com`, the name `nestora` and the policy name `nestora allowed` | C | Created once through the Cloudflare CLI ([bootstrap M6](bootstrap.md#m6-create-the-access-app-and-note-the-aud); the destinations and deny URL fields are in the [API reference](https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/applications/methods/create/), which was not re-read in this pass: **unverified**). The app session can go up to "one month" ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/)); 720h = 30 days. Instant auth is recommended when there's only one IdP ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)) |
 | 7 | Note the app's AUD tag. **Done** | C | The creation response carries it (it's also in the dashboard: Applications → Additional settings) |
 | 8 | Set three Worker secrets: `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_EMAILS`. **Done** by the first deploy, run by hand with `wrangler deploy --secrets-file <file>` ([docs](https://developers.cloudflare.com/workers/configuration/secrets/)) | M, once | `secrets.required` makes a deploy fail if any is missing, and wrangler refuses a first deploy of a Worker that does not exist yet when `secrets.required` is set and no secrets file is given, which is why CI could not do the first deploy; later deploys keep the secrets |
-| 9 | Custom Domain `wp.atqamz.com`. **Done** | C | The `routes` block in `wrangler.jsonc`, deployed by CI with a token that has no DNS or routes permission ([§7.3](#73-tokens-and-secrets)). Wrangler creates the DNS record and certificate; it can't be done on a hostname that already has a CNAME ([docs](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/), 29 September 2026) |
+| 9 | Custom Domains `nestora.atqamz.com` and, during the soak, `wp.atqamz.com`. **Done** | C | The `routes` block in `wrangler.jsonc`, deployed by CI with a token that has no DNS or routes permission ([§7.3](#73-tokens-and-secrets)). Wrangler creates the DNS record and certificate; it can't be done on a hostname that already has a CNAME ([docs](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/), 29 September 2026) |
 | 10 | Turn off `workers.dev` and preview URLs. **Done** | C | `wrangler.jsonc` (above) |
 | 11 | Test on two phones. **Pending (M9)** | M | See §6.5 |
 
@@ -625,7 +628,7 @@ The old caveats were written for a hand-written `public/` folder. They were rech
 | The iOS PWA cookie jar is separate from Safari | A secondary source says Home Screen app storage is isolated from Safari ([MagicBell](https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide)); **unverified** from Apple's docs. The Access login also leaves the app's origin (the team domain), now only when the user taps "Continue with Google" or "Log in again" (a navigation to `/api/login`), and the behaviour of redirects out of and back into scope in iOS standalone is **unverified** | This is risk #1 in §9.1. Test on day one, before writing features |
 | Default 24-hour session | Up to "one month" ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/)) | **Done:** the live application has a 30-day session |
 | CORS and OPTIONS | The app is same-origin, so not needed. But if the frontend is opened from another origin (e.g. `localhost` calling the production API), the preflight gets a 403 ([docs](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/cors/)) | Partner B develops against the local Worker that runs inside the Vite dev server (`npm run dev`), not against production |
-| `workers.dev` and preview URLs open | The Access application only protects the destinations on `wp.atqamz.com` ([docs](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)); preview URLs are "public by default" ([Previews](https://developers.cloudflare.com/workers/previews/)) | Both are turned off in the config |
+| `workers.dev` and preview URLs open | The Access application only protects the destinations on `nestora.atqamz.com` and, during the soak, `wp.atqamz.com` ([docs](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)); preview URLs are "public by default" ([Previews](https://developers.cloudflare.com/workers/previews/)) | Both are turned off in the config |
 
 ---
 
@@ -703,7 +706,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: wp-deploy
+      group: nestora-deploy
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@<sha> # <version>
@@ -725,18 +728,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: |
-          for path in / /api/health /design/round2/; do
-            ok=
-            for _ in 1 2 3 4 5 6 7 8 9 10; do
-              res=$(curl -sS -o /dev/null -w '%{http_code} %{content_type} %{redirect_url}' --max-time 20 "https://wp.atqamz.com$path" 2>/dev/null) || res=
-              case "$path:$res" in
-                /:200\ text/html*) ok=1; break ;;
-                /:*) ;;
-                *:30[1-8]\ *\ https://*.cloudflareaccess.com/* | *:401\ * | *:403\ *) ok=1; break ;;
-              esac
-              sleep 10
+          for host in nestora.atqamz.com wp.atqamz.com; do
+            for path in / /api/health /design/round2/; do
+              ok=
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                res=$(curl -sS -o /dev/null -w '%{http_code} %{content_type} %{redirect_url}' --max-time 20 "https://$host$path" 2>/dev/null) || res=
+                case "$path:$res" in
+                  /:200\ text/html*) ok=1; break ;;
+                  /:*) ;;
+                  *:30[1-8]\ *\ https://*.cloudflareaccess.com/* | *:401\ * | *:403\ *) ok=1; break ;;
+                esac
+                sleep 10
+              done
+              test -n "$ok" || { echo "unprotected or unreachable: $host$path"; exit 1; }
             done
-            test -n "$ok" || { echo "unprotected or unreachable: $path"; exit 1; }
           done
 ```
 
@@ -747,7 +752,7 @@ How it works:
 - **Secrets are scoped per step.** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set in the `env` of the migration step and of the deploy step only, so `npm ci`, the build and the smoke test never see them. The checkout uses `persist-credentials: false` (no repository token is left in `.git`), and the install is `npm ci --ignore-scripts`, so no dependency install script runs in the job that goes on to hold the Cloudflare token. The job has a 15 minute timeout and a `wp-deploy` concurrency group with `cancel-in-progress: false`, so deploys queue and none is cancelled half way.
 - **Head-of-main guard.** The second step of `deploy` compares `git ls-remote origin refs/heads/main` with `$GITHUB_SHA` and fails if `main` has moved on. Because deploys queue, an older run that wakes up after a newer merge stops instead of deploying older code over newer code.
 - **Order.** Migrations run before the build so a fresh checkout reads the root `wrangler.jsonc`; the build then writes `.wrangler/deploy/config.json`, which `wrangler deploy` follows (**built**: the deploy job runs this way). `vite build` prints a "Missing required secrets" warning when the three secrets aren't in the CI environment and still exits 0 (**built**: it is in the `check` log); the real check is `secrets.required` at deploy, which holds because the Worker already has its secrets from the first deploy (§7.3). Whether `wrangler d1 migrations apply` follows the redirect after a build is **unverified**; the generated config keeps `migrations_dir` pointing at the source folder either way.
-- **Smoke test.** After the deploy, `/`, `/api/health` and `/design/round2/` on `wp.atqamz.com` are requested up to ten times each, ten seconds apart. `/` passes only on a 200 answer whose content type starts with `text/html`: the public shell. `/api/health` and `/design/round2/` pass only on a redirect (301 to 308) to a `cloudflareaccess.com` URL, a 401 or a 403. A path that never passes fails the step with "unprotected or unreachable" and its name, whichever of the two ways it failed, so a `/` that is still behind a login redirect also reads "unprotected". The check on `/design/round2/` holds whether or not a page of that name exists, because Access (or, failing that, the Worker's 401) answers before KV is read (my reading of the Worker code). It proves the shell is public and the two protected paths are protected after each deploy; it does not log in, so it says nothing about whether the app works, and it does not see a change made in the Access dashboard between deploys.
+- **Smoke test.** After the deploy, `/`, `/api/health` and `/design/round2/` on `nestora.atqamz.com` and on `wp.atqamz.com` are requested up to ten times each, ten seconds apart. `/` passes only on a 200 answer whose content type starts with `text/html`: the public shell. `/api/health` and `/design/round2/` pass only on a redirect (301 to 308) to a `cloudflareaccess.com` URL, a 401 or a 403. A path that never passes fails the step with "unprotected or unreachable" and its name, whichever of the two ways it failed, so a `/` that is still behind a login redirect also reads "unprotected". The check on `/design/round2/` holds whether or not a page of that name exists, because Access (or, failing that, the Worker's 401) answers before KV is read (my reading of the Worker code). It proves the shell is public and the two protected paths are protected after each deploy; it does not log in, so it says nothing about whether the app works, and it does not see a change made in the Access dashboard between deploys.
 - **Dependabot.** `dependabot-metadata` (only for a Dependabot pull request) reads the update type with `dependabot/fetch-metadata`. `dependabot-merge` runs after `check` and `dependabot-metadata` and squash-merges only `version-update:semver-minor` and `version-update:semver-patch` updates, with `--match-head-commit` so the merge is of the commit that `check` tested; major updates stay open for the supervisor to review. A merge made with `GITHUB_TOKEN` does not start the `push` workflow, except that `workflow_dispatch` and `repository_dispatch` events do start one ([GitHub docs](https://docs.github.com/en/actions/concepts/security/github_token)), so the same job then runs `gh workflow run ci.yml --ref main` (the job has `actions: write` for that), and the dispatch deploys the merged `main`.
 - The pattern from the other two repos: actions pinned to SHAs, with Dependabot bumping them (daily, minor and patch updates grouped per ecosystem, `.github/dependabot.yml`).
 
@@ -755,7 +760,7 @@ How it works:
 
 | Name | Place | Contents / scope | Notes |
 |---|---|---|---|
-| `CLOUDFLARE_API_TOKEN` | GitHub Actions secret | Account API token `wp-ci`: Account **Workers Scripts Write** and **D1 Write** ("Edit" in the dashboard), limited to one account, plus **Zone Read** on the one `atqamz.com` zone | **No zone DNS or routes permission is needed:** the first CI deploy, which attached the Custom Domain, ran green with exactly these permissions. Zone Read is part of the token; whether wrangler needs it to look the zone up is not stated in a page I read. Permission group names are in the [permission list](https://developers.cloudflare.com/fundamentals/api/reference/permissions/). The token has no Workers KV permission. Whether `wrangler deploy` needs one to bind the existing namespace `wp-design` is not recorded in these documents (**unverified**); the design pages themselves are uploaded by the supervisor with the Cloudflare CLI, not by CI |
+| `CLOUDFLARE_API_TOKEN` | GitHub Actions secret | Account API token `wp-ci`: Account **Workers Scripts Write** and **D1 Write** ("Edit" in the dashboard), limited to one account, plus **Zone Read** on the one `atqamz.com` zone | **No zone DNS or routes permission was needed for deploys:** the first deploy, which attached the Custom Domain, was run by hand with a one-hour token that had them ([bootstrap M7](bootstrap.md#m7-set-the-three-worker-secrets)); the CI deploys with these permissions then ran green. Whether `wp-ci` alone can attach a new Custom Domain was not tested. Zone Read is part of the token; whether wrangler needs it to look the zone up is not stated in a page I read. Permission group names are in the [permission list](https://developers.cloudflare.com/fundamentals/api/reference/permissions/). The token has no Workers KV permission. Whether `wrangler deploy` needs one to bind the existing namespace `nestora-design` is not recorded in these documents (**unverified**); the design pages themselves are uploaded by the supervisor with the Cloudflare CLI, not by CI |
 | `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | The account ID | The Cloudflare docs say to store it as a secret; whether the account ID is secret isn't stated in the docs I read, so it is treated as a secret and kept out of the repo |
 | Token `wp-access-setup` | **Not** in GitHub; local, temporary | Account: **Access: Apps and Policies Edit** and **Access: Organizations, Identity Providers, and Groups Edit** (the API reference for creating an identity provider names this combined group, not "Identity Providers Edit") | **Not needed so far:** the Access application was created through the Cloudflare CLI logged in as the operator. Should a token be made for the Google switch, keep it separate from the deploy token so a leaked GitHub secret doesn't give the power to change the Access policy, and revoke it afterwards |
 | Worker secrets (3) | Cloudflare | See §6.2 step 8 | Set by the first deploy (by hand, with a secrets file); they survive later deploys |
@@ -769,7 +774,7 @@ How it works:
 
 ### 7.5 Adding wp to `atqamz/github` later
 
-**Status: done.** The `wp` row was merged into `atqamz/github` and applied; secret scanning and push protection are already enabled on the repo. What follows is kept as the record of how and why.
+**Status: done.** The `wp` row was merged into `atqamz/github` and applied (the repository is now `atqamz/nestora`, renamed on 25 October 2026; the sketch below is the original, see the [rename plan](rename-nestora.md), step 3.5); secret scanning and push protection are already enabled on the repo. What follows is kept as the record of how and why.
 
 Per that repo's README and `AGENTS.md`, the change was to the `repos` **table** in `repos.go`, not a new resource:
 
@@ -783,10 +788,10 @@ Per that repo's README and `AGENTS.md`, the change was to the `repos` **table** 
 
 - `wp` already exists on GitHub, so run **adopt**: `pulumi config set adopt true`, `pulumi preview`, `pulumi up`, then `pulumi config rm adopt` (README section "Adopting a repo that already exists"). Don't run it unattended.
 - Automatic baseline: no rebase merge, delete branch on merge, vulnerability alerts, default workflow permission `read`, dependabot security updates, and the `main guard` ruleset (blocks deletion and force-push).
-- `RequirePR: true` makes sense for wp: `main` deploys to production, so changes should go through a PR. **Required status checks are deliberately not managed** by that repo (the reason is in the README: direct-push deadlock), so the CI gate depends on your discipline, not GitHub. This is your decision.
+- `RequirePR: true` makes sense for Nestora: `main` deploys to production, so changes should go through a PR. **Required status checks are deliberately not managed** by that repo (the reason is in the README: direct-push deadlock), so the CI gate depends on your discipline, not GitHub. This is your decision.
 - Manual per the README: secret scanning and push protection (the `gh api` snippet in the README, required for public repos; **done**), and interaction limits (they expire every six months; still the operator's to renew).
-- **Don't** put CI secret values in Pulumi (they'd go into state): `gh secret set CLOUDFLARE_API_TOKEN --repo atqamz/wp` and `CLOUDFLARE_ACCOUNT_ID` (both are set, M8).
-- `dependabot.yml` for `npm` and `github-actions` lives in the wp repo, not in `atqamz/github` (a rule in that repo's `AGENTS.md`).
+- **Don't** put CI secret values in Pulumi (they'd go into state): `gh secret set CLOUDFLARE_API_TOKEN --repo atqamz/nestora` and `CLOUDFLARE_ACCOUNT_ID` (both are set, M8).
+- `dependabot.yml` for `npm` and `github-actions` lives in the Nestora repo, not in `atqamz/github` (a rule in that repo's `AGENTS.md`).
 
 ---
 
@@ -1082,7 +1087,7 @@ Statements from the earlier version of this document, removed or rewritten in pl
 | §6 Frontend without a build step | **Replaced** by "Frontend: React, TypeScript, Vite"; the framework matrix (vanilla, Lit, Preact + htm, Alpine, Vue, HTMX, petite-vue) is removed |
 | §8 "How `wp.atqamz.com` is served" (`wrangler.jsonc` sketch) | **Replaced** by the sketch in §5.2 here |
 | §8 "Deploy flow" (Workers Builds recommendation) | **Reversed:** GitHub Actions (§7.1), with a build step (§7.2) |
-| §8 "Preview builds" paragraph | **Replaced** by §7.4: the new `wrangler preview` mechanism, and wp doesn't use preview for now |
+| §8 "Preview builds" paragraph | **Replaced** by §7.4: the new `wrangler preview` mechanism, and Nestora doesn't use preview for now |
 | §9 Risks (the numbering of that revision: #3, #6, #7, #9) | **Reordered** in §9.1; the framework debate is closed and removed from the brainstorm list, as is the answered Zero Trust payment risk |
 | §10 Recommendation steps 1, 2, 5 | **Updated** (React from the start; no framework discussion step) |
 | §2 "Merged" list and generic-screen paragraph, §3.3, §3.6, §5.2, §5.3 | **Updated** for the three-table model (per-`kind` screens, the table whitelist, rows written per edit, object stores, the example write with `json_patch`) |

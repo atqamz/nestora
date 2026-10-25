@@ -1,4 +1,4 @@
-# Brainstorm: Wedding Planner PWA (`wp.atqamz.com`)
+# Brainstorm: Nestora, first a Wedding Planner PWA (`nestora.atqamz.com`)
 
 Discussion document, not a final decision. Research as of 6 October 2026; every docs page cited was checked on that date.
 
@@ -7,6 +7,8 @@ Discussion document, not a final decision. Research as of 6 October 2026; every 
 In short: one Cloudflare Worker that serves static assets, `/api/*` and private design pages (`/design/*`, from KV), data in D1, login through Cloudflare Access with Google only (Access protects `/api/*` and `/design/*`; the app shell is public and shows its own sign-in screen), a React + TypeScript + Vite single-page app (English UI) with a data layer kept separate from the views. Data is stored locally in IndexedDB so it works offline, then synced to D1. Details and reasons below.
 
 > **Status.** This document is the discussion record; `docs/infra.md` holds the stack decisions and wins where they differ. Sections that `docs/infra.md` superseded are marked **Superseded** where they start, and its §9.4 lists every section's status. Section 6 was rewritten when the frontend changed from "no build step" to React + TypeScript + Vite; the earlier framework matrix is gone. **Built and live (7 October 2026):** the Worker, the data layer, the Home screen ("Our journey": the days to the akad, a route of stages, what is due soon and late, recent changes), Money (the budget with payments), People (guests and vendors, with a detail pane), Tasks (reached from Home), the Add sheet with the quick-add parser, Settings (the day with its Hijri date, nicknames, look, your data, sign out, the stage editor), a sync screen, the export links, the sign-in and wrong-account screens, and the private design pages are on `main` and deployed at `wp.atqamz.com`. Access protects `/api/*` and `/design/*`; the app shell is public. Not built: the service worker, the other kinds of the generic list, the wedding-day rundown and the import. Statements below describe the code where it exists and are marked **plan** where it does not.
+>
+> **Name, 25 October 2026.** The product is called Nestora and is served at `nestora.atqamz.com`; `wp.atqamz.com` serves the same Worker during a 30-day soak ([rename plan](rename-nestora.md)). The text below keeps the early "wp" and "Wedding Planner" wording where it records the discussion; the Worker `wp`, the D1 database `wp` and the other internal identifiers keep their names on purpose.
 
 ---
 
@@ -297,7 +299,7 @@ All of them are just client-side calculations or one link:
   - Real SQL, fits the tabular shape of the data.
   - Batch statements run as a SQL transaction ([docs](https://developers.cloudflare.com/d1/worker-api/d1-database/)).
   - There's `wrangler d1 export`, migrations, and 7-day Time Travel on the free plan as a safety net if data gets overwritten ([limits](https://developers.cloudflare.com/d1/platform/limits/), [Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)).
-- **KV (no, for the app's data).** wp does bind one KV namespace, `wp-design`, for the private design pages (`docs/infra.md` §5.3): a few HTML documents written by hand and read by name, so none of the limits below matters for them.
+- **KV (no, for the app's data).** Nestora does bind one KV namespace, `nestora-design`, for the private design pages (`docs/infra.md` §5.3): a few HTML documents written by hand and read by name, so none of the limits below matters for them.
   - The free plan is only 1,000 writes/day ([pricing](https://developers.cloudflare.com/kv/platform/pricing/)) and 1 write/second per key ([limits](https://developers.cloudflare.com/kv/platform/limits/)).
   - Eventually consistent: a change can take "up to 60 seconds or more" to show up in other locations ([how KV works](https://developers.cloudflare.com/kv/concepts/how-kv-works/)).
   - Bad for two people editing the same list.
@@ -332,7 +334,7 @@ GET  /design/<name>/         → the HTML page stored in KV under <name> (also H
 
 ```
 Partner A's phone / Partner B's phone (PWA: React SPA + Service Worker + IndexedDB)
-        │  HTTPS wp.atqamz.com
+        │  HTTPS nestora.atqamz.com
         ▼
 Cloudflare edge
   ├─ every other path, / included ─────────────► Worker "wp": static assets (dist/client, built by Vite)
@@ -341,7 +343,7 @@ Cloudflare edge
                                  ▼
                              Worker "wp" (verifies the JWT again)
                                ├─ /api/sync, /api/export, /api/login, /api/health → D1 "wp"
-                               └─ /design/<name>/ → KV "wp-design"
+                               └─ /design/<name>/ → KV "nestora-design"
 ```
 
 ### 3.5 Free plan limits (checked 6 October 2026)
@@ -593,7 +595,7 @@ UPDATE items
 - **Online but the session expired:** API requests get redirected to the login. Built in `src/store/api.ts`: every call is made with `redirect: "manual"`; a redirect (`opaqueredirect`), a 401, a 403, or a 2xx answer that is not JSON counts as "expired" (the sync badge turns to "log in"), while a 5xx, a timeout of 15 seconds or a network error counts as "offline". The outbox is kept in both cases and sent after the next successful login.
 
 - **The way back in is `/api/login`.** The "Log in again" button of the sync badge navigates to it (`actions.logIn`, a `location.assign`), and the sign-in screen's "Continue with Google" and the wrong-account screen's "Try another account" are plain links to it (`LOGIN_URL` in `src/store/api.ts`). `/` is public and never reaches Access, with or without a service worker, so navigating to `/` cannot start a login. Access intercepts `/api/login` (the service worker skips `/api/*`), the user logs in, and then the Worker redirects to `/`.
-- **Which screen a phone shows.** A phone that holds an identity opens the app, and the badge says "Log in again" when the session has expired. A phone with no identity shows the sign-in screen when the link is "expired" and the "connect" screen when it is offline (§5.2). When Access refuses a Google account it sends the browser to the deny URL `https://wp.atqamz.com/?access=denied`; the shell takes the parameter off the address and shows the wrong-account screen. **Sign out** in Settings is a link to `/cdn-cgi/access/logout`; whether that endpoint answers with path destinations only is **unverified**.
+- **Which screen a phone shows.** A phone that holds an identity opens the app, and the badge says "Log in again" when the session has expired. A phone with no identity shows the sign-in screen when the link is "expired" and the "connect" screen when it is offline (§5.2). When Access refuses a Google account it sends the browser to the deny URL `https://nestora.atqamz.com/?access=denied`; the shell takes the parameter off the address and shows the wrong-account screen. **Sign out** in Settings is a link to `/cdn-cgi/access/logout`; whether that endpoint answers with path destinations only is **unverified**.
 - **Unverified:** whether Access answers a non-navigation fetch with 302 or 401. The client handles both. **Test on a real phone.** One consequence of the mapping: the Worker's own 403 for a cross-origin write (§3.7) also shows as "expired".
 
 ### 5.6 Web Push for reminders: realistic?
@@ -851,9 +853,9 @@ Checked before the first deploy (public DNS queries via DoH `cloudflare-dns.com`
 
 - NS of `atqamz.com` = `chloe.ns.cloudflare.com`, `ray.ns.cloudflare.com`. That means the zone uses Cloudflare nameservers (full setup).
 - The apex `atqamz.com` resolves to a Cloudflare IP, so it's already proxied.
-- `wp.atqamz.com` was free (NXDOMAIN) before the first deploy. It is now the Worker's Custom Domain and serves the full app: `/` and the other static paths are public, `/api/*` and `/design/*` are behind Cloudflare Access.
+- `wp.atqamz.com` was free (NXDOMAIN) before the first deploy and became the Worker's Custom Domain. Since 25 October 2026 the product is served at `nestora.atqamz.com`, and `wp.atqamz.com` serves the same Worker during a 30-day soak. On 7 October 2026 the full app was served like this: `/` and the other static paths are public, `/api/*` and `/design/*` are behind Cloudflare Access.
 - There was no MX record when checked. This only matters if we later use Email Routing (the magic link option or the email digest).
-- The `atqamz/wp` repo is public. It is no longer empty: `main` holds the app, the migration, the Worker and the CI workflow, and the `docs` branch is an orphan branch holding only these documents. The repository's default branch is `main`.
+- The `atqamz/nestora` repo (`atqamz/wp` until 25 October 2026) is public. It is no longer empty: `main` holds the app, the migration, the Worker and the CI workflow, and the `docs` branch is an orphan branch holding only these documents. The repository's default branch is `main`.
 
 ### Was unverified, now answered or still open
 
