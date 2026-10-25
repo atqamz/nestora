@@ -1,12 +1,12 @@
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export const text = {
-  appName: "WP",
+  appName: "Nestora",
   loading: "Loading",
   paused: "Sign-in not confirmed yet. Changes are paused. Try again when you are back online.",
   storageFailed: "This phone could not keep your change. Free some space or allow site data, then try again.",
   storageBrokenTitle: "Storage is blocked",
-  storageBroken: "This browser blocked local storage, so WP cannot start. Allow site data for this page and reload.",
+  storageBroken: "This browser blocked local storage, so Nestora cannot start. Allow site data for this page and reload.",
   notFound: "Nothing here",
   crashedTitle: "Something went wrong",
   crashed: "This screen could not be shown. Your data on this phone is untouched.",
@@ -350,7 +350,7 @@ export const text = {
       ],
       googleNote: "The Google Calendar app on a phone cannot add it. Once it is added on a computer, it shows on your phone too.",
       apple: "Apple Calendar: on a Mac, choose File, New Calendar Subscription and paste the link. On an iPhone, open Settings, Calendar, Accounts, Add Account, Other, Add Subscribed Calendar.",
-      delay: "Google checks subscribed calendars on its own schedule, usually every few hours and sometimes only once a day, so a change in wp can take that long to show. The feed carries no alerts: set the calendar's default notifications in Google Calendar.",
+      delay: "Google checks subscribed calendars on its own schedule, usually every few hours and sometimes only once a day, so a change in Nestora can take that long to show. The feed carries no alerts: set the calendar's default notifications in Google Calendar.",
       failed: { offline: "Offline. The feed link needs a connection.", expired: "Your login expired. Log in again.", mismatch: "This tab is signed in as someone else. Reload it." },
     },
     signOutNote: "Ends the Access session on this device. What is already synced to this phone stays readable until you clear this browser's data.",
@@ -405,11 +405,11 @@ export const text = {
     title: "Sign in to continue",
     body: "This plan is private. Only the two Google accounts it was made for can open it.",
     action: "Continue with Google",
-    note: "Google handles the sign-in. wp never sees your password.",
+    note: "Google handles the sign-in. Nestora never sees your password.",
   },
   denied: {
     title: "Wrong Google account",
-    body: "This Google account cannot open this plan. Sign in with the account you use for wp.",
+    body: "This Google account cannot open this plan. Sign in with the account you use for Nestora.",
     action: "Try another account",
   },
   sheet: {
