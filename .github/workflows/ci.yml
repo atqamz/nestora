@@ -88,11 +88,13 @@ jobs:
           done
       - run: |
           ok=
+          body=$(mktemp)
           for _ in 1 2 3 4 5 6 7 8 9 10; do
-            res=$(curl -sS --max-time 20 -w ' %{http_code} %{content_type}' "https://wp.atqamz.com/feed/$(printf '%064d' 0).ics" 2>/dev/null) || res=
-            case "$res" in
-              '{"error":"not_found"} 404 application/json'*) ok=1; break ;;
+            : > "$body"
+            res=$(curl -sS --max-time 20 -o "$body" -w '%{http_code} %{content_type}' "https://wp.atqamz.com/feed/$(printf '%064d' 0).ics" 2>/dev/null) || res=
+            case "$res:$(cat "$body")" in
+              '404 application/json'*':{"error":"not_found"}') ok=1; break ;;
             esac
             sleep 10
           done
-          test -n "$ok" || { echo "unknown feed token is not answered with the plain 404: ${res:-no answer}"; exit 1; }
+          test -n "$ok" || { echo "unknown feed token is not answered with the plain 404: status ${res%% *}, body starts: $(head -c 80 "$body" | LC_ALL=C tr -d '[:cntrl:]')"; exit 1; }

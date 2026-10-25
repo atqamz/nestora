@@ -506,27 +506,17 @@ test("a routine's schedule is read about once per day of the window, whatever th
   }
 });
 
-test("the time per entry stays within a small multiple of one date parse per entry and day, at 22, 80 and 150 entries", () => {
+test("a fixed calendar parses a date only for the stamps of its events and reads each schedule only for the days its weekdays can hit", (t) => {
   next = 1;
-  const dates = windowDates(TODAY).map((date) => `${date}T00:00:00Z`);
-  const best = (work: () => void) =>
-    Math.min(
-      ...Array.from({ length: 7 }, () => {
-        const start = performance.now();
-        work();
-        return performance.now() - start;
-      }),
-    );
-  for (const count of [22, 80, 150]) {
-    const rows = crowd(count);
-    let sink = 0;
-    const loop = best(() => {
-      for (let entry = 0; entry < rows.length; entry++) for (const date of dates) sink += Date.parse(date);
-    });
-    const feed = best(() => void calendarOf(rows, "a", NOW, CROWD_HOLIDAYS));
-    assert.ok(sink > 0);
-    assert.ok(feed <= 4 * loop, `${count} entries: ${feed.toFixed(2)} ms against ${loop.toFixed(2)} ms of date parsing`);
-  }
+  const rows = Array.from({ length: 150 }, (_, n) => routine({ days: "MO", start_time: "09:00", duration: 20 }, { title: `Weekly ${n}` }));
+  const { wrapped, reads } = counted(rows);
+  const parsed = t.mock.method(Date, "parse");
+  const out = calendarOf(wrapped, "a", NOW, []);
+  const parses = parsed.mock.callCount();
+  parsed.mock.restore();
+  assert.equal(parse(out).events.length, 150);
+  assert.ok(parses <= 2 * 150 + 10, `${parses} date parses for 150 entries`);
+  for (const [id, n] of reads) assert.ok(n <= 25, `${id} read ${n} times`);
 });
 
 test("a duration above one day is clamped to 1440 minutes in the feed, and 1440 and below are kept", () => {

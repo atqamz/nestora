@@ -147,22 +147,26 @@ const actionProblems = (action: ActionDraft, at: number): Problem[] => {
 
 const dated = (draft: RoutineDraft) => draft.moment.trim() !== TIMETABLE && !empty(draft.start);
 
-const durationProblems = (minutes: string): Problem[] =>
-  !/^\d+$/.test(minutes) || Number(minutes) < 1 ? [{ at: null, field: "duration", code: "number" }] : Number(minutes) > LIMITS.minutes ? [{ at: null, field: "duration", code: "long" }] : [];
+const durationProblems = (minutes: string, stored: string): Problem[] =>
+  !/^\d+$/.test(minutes) || Number(minutes) < 1
+    ? [{ at: null, field: "duration", code: "number" }]
+    : Number(minutes) > LIMITS.minutes && minutes !== stored
+      ? [{ at: null, field: "duration", code: "long" }]
+      : [];
 
-const calendarProblems = (draft: RoutineDraft): Problem[] => [
+const calendarProblems = (draft: RoutineDraft, stored: string): Problem[] => [
   ...(dated(draft) && !isTime(draft.start) ? [{ at: null, field: "start", code: "time" } as const] : []),
-  ...(dated(draft) && !empty(draft.duration) ? durationProblems(draft.duration.trim()) : []),
+  ...(dated(draft) && !empty(draft.duration) ? durationProblems(draft.duration.trim(), stored) : []),
 ];
 
 export const forTimetable = (draft: RoutineDraft, me: Side): RoutineDraft =>
   draft.moment === TIMETABLE ? { ...draft, who: draft.who === "both" ? me : draft.who, days: [...DAY_CODES] } : draft;
 
-export const problemsOf = (draft: RoutineDraft): Problem[] => [
+export const problemsOf = (draft: RoutineDraft, stored = ""): Problem[] => [
   ...(empty(draft.title) ? [{ at: null, field: "title", code: "required" } as const] : []),
   ...(draft.days.length === 0 ? [{ at: null, field: "days", code: "days" } as const] : []),
   ...(Number(draft.every) > 1 && empty(draft.from) ? [{ at: null, field: "from", code: "from" } as const] : []),
-  ...calendarProblems(draft),
+  ...calendarProblems(draft, stored),
   ...draft.actions.flatMap(actionProblems),
 ];
 
@@ -211,7 +215,7 @@ export const planOf = (draft: RoutineDraft, opened: Current | null, live: readon
   const was = opened === null ? null : draftOf(opened.routine, opened.actions);
   const before = new Map((was?.actions ?? []).map((action) => [action.id, action]));
   const alive = new Set(live.map((row) => row.id));
-  const problems = problemsOf(draft);
+  const problems = problemsOf(draft, was?.duration.trim());
   const gone = draft.actions.filter((action) => {
     const prior = before.get(action.id);
     return prior !== undefined && !alive.has(action.id) && Object.keys(actionChange(action, prior)).length > 0;
