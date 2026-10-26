@@ -5,7 +5,7 @@ import { photoFor } from "../domain/photo.ts";
 import { nicknameOf, sideName } from "../domain/names.ts";
 import { readSettings } from "../domain/settings.ts";
 import { text } from "../ui/text.ts";
-import { useSnapshot, useTable } from "./use-store.ts";
+import { actions, useSnapshot, useTable } from "./use-store.ts";
 
 export const useSettings = () => {
   const rows = useTable("settings");
@@ -26,6 +26,11 @@ export const useToday = () => {
 export const useStamp = () => {
   const { timezone } = useSettings();
   return () => todayIn(new Date(), timezone);
+};
+
+export const useTmdbDay = () => {
+  const { timezone } = useSettings();
+  return () => todayIn(actions.serverNow() ?? new Date(), timezone);
 };
 
 export const usePartner = () => {

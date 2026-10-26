@@ -5,9 +5,11 @@ export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export type Failure = { kind: "offline" } | { kind: "expired" } | { kind: "mismatch"; me: Side };
 
-export type PullResult = { kind: "ok"; body: SyncResponse } | Failure;
+export type Served = number | null;
 
-export type PushResult = { kind: "ok"; body: SyncResult } | { kind: "rejected"; rejection: Rejection } | Failure;
+export type PullResult = { kind: "ok"; body: SyncResponse; served: Served } | Failure;
+
+export type PushResult = { kind: "ok"; body: SyncResult; served: Served } | { kind: "rejected"; rejection: Rejection } | Failure;
 
 export type Api = {
   pull(since: number, timeout?: number): Promise<PullResult>;
@@ -36,7 +38,7 @@ export const call = async (
   url: string,
   init: RequestInit,
   timeout = TIMEOUT_MS,
-): Promise<Failure | { kind: "response"; status: number; body: unknown }> => {
+): Promise<Failure | { kind: "response"; status: number; body: unknown; served: Served }> => {
   let res: Response;
   try {
     res = await fetcher(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(timeout) });
@@ -53,7 +55,8 @@ export const call = async (
     return { kind: "offline" };
   }
   if (res.status === 409 && isDict(body) && body.error === "side_mismatch" && isSide(body.me)) return { kind: "mismatch", me: body.me };
-  return { kind: "response", status: res.status, body };
+  const served = Date.parse(res.headers.get("date") ?? "");
+  return { kind: "response", status: res.status, body, served: Number.isNaN(served) ? null : served };
 };
 
 export const sided = (side?: Side): Record<string, string> => (side === undefined ? {} : { [SIDE_HEADER]: side });
@@ -66,7 +69,7 @@ export const createApi = (fetcher: Fetch, side?: Side): Api => ({
     if (!(res.status === 200 && isDict(body) && Number.isInteger(body.rev) && typeof body.epoch === "string" && isSide(body.me) && isDict(body.changes))) {
       return { kind: "offline" };
     }
-    return side !== undefined && body.me !== side ? { kind: "mismatch", me: body.me } : { kind: "ok", body: body as unknown as SyncResponse };
+    return side !== undefined && body.me !== side ? { kind: "mismatch", me: body.me } : { kind: "ok", body: body as unknown as SyncResponse, served: res.served };
   },
   push: async (mutations) => {
     const res = await call(fetcher, SYNC_URL, {
@@ -77,7 +80,7 @@ export const createApi = (fetcher: Fetch, side?: Side): Api => ({
     if (res.kind !== "response") return res;
     const { body } = res;
     if (res.status === 200 && isDict(body) && Number.isInteger(body.rev) && typeof body.epoch === "string" && isDict(body.rows)) {
-      return { kind: "ok", body: body as unknown as SyncResult };
+      return { kind: "ok", body: body as unknown as SyncResult, served: res.served };
     }
     if (res.status >= 400 && isDict(body) && Array.isArray(body.errors)) {
       return { kind: "rejected", rejection: body as unknown as Rejection };

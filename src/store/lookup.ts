@@ -132,7 +132,9 @@ export const createLookup = ({
       const signal = begin();
       if (validId(id) === null) return { kind: "ok", value: null };
       const out = await get(signal, screenLookupUrl({ kind, by: "id", id }), (body) => parseScreenHits(body, kind), true, (hits) => hits.length > 0);
-      return out.kind === "ok" ? { kind: "ok", value: out.value.find((hit) => hit.tmdb === id) ?? null } : out;
+      if (out.kind !== "ok") return out;
+      const hit = out.value.find((entry) => entry.tmdb === id);
+      return hit === undefined && out.value.length > 0 ? { kind: "failed" } : { kind: "ok", value: hit ?? null };
     },
     cancel: () => searching && current?.abort(),
     stop: () => current?.abort(),
@@ -168,7 +170,7 @@ export const follow = (lookup: Lookup, ready: boolean, input: { title: string; a
 export const followScreen = (lookup: Lookup, ready: boolean, input: { kind: ScreenKind; title: string; year: number | null }, set: (search: Search<ScreenHit>) => void) =>
   trail(lookup, ready, () => lookup.screen(input), set);
 
-export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale"; retry?: number };
+export type Filled<P = Record<string, string>> = { kind: "patch"; patch: P; counts?: "empty" } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale"; retry?: number };
 
 type Typed = () => { title: string; data: Record<string, unknown> | null };
 

@@ -50,6 +50,6 @@ test("a pull answer without a valid side is refused, so a malformed answer canno
 test("a pull answer for another side than the api's is a mismatch with no rows, and the same side is served", async () => {
   const body = { rev: 4, epoch: "e", me: "b", changes: { ...changes, items: [{ id: "1" }] } };
   assert.deepEqual(await createApi(answering(200, body).fetcher, "a").pull(0), { kind: "mismatch", me: "b" });
-  assert.deepEqual(await createApi(answering(200, body).fetcher, "b").pull(0), { kind: "ok", body });
-  assert.deepEqual(await createApi(answering(200, body).fetcher).pull(0), { kind: "ok", body });
+  assert.deepEqual(await createApi(answering(200, body).fetcher, "b").pull(0), { kind: "ok", body, served: null });
+  assert.deepEqual(await createApi(answering(200, body).fetcher).pull(0), { kind: "ok", body, served: null });
 });

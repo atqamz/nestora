@@ -1,4 +1,4 @@
-import { MAX_MUTATIONS, applyPatch } from "../../shared/api.ts";
+import { MAX_MUTATIONS, applyPatch, withoutPoster } from "../../shared/api.ts";
 import type { Changes, Mutation, Side } from "../../shared/api.ts";
 import { tableNames, tables } from "../../shared/tables.ts";
 import type { Column, TableName } from "../../shared/tables.ts";
@@ -82,7 +82,7 @@ export const overlay = (base: Maps, queue: readonly Pending[], me: Side | null =
       if (!row) rows.set(mutation.row_id, stamped(blankRow(mutation.table, mutation.patch)));
       else if (mutation.table === "settings") rows.set(mutation.row_id, stamped(applyPatch(row, mutation.patch)));
     } else if (row) {
-      rows.set(mutation.row_id, mutation.op === "update" ? stamped(applyPatch(row, mutation.patch)) : { ...row, deleted_at: mutation.at });
+      rows.set(mutation.row_id, mutation.op === "update" ? stamped(applyPatch(row, mutation.patch)) : { ...withoutPoster(mutation.table, row), deleted_at: mutation.at });
     }
   }
   return view;
