@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { ItemRow } from "../shared/tables.ts";
-import { GAP_MS, findDetails, needsDetails, paced } from "../src/store/details.ts";
+import { GAP_MS, findDetails, needsDetails, paced, pending } from "../src/store/details.ts";
 import type { Tally } from "../src/store/details.ts";
 import { createLookup } from "../src/store/lookup.ts";
 import type { Fetcher, Lookup } from "../src/store/lookup.ts";
@@ -549,4 +549,12 @@ test("an answer that arrives after the pass was stopped is not counted or saved,
   const lookup = dummyLookup([], async () => (controller.abort(), { kind: "ok", value: [] }));
   const finish = await findDetails({ ids: [rows[0].id], lookup, read: readOf(rows), save: async (id) => (saved.push(id), { ok: true, id }), signal: controller.signal, onStep: (id) => steps.push(id) });
   assert.deepEqual([finish, saved, steps], ["stopped", [], []]);
+});
+
+test("pending lists the rows that need a lookup and were not tried yet, in order", () => {
+  const rows = [item({ title: "one" }), item({ title: "two" }), item({ title: "three" })];
+  const needs = (row: ItemRow) => row.title !== "two";
+  assert.deepEqual(pending(rows, needs, new Set()).map((row) => row.title), ["one", "three"]);
+  assert.deepEqual(pending(rows, needs, new Set([rows[0].id])).map((row) => row.title), ["three"]);
+  assert.deepEqual(pending(rows, () => false, new Set()), []);
 });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCover, validateCreate } from "../shared/validate.ts";
+import { isCover, isPoster, validateCreate } from "../shared/validate.ts";
 
 const FILE = "abcDEF123_-xyz";
 
@@ -72,12 +72,31 @@ test("a stored cover is checked with the same rule, and the refusal names the TM
   }
 });
 
-test("a movie and a series hold the poster in data.cover, and refuse a cover that is not on a known host, with the same message", () => {
+test("a movie and a series hold only the TMDB poster in data.cover: a book's cover hosts are refused for them, with their own message", () => {
   const row = (kind: string, cover: string) => ({ id: "00000000-0000-4000-8000-000000000001", kind, title: "Placeholder", status: "want", created_at: "2026-10-06T05:00:00Z", updated_at: "2026-10-06T05:00:00Z", data: { cover } });
   for (const kind of ["movie", "series"]) {
     assert.deepEqual(validateCreate("items", row(kind, OK[0])), [], kind);
-    for (const bad of ["https://image.tmdb.org.evil.example/t/p/w342/a.jpg", "https://evil.example/a.jpg", "https://image.tmdb.org/t/p/w500/a.jpg", "https://image.tmdb.org/t/p/w342/a.png", "http://image.tmdb.org/t/p/w342/a.jpg"]) {
-      assert.match(validateCreate("items", row(kind, bad)).join("\n"), /data\.cover: must be an https URL on covers\.openlibrary\.org, books\.google\.com, books\.googleusercontent\.com or image\.tmdb\.org/, `${kind} ${bad}`);
+    for (const bad of [
+      "https://image.tmdb.org.evil.example/t/p/w342/a.jpg",
+      "https://evil.example/a.jpg",
+      "https://image.tmdb.org/t/p/w500/a.jpg",
+      "https://image.tmdb.org/t/p/w342/a.png",
+      "http://image.tmdb.org/t/p/w342/a.jpg",
+      "https://covers.openlibrary.org/b/id/7079796-M.jpg",
+      "https://books.google.com/books/content?id=abc",
+      "https://books.googleusercontent.com/books/content?id=abc",
+    ]) {
+      assert.match(validateCreate("items", row(kind, bad)).join("\n"), /data\.cover: must be a TMDB poster URL such as https:\/\/image\.tmdb\.org\/t\/p\/w342\/<file>\.jpg/, `${kind} ${bad}`);
     }
   }
+});
+
+test("isPoster is the TMDB shape alone, and isCover is isPoster plus the book hosts", () => {
+  for (const url of OK) assert.equal(isPoster(url), true, url);
+  for (const url of BAD) assert.equal(isPoster(url), false, url);
+  for (const url of ["https://covers.openlibrary.org/b/id/7079796-M.jpg", "https://books.google.com/books/content?id=abc", "https://books.googleusercontent.com/books/content?id=abc"]) {
+    assert.equal(isPoster(url), false, url);
+    assert.equal(isCover(url), true, url);
+  }
+  for (const value of [null, undefined, 5, {}, [], [OK[0]]]) assert.equal(isPoster(value), false);
 });

@@ -1,4 +1,4 @@
-import { MAX_BODY_BYTES, MAX_MUTATIONS, SIDE_HEADER, applyPatch, toInstant } from "../shared/api.ts";
+import { MAX_BODY_BYTES, MAX_MUTATIONS, POSTER_KEYS, SIDE_HEADER, applyPatch, dropsPoster, toInstant, withoutPoster } from "../shared/api.ts";
 import type { Changes, Mutation, Side } from "../shared/api.ts";
 import { tableNames, tables } from "../shared/tables.ts";
 import type { Column, TableName } from "../shared/tables.ts";
@@ -55,7 +55,7 @@ export const createServer = () => {
   let epoch = newEpoch();
   let state: State = Object.fromEntries(tableNames.map((table) => [table, new Map()])) as State;
   const seen: Seen[] = [];
-  const control = { down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
+  const control = { date: (() => new Date().toUTCString()) as (() => string) | null, down: false, session: "ok" as Session, fail: [] as number[], photo: null as string | null, onMe: null as (() => Promise<void>) | null };
   const asked: Seen[] = [];
   const mismatched: string[] = [];
 
@@ -100,10 +100,12 @@ export const createServer = () => {
     }
     if (!row) return { status: 404, errors: ["row_id: no such row"] };
     if (mutation.op === "delete") {
-      if (row.deleted_at === null) write({ ...row, deleted_at: at });
+      if (row.deleted_at === null) write({ ...withoutPoster(table, row), deleted_at: at });
       return null;
     }
-    const undo = Object.keys(patch).filter((key) => key !== "updated_at").join() === "deleted_at" && patch.deleted_at === null;
+    const undo =
+      patch.deleted_at === null &&
+      Object.keys(patch).every((key) => key === "deleted_at" || key === "updated_at" || (key === "data" && dropsPoster(table, row) && Object.keys(patch.data as Dict).every((held) => POSTER_KEYS.some((poster) => poster === held))));
     if (row.deleted_at !== null && !undo) return null;
     const errors = validateChange(table, row, patch);
     if (errors.length > 0) return { status: 400, errors };
@@ -184,38 +186,44 @@ export const createServer = () => {
   const as =
     (side: Side): Fetch =>
     async (input, init) => {
-      if (control.down) throw new TypeError("fetch failed");
-      const url = new URL(input, "https://wp.example.test");
-      if (control.session === "redirect") {
-        if (init.redirect !== "manual") throw new TypeError("fetch failed: the login redirect was followed across origins");
-        return new Response(null, { status: 302, headers: { location: "https://team.example.test/login" } });
-      }
-      if (control.session === "html") return new Response("<!doctype html><title>Sign in</title>", { headers: { "content-type": "text/html" } });
-      if (control.session === "unauthorized") return json(401, { error: "unauthorized" });
-      if (control.session === "forbidden") return json(403, { error: "forbidden" });
-      if (url.pathname === "/api/me") {
-        asked.push({ method: "GET", mutations: 0, bytes: 0, ...meta(new Headers(init.headers), init) });
-        await control.onMe?.();
-        return json(200, { photo: control.photo });
-      }
-      const failure = control.fail.shift();
-      if (failure !== undefined) return new Response("upstream error", { status: failure });
-      if (url.pathname !== "/api/sync") return json(404, { error: "not_found" });
-      const headers = new Headers(init.headers);
-      const claimed = headers.get(SIDE_HEADER);
-      if (claimed !== null && claimed !== side) {
-        mismatched.push(`${init.method} ${claimed}`);
-        return json(409, { error: "side_mismatch", me: side });
-      }
-      const origin = headers.get("origin");
-      if ((origin !== null && origin !== url.origin) || ["cross-site", "same-site"].includes(headers.get("sec-fetch-site") ?? "")) {
-        return refuse(403, ["origin: cross-origin requests are refused"]);
-      }
-      if (init.method === "POST" && !headers.get("content-type")?.startsWith("application/json")) {
-        return refuse(415, ["content-type: must be application/json"]);
-      }
-      return init.method === "POST" ? post(side, String(init.body), headers, init) : get(side, url, headers, init);
+      const res = await answer(side, input, init);
+      if (control.date !== null) res.headers.set("date", control.date());
+      return res;
     };
+
+  const answer = async (side: Side, input: string, init: RequestInit): Promise<Response> => {
+    if (control.down) throw new TypeError("fetch failed");
+    const url = new URL(input, "https://wp.example.test");
+    if (control.session === "redirect") {
+      if (init.redirect !== "manual") throw new TypeError("fetch failed: the login redirect was followed across origins");
+      return new Response(null, { status: 302, headers: { location: "https://team.example.test/login" } });
+    }
+    if (control.session === "html") return new Response("<!doctype html><title>Sign in</title>", { headers: { "content-type": "text/html" } });
+    if (control.session === "unauthorized") return json(401, { error: "unauthorized" });
+    if (control.session === "forbidden") return json(403, { error: "forbidden" });
+    if (url.pathname === "/api/me") {
+      asked.push({ method: "GET", mutations: 0, bytes: 0, ...meta(new Headers(init.headers), init) });
+      await control.onMe?.();
+      return json(200, { photo: control.photo });
+    }
+    const failure = control.fail.shift();
+    if (failure !== undefined) return new Response("upstream error", { status: failure });
+    if (url.pathname !== "/api/sync") return json(404, { error: "not_found" });
+    const headers = new Headers(init.headers);
+    const claimed = headers.get(SIDE_HEADER);
+    if (claimed !== null && claimed !== side) {
+      mismatched.push(`${init.method} ${claimed}`);
+      return json(409, { error: "side_mismatch", me: side });
+    }
+    const origin = headers.get("origin");
+    if ((origin !== null && origin !== url.origin) || ["cross-site", "same-site"].includes(headers.get("sec-fetch-site") ?? "")) {
+      return refuse(403, ["origin: cross-origin requests are refused"]);
+    }
+    if (init.method === "POST" && !headers.get("content-type")?.startsWith("application/json")) {
+      return refuse(415, ["content-type: must be application/json"]);
+    }
+    return init.method === "POST" ? post(side, String(init.body), headers, init) : get(side, url, headers, init);
+  };
 
   return {
     as,

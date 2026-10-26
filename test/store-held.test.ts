@@ -23,7 +23,7 @@ const every = async (store: ReturnType<typeof held>["store"]) => [
 test("a held store starts paused and refuses every write, before and after it is loaded, and touches nothing", async () => {
   const { persistence, server, store } = held();
   const empty = await persistence.load();
-  assert.deepEqual(store.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "online", storage: "ok", notice: null, paused: true });
+  assert.deepEqual(store.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "online", storage: "ok", notice: null, paused: true, dated: false });
   assert.deepEqual(await every(store), Array(6).fill(paused));
   await store.open();
   assert.equal(store.getSnapshot().paused, true);

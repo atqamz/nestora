@@ -537,8 +537,18 @@ export const text = {
       slow: (noun: string) => `The ${noun} lookup is slow. Keep typing.`,
       empty: "No match. Keep typing.",
       found: (n: number) => (n === 1 ? "1 match" : `${n} matches`),
+      have: "Already on your list",
     },
     tmdb: "Open on TMDB",
+    removePoster: "Remove poster",
+    posterRemoved: (title: string) => `Poster removed: ${title}`,
+    posters: {
+      find: "Find posters",
+      need: (n: number) => (n === 1 ? "1 poster needs a refresh" : `${n} posters need a refresh`),
+      busy: (noun: string) => `The ${noun} lookup is busy right now. Resume in a few minutes.`,
+      finished: (updated: number, left: number, unsure: number) =>
+        `Done. ${updated} updated, ${left} had no match.${unsure === 0 ? "" : ` ${unsure === 1 ? "1 was" : `${unsure} were`} skipped (not sure).`}`,
+    },
     collection: {
       label: "Collection (optional)",
       hint: "Titles that belong together, such as a film series. You set the order to watch them in.",

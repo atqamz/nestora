@@ -40,10 +40,9 @@ test("the logo is served from this app, with no width, height, style, transform,
   for (const selector of [".tmdb-logo", ".tmdb", ".tmdb span", ".credit"]) assert.doesNotMatch(rule(css, selector), /transform|filter|rotate|scale|zoom|opacity/, selector);
 });
 
-test("the logo link is at least 44 px tall, and it and 'Open on TMDB' open the site in a new tab without opener or referrer", () => {
+test("the logo link is at least 44 px tall and opens the site in a new tab without opener or referrer (the 'Open on TMDB' link is pinned on the rendered detail page)", () => {
   assert.match(rule(css, ".tmdb-logo"), /min-height:\s*var\(--target-min\)/);
   assert.match(credit, /href="https:\/\/www\.themoviedb\.org" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
-  assert.match(read("views/screen.tsx"), /className="button secondary" href=\{tmdbPage\(kind, tmdb\)\} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
   assert.equal(text.screen.tmdb, "Open on TMDB");
 });
 
@@ -54,13 +53,8 @@ test("the credit wraps: the sentence takes its own line and breaks anywhere, so 
   assert.match(rule(css, ".tmdb span"), /min-width:\s*0/);
 });
 
-test("the credit is in all three places: under the lookup list, at the foot of both screens, and in Settings under Credits", () => {
+test("the credit sits under the lookup list, and its other places (both screens, the detail page, Settings under Credits) are pinned on the rendered pages in screens-render.test.ts", () => {
   assert.match(read("ui/screen-lookup.tsx"), /<\/ul>\s*<TmdbCredit \/>/);
-  const list = read("views/screens.tsx");
-  assert.match(list, /\{usesTmdb\(items, kind\) && <TmdbCredit \/>\}/);
-  assert.ok(list.indexOf("<TmdbCredit />") > list.indexOf("</details>"), "after the sections");
-  assert.match(read("views/screen.tsx"), /\{usesTmdb\(\[row\], kind\) && <TmdbCredit \/>\}/);
-  assert.match(read("views/settings.tsx"), /<h2>\{text\.tmdb\.credits\}<\/h2>\s*<TmdbCredit \/>/);
   assert.equal(text.tmdb.credits, "Credits");
 });
 
