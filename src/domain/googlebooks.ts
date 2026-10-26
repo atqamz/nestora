@@ -16,7 +16,7 @@ const NAME_MAX = 100;
 export const googleUrl = (query: Query) =>
   `${SITE}?${new URLSearchParams({ q: query.kind === "isbn" ? `isbn:${query.isbn}` : phraseOf(query), maxResults: String(GOOGLE_LIMIT) })}`;
 
-const clean = (value: unknown, max: number) =>
+export const clean = (value: unknown, max: number) =>
   typeof value === "string" ? Array.from(value.replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, " ").replace(/\s+/g, " ").trim()).slice(0, max).join("") : "";
 
 export const googleCover = (link: unknown): string | null => {

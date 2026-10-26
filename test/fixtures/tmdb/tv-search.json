@@ -1,0 +1,33 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "adult": false,
+      "backdrop_path": "/invBackdrop0101.jpg",
+      "genre_ids": [18],
+      "id": 920001,
+      "origin_country": ["ID"],
+      "original_language": "id",
+      "original_name": "Rumah di Ujung Jalan",
+      "overview": "INVENTED-OVERVIEW-MARKER a fictional synopsis.",
+      "popularity": 2.5,
+      "poster_path": "/invPoster0101AbCdEfGhIjKlMn.jpg",
+      "first_air_date": "2023-11-02",
+      "name": "Rumah di Ujung Jalan",
+      "vote_average": 6.8,
+      "vote_count": 31
+    },
+    {
+      "adult": false,
+      "id": 920002,
+      "origin_country": ["KR"],
+      "original_name": "달빛 정원",
+      "overview": "INVENTED-OVERVIEW-MARKER",
+      "poster_path": "/invPoster0102_AbCdEfGhIjKlMn.jpg",
+      "first_air_date": "2021-09-17",
+      "name": "Moonlight Garden"
+    }
+  ],
+  "total_pages": 1,
+  "total_results": 2
+}
