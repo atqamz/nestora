@@ -7,7 +7,9 @@ import type { ScreenHit } from "../src/domain/tmdb.ts";
 import { IDLE, followScreen } from "../src/store/lookup.ts";
 import type { Lookup, Outcome, Search } from "../src/store/lookup.ts";
 import { saveScreen } from "../src/ui/screen-save.ts";
+import { createElement } from "react";
 import { text } from "../src/ui/text.ts";
+import { markupOf } from "./render.ts";
 
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -165,4 +167,37 @@ test("a search that is not ready is idle and asks nothing, and an answer that ar
 
 test("a pick made from the keyboard puts focus back on the title, because the button it came from leaves the page", () => {
   assert.match(view, /event\.detail === 0 \? event\.currentTarget\.closest\("dialog"\)\?\.querySelector<HTMLInputElement>\('input\[name="title"\]'\) : null;\s*onPick\(hit\);\s*title\?\.focus\(\);/);
+});
+
+const lookupOf = async (search: Search<ScreenHit>, kind: "movie" | "series" = "movie") =>
+  (await markupOf("ui/screen-lookup.tsx", ({ ScreenLookup }) => createElement(ScreenLookup, { kind, search, onPick: () => undefined }))).replace(/<link rel="preload"[^>]*\/>/g, "");
+
+test("the rendered list is a labelled list of real buttons with the credit right under it, and the polite note says how many", async () => {
+  const html = await lookupOf({ state: "found", hits: [hit, { ...hit, tmdb: 2, original: null, year: null, cover: null }] });
+  assert.match(html, /^<div class="lookup"><p class="hint look-note" role="status">2 matches<\/p><ul class="hits" aria-label="Matches from TMDB">/);
+  const buttons = [...html.matchAll(/<button type="button" class="hit">/g)];
+  assert.equal(buttons.length, 2);
+  assert.equal(html.match(/<li>/g)?.length, 2);
+  assert.match(html, /<span class="title">Pelabuhan Terakhir<\/span><span class="bk-by">Last Harbour · 2017<\/span>/);
+  assert.match(html, /<\/ul><p class="hint credit tmdb">/);
+  assert.equal(html.match(/<img /g)?.length, 2, "one poster and the logo");
+  assert.match(html, /<img src="https:\/\/image\.tmdb\.org\/t\/p\/w342\/abc\.jpg" alt="" width="200" height="300" loading="lazy" decoding="async" referrerPolicy="no-referrer"\/>/);
+});
+
+test("without matches there is no list and no credit, and each state is spoken in the live note", async () => {
+  const note = (html: string) => /role="status">([^<]*)</.exec(html)?.[1];
+  assert.equal(await lookupOf(IDLE), '<div class="lookup"><p class="hint look-note" role="status"></p></div>');
+  const cases: [Search<ScreenHit>["state"], string][] = [
+    ["busy", "Searching for the movie"],
+    ["offline", "Offline: type it in."],
+    ["failed", "The movie lookup did not answer. Keep typing."],
+    ["slow", "The movie lookup is slow. Keep typing."],
+    ["empty", "No match. Keep typing."],
+  ];
+  for (const [state, words] of cases) {
+    const html = await lookupOf({ state, hits: [] });
+    assert.equal(note(html), words, state);
+    assert.doesNotMatch(html, /<ul|tmdb/, state);
+  }
+  assert.equal(note(await lookupOf({ state: "busy", hits: [] }, "series")), "Searching for the series");
 });

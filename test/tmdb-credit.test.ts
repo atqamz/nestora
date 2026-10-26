@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
 import { text } from "../src/ui/text.ts";
+import { markupOf } from "./render.ts";
 
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -73,4 +75,12 @@ test("posters load only from TMDB's CDN through Cover: lazy, no referrer, never 
 test("UI strings call it TMDB and nothing else", () => {
   const words = JSON.stringify([text.tmdb, text.screen.tmdb, text.screen.lookup.results]);
   assert.doesNotMatch(words, /moviedb|movie database|themoviedb/i);
+});
+
+test("the rendered credit is the logo link above the notice, as plain text", async () => {
+  const html = (await markupOf("ui/tmdb-credit.tsx", ({ TmdbCredit }) => createElement(TmdbCredit))).replace(/<link rel="preload"[^>]*\/>/g, "");
+  assert.equal(
+    html,
+    `<p class="hint credit tmdb"><a class="tmdb-logo" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"><img src="/tmdb.svg" alt="TMDB" decoding="async"/></a><span>${text.tmdb.credit}</span></p>`,
+  );
 });
