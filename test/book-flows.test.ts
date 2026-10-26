@@ -33,6 +33,7 @@ const world = async (t: TestContext, me: "a" | "b" = "a") => {
           return store.update(table, id, patch);
         },
         remove: store.remove,
+        many: store.many,
       },
       stamp: () => DAY,
       me,
@@ -117,7 +118,7 @@ test("when the copy cannot be created, We got it puts the wish back and reports 
   const wish = await w.book("Laskar Pelangi", { status: "wish", who: "b" });
   const flows = bookFlows({
     items: w.rows(),
-    actions: { create: async () => ({ ok: false, errors: ["no"] }), update: w.store.update, remove: w.store.remove },
+    actions: { create: async () => ({ ok: false, errors: ["no"] }), update: w.store.update, remove: w.store.remove, many: w.store.many },
     stamp: () => DAY,
     me: "a",
     go: () => undefined,
@@ -126,6 +127,102 @@ test("when the copy cannot be created, We got it puts the wish back and reports 
   assert.deepEqual(result, { ok: false, errors: ["no"] });
   assert.deepEqual([w.row(wish).status, w.row(wish).who], ["wish", "b"]);
   assert.equal(toast(), null);
+});
+
+const read = { reading_a: "read", rating_a: "5", finished_a: "2026-03-12", isbn: "9789793062792" };
+
+const live = (w: Awaited<ReturnType<typeof world>>, parent: string) => w.rows().filter((row) => row.kind === "copy" && row.parent_id === parent && row.status !== "gone");
+
+test("Lost it moves a rated shelf book to the wishlist, keeps what the readers wrote, marks its copies gone and writes nothing else", async (t) => {
+  const w = await world(t);
+  const home = await w.place("Home A", 0);
+  const shelf = await w.book("Laskar Pelangi", { note: "Lent twice", data: read });
+  const other = await w.book("Bumi Manusia", { data: read });
+  const here = await w.copy(shelf, { group_key: home });
+  const lent = await w.copy(shelf, { status: "lent", group_key: home });
+  const bystander = await w.copy(other, { group_key: home });
+  const before = Object.fromEntries([other, bystander, home].map((id) => [id, w.row(id)]));
+  w.calls.length = 0;
+  idOf(await w.flows().lostIt(w.row(shelf)));
+  assert.deepEqual([w.row(shelf).status, w.row(shelf).note, w.row(shelf).data], ["wish", "Lent twice", read]);
+  for (const id of [here, lent]) assert.deepEqual([w.row(id).status, w.row(id).done_on], ["gone", DAY]);
+  assert.deepEqual(live(w, shelf), []);
+  for (const [id, row] of Object.entries(before)) assert.deepEqual(w.row(id), row);
+  assert.equal(toast()?.message, text.books.lostItDone("Laskar Pelangi"));
+});
+
+test("Undo of Lost it puts the book back on the shelf with its copies exactly as they were", async (t) => {
+  const w = await world(t);
+  const home = await w.place("Home A", 0);
+  const shelf = await w.book("Laskar Pelangi", { data: read });
+  const here = await w.copy(shelf, { group_key: home });
+  const lent = await w.copy(shelf, { status: "lent", due_on: "2026-11-01", group_key: home });
+  const was = [shelf, here, lent].map((id) => w.row(id));
+  idOf(await w.flows().lostIt(was[0]));
+  await w.undo();
+  for (const row of was) assert.deepEqual([w.row(row.id).status, w.row(row.id).done_on, w.row(row.id).who, w.row(row.id).group_key, w.row(row.id).data], [row.status, row.done_on, row.who, row.group_key, row.data]);
+});
+
+test("a second Lost it on a book that is already a wish changes nothing and offers no Undo", async (t) => {
+  const w = await world(t);
+  const shelf = await w.book("Laskar Pelangi");
+  await w.copy(shelf);
+  const stale = w.row(shelf);
+  idOf(await w.flows().lostIt(stale));
+  const pending = w.store.getSnapshot().pending;
+  overlay.dismissToast();
+  idOf(await w.flows().lostIt(stale));
+  assert.equal(toast(), null);
+  assert.equal(w.store.getSnapshot().pending, pending);
+});
+
+test("when the store refuses the steps, Lost it leaves the book and its copies as they were and offers no Undo", async (t) => {
+  const w = await world(t);
+  const shelf = await w.book("Laskar Pelangi");
+  const here = await w.copy(shelf);
+  const flows = bookFlows({
+    items: w.rows(),
+    actions: { create: w.store.create, update: w.store.update, remove: w.store.remove, many: async () => ({ ok: false, errors: ["no"], step: 1 }) },
+    stamp: () => DAY,
+    me: "a",
+    go: () => undefined,
+  });
+  assert.deepEqual(await flows.lostIt(w.row(shelf)), { ok: false, errors: ["no"], step: 1 });
+  assert.deepEqual([w.row(shelf).status, w.row(here).status], ["shelf", "here"]);
+  assert.equal(toast(), null);
+});
+
+test("a book that went to the wishlist and comes back with We got it has one live copy, keeps its reading and drops no data, and Undo of each step works", async (t) => {
+  const w = await world(t);
+  const home = await w.place("Home A", 0);
+  const shelf = await w.book("Laskar Pelangi", { note: "Lent twice", data: read });
+  const first = await w.copy(shelf, { group_key: home, data: { format: "print", isbn: "9789793062792" } });
+  idOf(await w.flows().lostIt(w.row(shelf)));
+  idOf(await w.flows().gotIt(w.row(shelf)));
+  const second = live(w, shelf);
+  assert.equal(second.length, 1);
+  assert.notEqual(second[0].id, first);
+  assert.deepEqual([second[0].group_key, second[0].who, second[0].data], [home, "both", { format: "print", isbn: "9789793062792" }]);
+  assert.equal(w.row(first).status, "gone");
+  assert.deepEqual([w.row(shelf).status, w.row(shelf).who, w.row(shelf).note, w.row(shelf).data], ["shelf", null, "Lent twice", read]);
+  await w.undo();
+  assert.deepEqual([w.row(shelf).status, live(w, shelf).length], ["wish", 0]);
+  idOf(await w.flows().gotIt(w.row(shelf)));
+  assert.equal(live(w, shelf).length, 1);
+});
+
+test("We got it on a wish that already has a live copy, as when the other partner added one just after it moved back, makes no second copy", async (t) => {
+  const w = await world(t);
+  await w.place("Home A", 0);
+  const shelf = await w.book("Laskar Pelangi");
+  await w.copy(shelf);
+  idOf(await w.flows().lostIt(w.row(shelf)));
+  const added = await w.copy(shelf, { group_key: null });
+  idOf(await w.flows().gotIt(w.row(shelf)));
+  assert.deepEqual(live(w, shelf).map((row) => row.id), [added]);
+  assert.equal(w.row(shelf).status, "shelf");
+  await w.undo();
+  assert.deepEqual([w.row(shelf).status, live(w, shelf).map((row) => row.id)], ["wish", [added]]);
 });
 
 test("deleting a book removes its copies and Undo revives the book before its copies", async (t) => {
