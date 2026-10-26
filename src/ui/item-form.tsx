@@ -30,12 +30,14 @@ export const backHref = (name: ViewName, row: Row) =>
       ? "#/wishlist"
       : `#/${views[name].route}`;
 
-type Props = { name: ViewName; row: Row; only?: readonly string[]; onRemove?: () => Promise<Written> };
+type Props = { name: ViewName; row: Row; gone?: boolean; only?: readonly string[]; onRemove?: () => Promise<Written> };
 
-export function ItemForm({ name, row, only, onRemove }: Props) {
+export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
   const form = useRef<HTMLFormElement>(null);
+  const undo = useRef<HTMLButtonElement>(null);
+  const removed = useRef(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string[]>([]);
   const { busy, once } = useBusy();
@@ -50,7 +52,7 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
         .flatMap((other) => (other.group_key ? [other.group_key] : [])),
     );
     const names = name === "guest" || name === "vendor";
-    const title: Control = { name: "title", label: fieldLabel(name, "title"), type: "text", required: true, value: row.title, words: names ? true : undefined };
+    const title: Control = { name: "title", label: fieldLabel(name, "title"), type: "text", required: true, value: initial.title, words: names ? true : undefined };
     const rest = (only ?? view.fields).map((field): Control => {
       const options = fieldOptions(name, field);
       const grouped = field === "group_key";
@@ -60,7 +62,7 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
         name: field,
         label: fieldLabel(name, field),
         type: fieldType(name, field),
-        value: valueOf(row, field),
+        value: valueOf(initial, field),
         required: isRequired(name, field),
         blank: owner ? text.nobody : text.notSet,
         blankIcon: owner ? <Avatar side={null} /> : undefined,
@@ -76,7 +78,7 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
       };
     });
     return [title, ...rest];
-  }, [row, siblings, name, view, only, label]);
+  }, [initial, siblings, name, view, only, label]);
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -121,9 +123,23 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
     form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
   }, [errors]);
 
+  const restore = () =>
+    once(async () => {
+      const result = await actions.update(view.table, row.id, { deleted_at: null } as never);
+      setFailure(failureOf(result));
+    });
+
+  useEffect(() => {
+    if (!gone || busy || !removed.current) return;
+    removed.current = false;
+    undo.current?.focus();
+  }, [gone, busy]);
+
   const remove = () =>
     once(async () => {
+      removed.current = true;
       const result = await (onRemove ? onRemove() : actions.remove(view.table, row.id));
+      if (!result.ok) removed.current = false;
       setFailure(failureOf(result));
     });
 
@@ -132,13 +148,23 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
       {controls.map((control) => (
         <Field key={control.name} control={control} error={errors[control.name]} />
       ))}
+      {gone && (
+        <p className="hint" role="status">
+          {text.goneOpen}
+        </p>
+      )}
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
         </p>
       )}
       <div className="form-actions">
-        <button type="submit" disabled={busy}>
+        {gone && (
+          <button ref={undo} type="button" disabled={busy} onClick={restore}>
+            {text.undo}
+          </button>
+        )}
+        <button type="submit" disabled={busy || gone}>
           {text.save}
         </button>
         <a className="button secondary" href={backHref(name, row)}>
