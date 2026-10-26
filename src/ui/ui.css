@@ -140,7 +140,7 @@ fieldset.field {
   background: var(--surface-2);
 }
 
-@media (max-width: 26rem) {
+@media (max-width: 25.5rem) {
   .choices:has(> label:nth-child(4):last-child) {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, max(6.5rem, calc(50% - 0.125rem))), 1fr));
   }
@@ -378,6 +378,7 @@ fieldset.field {
 }
 
 .amt {
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 650;
 }
@@ -598,6 +599,7 @@ progress::-moz-progress-bar {
 .trail a {
   display: inline-flex;
   align-items: center;
+  overflow-wrap: anywhere;
   min-width: var(--target-min);
   min-height: var(--target-min);
 }
@@ -715,6 +717,7 @@ progress::-moz-progress-bar {
 .note {
   display: flex;
   align-items: flex-start;
+  overflow-wrap: anywhere;
   gap: var(--s2);
   margin: var(--s3) 0 0;
   color: var(--ink-2);

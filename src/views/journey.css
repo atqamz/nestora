@@ -290,6 +290,7 @@
 .group > h3 {
   display: flex;
   align-items: baseline;
+  overflow-wrap: anywhere;
   gap: var(--s2);
   margin: 0 0 var(--s2);
   font-size: var(--fs-meta);

@@ -77,6 +77,7 @@ main.entry {
 
 @media (max-width: 11.5rem) {
   .entry-brand {
+    margin-bottom: var(--s5);
     font-size: 1.75rem;
   }
 }

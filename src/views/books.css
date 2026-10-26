@@ -269,9 +269,16 @@ button.where {
 }
 
 .stars svg {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: min(0.875rem, 3.4vw);
+  height: min(0.875rem, 3.4vw);
   fill: none;
+}
+
+@media (max-width: 18.5rem) {
+  .stars svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
 }
 
 .stars [data-on] svg {

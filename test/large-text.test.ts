@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import { cascade, eachScreen, queries, sheet } from "./css.ts";
-import { item } from "./domain-rows.ts";
+import { entry, item, payment } from "./domain-rows.ts";
 import { markupOf } from "./render.ts";
 import { stage } from "./render-store.ts";
 
@@ -41,6 +41,11 @@ const carriers = [
   ".line-s",
   ".nums dd",
   ".event-m",
+  ".trail a",
+  ".group h2",
+  ".group > h3",
+  ".amt",
+  ".note",
 ];
 
 test("every flex or grid item that carries user text shrinks below its longest word and wraps it, at any text size", () => {
@@ -60,6 +65,20 @@ test("the markup the carrier rules target holds the user text as its own text, n
   assert.match(vendor, /<div class="choices"><label><input[^>]*\/><span>[^<]+<\/span><\/label>/);
   const who = await markupOf("ui/avatar.tsx", ({ Who }) => createElement(Who, { side: "a" }));
   assert.match(who, /<span class="who">.*<\/span>Abcdefghijklmnopqrst<\/span>$/);
+});
+
+test("the partner's name and every amount sit as text inside the boxes the carrier rules target", async () => {
+  const name = "Abcdefghijklmnopqrstuvwxyz";
+  stage([item({ kind: "routine", title: "Week", who: "b", group_key: "timetable" })], [{ key: "partner_b_label", value: name, deleted_at: null }]);
+  const them = await markupOf("views/them.tsx", ({ Them }) => createElement(Them));
+  assert.match(them, new RegExp(`<h2 id="rt-them">${name} today</h2>`));
+  assert.match(them, new RegExp(`<p class="trail"><a href="#/routines/[^"]+">${name}&#x27;s week</a></p>`));
+  const line = entry({ title: "Venue", group_key: "reception", amount: 123469137191246 });
+  const unplanned = entry({ title: "Extra", group_key: "reception", amount: null });
+  stage([], [], [line, unplanned, payment(unplanned, { amount: 5000, status: "paid", done_on: "2026-10-01" })]);
+  const money = await markupOf("views/money.tsx", ({ MoneyView }) => createElement(MoneyView, {}));
+  assert.match(money, /<span class="event-t"><span class="amt"><span class="cur">Rp<\/span>\s[\d.]+<\/span><\/span>/);
+  assert.match(money, /<p class="note"><span><span class="amt"><span class="cur">Rp<\/span>\s5\.000<\/span> /);
 });
 
 test("a row's text column keeps the longest word of its title whole; a trailing column keeps main's 9rem line so it wraps below before it squeezes a word of the meta", () => {
@@ -82,6 +101,7 @@ test("the declarations the row rules lean on: a wrapping flex row, a wrapping me
     expects(".row-r", width, { display: "flex", flex: "none", "max-width": "100%", "min-width": "0", "margin-left": "auto" });
     expects(".line-s", width, { display: "flex", "flex-wrap": "wrap" });
     expects(".event-m", width, { display: "flex", "flex-wrap": "wrap" });
+    expects(".event-h", width, { display: "flex", "flex-wrap": "wrap", "justify-content": "space-between" });
     expects(".nums div", width, { display: "flex", "flex-wrap": "wrap" });
   }
 });
@@ -117,11 +137,12 @@ test("the bottom bar hides its labels visually, never from the accessibility tre
   for (const selector of [".tabs", ".bar"]) assert.equal(at(selector, PHONE).get("display"), selector === ".bar" ? "flex" : "grid");
 });
 
-test("no label, brand, nav control or star is capped by the viewport width, so the phone's text size reaches it", () => {
-  const selectors = [".brand", ".tabs", ".tabs a", ".tab-add", ".tab-add svg", ".stars svg", "h1"];
+test("no label, brand or nav control is capped by the viewport width, and a star is only at 100 percent, so the phone's text size reaches them", () => {
+  const selectors = [".brand", ".tabs", ".tabs a", ".tab-add", ".tab-add svg", "h1"];
   for (const width of [LARGE, PHONE, 40]) for (const selector of selectors) for (const [property, value] of at(selector, width)) assert.doesNotMatch(value, /vw/, `${selector} ${property} at ${width}rem`);
   expects(".brand", PHONE, { font: "800 1.375rem / 1 var(--font-display)" });
-  expects(".stars svg", PHONE, { width: "0.875rem", height: "0.875rem" });
+  for (const width of [LARGE, 18.5]) expects(".stars svg", width, { width: "0.875rem", height: "0.875rem" });
+  for (const width of [PHONE, 40]) expects(".stars svg", width, { width: "min(0.875rem, 3.4vw)", height: "min(0.875rem, 3.4vw)" });
 });
 
 test("the header wraps and the gutters shrink on both sides once text is large relative to the screen", () => {
@@ -150,6 +171,7 @@ test("a choice cell is never narrower than one floor, shared by the three-option
   expects(".choices", LARGE, { "grid-template-columns": "repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr))" });
   assert.equal(floor(at(".choices", LARGE).get("grid-template-columns")), floor(at(four, 25).get("grid-template-columns")));
   expects(four, 25, { "grid-template-columns": "repeat(auto-fit, minmax(min(100%, max(6.5rem, calc(50% - 0.125rem))), 1fr))" });
+  expects(four, 25.7, { "grid-template-columns": null });
   expects(four, 27, { "grid-template-columns": null });
 });
 
@@ -157,7 +179,7 @@ test("book and screen rows put the cover above the title when the title would ge
   expects(".bk-link", PHONE, { "flex-wrap": "wrap", gap: "var(--s2) var(--s3)" });
   expects(".bk-text", PHONE, { flex: "1 1 8rem" });
   expects(".setl > li", PHONE, { "flex-wrap": "wrap" });
-  expects(".setl .v", PHONE, { flex: "1 1 8rem" });
+  expects(".setl .v", PHONE, { flex: "1 1 8rem", "min-width": "0" });
   expects(".setl > li > button", PHONE, { "margin-left": "auto" });
 });
 
@@ -206,7 +228,7 @@ test("the box declarations that the fit rules and the sizes above lean on stay a
 
 test("the large-text layouts switch at the same few thresholds", () => {
   const widths = new Set(queries(css).flatMap((query) => [...query.matchAll(/max-width: ([\d.]+)rem/g)].map(([, rem]) => rem)));
-  assert.deepEqual([...widths].sort(), ["11.5", "13", "14", "15.5", "18.5", "19", "26"]);
+  assert.deepEqual([...widths].sort(), ["11.5", "13", "14", "15.5", "18.5", "19", "25.5"]);
 });
 
 test("each tab keeps its icon and its label in a span of its own, so hiding the span leaves the link's accessible name", () => {
@@ -244,4 +266,104 @@ test("a week strip cell is wide enough for a six-letter day label at every phone
   });
   expects(".rt-week", PHONE, { display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(3rem, 1fr))" });
   expects(".rt-week-l", PHONE, { "overflow-wrap": "anywhere" });
+  expects(".rt-week", LARGE, { "grid-template-columns": "repeat(auto-fit, minmax(3.5rem, 1fr))" });
+});
+
+const LAYOUT = /^(display|position|flex|flex-.*|grid|grid-.*|min-width|max-width|width|inline-size|gap|row-gap|column-gap|padding|padding-.*|margin|margin-.*|overflow|overflow-.*|white-space|word-break|text-wrap|hyphens|font|font-size|letter-spacing|box-sizing|float|align-.*|justify-.*|place-.*|border|border-(top|right|bottom|left)|border-width|line-height|text-indent|height|min-height|scroll-padding.*|--(gutter|column|av|av-text|tabs))$/;
+
+const layout = (selector: string, width: number) =>
+  [...at(selector, width)]
+    .filter(([property]) => LAYOUT.test(property))
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([property, value]) => `${property}: ${value}`)
+    .join("; ");
+
+const layouts: [string, [number, string][]][] = [
+  ["html", [[10, "scroll-padding: calc(3.5rem + var(--safe-t) + var(--s2)) 0 calc(var(--tabs) + var(--safe-b) + var(--s2)); scroll-padding-top: calc(4.25rem + var(--safe-t) + var(--s2))"], [20, "scroll-padding: calc(3.5rem + var(--safe-t) + var(--s2)) 0 calc(var(--tabs) + var(--safe-b) + var(--s2))"]]],
+  ["body", [[10, "font: 400 var(--fs-body) / 1.45 var(--font-text); margin: 0; min-height: 100vh; overflow-wrap: break-word"]]],
+  ["h1", [[10, "font: 800 var(--fs-title) / 1.1 var(--font-display); font-size: 1.5rem; letter-spacing: -0.02em; margin: var(--s2) 0 var(--s4); overflow-wrap: break-word"], [17, "font: 800 var(--fs-title) / 1.1 var(--font-display); letter-spacing: -0.02em; margin: var(--s2) 0 var(--s4); overflow-wrap: break-word"]]],
+  [".bar", [[10, "align-items: center; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: var(--s2); min-height: calc(3.5rem + var(--safe-t)); padding: var(--safe-t) max(var(--s3), var(--safe-r)) 0 max(var(--s4), var(--safe-l)); padding-block: calc(var(--safe-t) + var(--s1)) var(--s1); position: sticky"], [20, "align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: var(--s2); min-height: calc(3.5rem + var(--safe-t)); padding: var(--safe-t) max(var(--s3), var(--safe-r)) 0 max(var(--s4), var(--safe-l)); position: sticky"]]],
+  [".brand", [[10, "align-items: center; display: inline-flex; flex: none; font: 800 1.375rem / 1 var(--font-display); letter-spacing: -0.02em; min-height: var(--target-min); min-width: var(--target-min)"]]],
+  [".pair", [[10, "--av: 1.5rem; --av-text: 0.75rem; display: grid; flex: none; margin-left: auto; min-height: var(--target-min); min-width: var(--target-min); place-items: center"], [20, "--av: 2rem; --av-text: 0.75rem; display: grid; flex: none; min-height: var(--target-min); min-width: var(--target-min); place-items: center"]]],
+  [".tabs", [[10, "align-items: center; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; padding: var(--s2) var(--safe-r) calc(var(--safe-b) + var(--s1)) var(--safe-l); position: fixed"], [20, "align-items: center; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr 4.5rem 1fr 1fr; padding: var(--s2) var(--safe-r) calc(var(--safe-b) + var(--s1)) var(--safe-l); position: fixed"]]],
+  [".tabs a", [[10, "align-items: center; display: flex; flex-direction: column; font-size: var(--fs-micro); gap: 3px; justify-content: center; min-height: var(--target-min); min-width: 0; position: relative; white-space: nowrap"], [17, "align-items: center; display: flex; flex-direction: column; font-size: var(--fs-micro); gap: 3px; justify-content: center; min-height: 3.25rem; min-width: 0; white-space: nowrap"]]],
+  [".tabs a[aria-current=\"page\"] span", [[10, "height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px"], [17, "position: relative"]]],
+  [".tabs a[aria-current=\"page\"] span::after", [[10, "height: 5px; margin-left: -2.5px; position: absolute; width: 5px"]]],
+  [".tab-add", [[10, "display: grid; height: 56px; justify-self: center; margin: 0 var(--s1); min-height: 0; padding: 0; place-items: center; width: 56px"], [17, "display: grid; height: 56px; justify-self: center; min-height: 0; padding: 0; place-items: center; width: 56px"], [20, "display: grid; height: 3.5rem; justify-self: center; min-height: 0; padding: 0; place-items: center; width: 3.5rem"]]],
+  [".tab-add svg", [[10, "height: 26px; width: 26px"], [20, "height: 1.625rem; width: 1.625rem"]]],
+  ["main", [[10, "margin: 0 auto; max-width: 40rem; padding: var(--s2) max(var(--s4), var(--safe-r)) calc(var(--tabs) + var(--safe-b) + var(--s6)) max(var(--s4), var(--safe-l)); padding-left: max(var(--s2), var(--safe-l)); padding-right: max(var(--s2), var(--safe-r))"], [20, "margin: 0 auto; max-width: 40rem; padding: var(--s2) max(var(--s4), var(--safe-r)) calc(var(--tabs) + var(--safe-b) + var(--s6)) max(var(--s4), var(--safe-l))"]]],
+  ["main[data-page=\"journey\"]", [[10, "max-width: none; padding: 0 0 calc(var(--tabs) + var(--safe-b) + var(--s6))"]]],
+  [".sheet-form", [[10, "display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0"]]],
+  [".sheet-head", [[10, "align-items: center; display: flex; flex: none; flex-wrap: wrap; gap: var(--s3); justify-content: space-between; padding: var(--s4) max(var(--s2), var(--safe-r)) var(--s2) max(var(--s5), var(--safe-l))"], [20, "align-items: center; display: flex; flex: none; gap: var(--s3); justify-content: space-between; padding: var(--s4) max(var(--s2), var(--safe-r)) var(--s2) max(var(--s5), var(--safe-l))"]]],
+  [".sheet-head h2", [[10, "flex: 1 1 0; font: 800 var(--fs-current) / 1.1 var(--font-display); letter-spacing: -0.015em; margin: 0; max-width: 100%; min-width: auto"], [20, "font: 800 var(--fs-current) / 1.1 var(--font-display); letter-spacing: -0.015em; margin: 0"]]],
+  [".sheet-body", [[10, "flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 max(var(--s5), var(--safe-r)) var(--s4) max(var(--s5), var(--safe-l))"]]],
+  [".sheet-foot", [[10, "border-top: 1px solid var(--line); flex: none; padding: var(--s3) max(var(--s5), var(--safe-r)) calc(var(--safe-b) + var(--s3)) max(var(--s5), var(--safe-l))"]]],
+  [".kinds", [[10, "display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); margin: var(--s2) 0 var(--s4)"]]],
+  [".capture", [[10, "align-items: center; border: 1.5px dashed var(--ink-2); display: grid; gap: var(--s2); grid-template-columns: auto minmax(0, 1fr); margin: 0 0 var(--s5); min-height: 3.25rem; padding: 0 var(--s1) var(--s1); row-gap: var(--s1)"], [20, "align-items: center; border: 1.5px dashed var(--ink-2); display: flex; gap: var(--s2); margin: 0 0 var(--s5); min-height: 3.25rem; padding: 0 var(--s1) 0 var(--s3)"]]],
+  [".capture svg", [[10, "flex: none; height: 1.25rem; margin-left: var(--s2); width: 1.25rem"], [20, "flex: none; height: 1.25rem; width: 1.25rem"]]],
+  [".choices", [[10, "display: grid; gap: var(--s1); grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr)); padding: var(--s1)"], [20, "display: grid; gap: var(--s1); grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr)); padding: var(--s1)"]]],
+  [".choices label", [[10, "align-items: center; display: flex; font-size: var(--fs-meta); gap: var(--s2); justify-content: center; line-height: 1.2; min-height: var(--target-min); padding: var(--s1) var(--s3); position: relative"]]],
+  [".choices label > span", [[10, "align-items: center; display: inline-flex; flex-direction: column; gap: var(--s1); justify-content: center; min-width: 0; overflow-wrap: anywhere"]]],
+  [".row", [[10, "align-items: center; display: flex; flex-wrap: wrap; gap: var(--s2); min-height: var(--row-min); padding: var(--s2) var(--s3) var(--s2) var(--s1)"]]],
+  [".row-b", [[10, "display: block; flex: 1 1 9rem; max-width: 100%; min-width: auto; padding: var(--s1) 0"], [20, "display: block; flex: 1 1 9rem; min-width: 0; padding: var(--s1) 0"]]],
+  [".row-r", [[10, "align-items: flex-end; display: flex; flex: none; flex-direction: column; gap: var(--s2); margin-left: auto; max-width: 100%; min-width: 0; overflow-wrap: anywhere"]]],
+  [".lead", [[10, "display: grid; flex: none; height: var(--target-min); place-items: center; width: var(--target-min)"]]],
+  [".title", [[10, "display: block; line-height: 1.3; overflow-wrap: anywhere; text-wrap: pretty"]]],
+  [".meta", [[10, "align-items: center; display: flex; flex-wrap: wrap; font-size: var(--fs-meta); gap: 2px var(--s3); margin-top: 3px"]]],
+  [".meta > *", [[10, "min-width: 0"]]],
+  [".who", [[10, "align-items: center; display: inline-flex; gap: 6px; min-width: 0; overflow-wrap: anywhere"]]],
+  [".amt", [[10, "overflow-wrap: anywhere"]]],
+  [".check", [[10, "display: grid; flex: none; height: var(--target-min); place-items: center; position: relative; width: var(--target-min)"]]],
+  [".summary", [[10, "margin-bottom: var(--s4)"]]],
+  [".trail a", [[10, "align-items: center; display: inline-flex; min-height: var(--target-min); min-width: var(--target-min); overflow-wrap: anywhere"]]],
+  [".seg", [[10, "display: flex; flex-wrap: wrap; gap: var(--s1); margin: 0 0 var(--s4); padding: var(--s1)"]]],
+  [".seg > *", [[10, "align-items: center; border: 0; display: inline-flex; flex: 1 1 auto; font-size: var(--fs-meta); gap: var(--s2); justify-content: center; line-height: 1.2; min-height: var(--target-min); min-width: 0; overflow-wrap: anywhere; padding: var(--s1) var(--s3)"]]],
+  [".sum", [[10, "line-height: 1.5; margin: 0; text-wrap: pretty"]]],
+  [".note", [[10, "align-items: flex-start; display: flex; font-size: var(--fs-meta); gap: var(--s2); margin: var(--s3) 0 0; overflow-wrap: anywhere"]]],
+  [".contact .button", [[10, "min-width: 0; overflow-wrap: anywhere"]]],
+  [".facts", [[10, "align-items: center; display: flex; flex-wrap: wrap; font-size: var(--fs-meta); gap: var(--s1) var(--s3); margin: 0 0 var(--s4); overflow-wrap: anywhere"]]],
+  [".nums dd", [[10, "margin: 0 0 0 auto; overflow-wrap: anywhere"]]],
+  [".bk-link", [[10, "align-items: center; display: flex; flex: 1 1 14rem; flex-wrap: wrap; gap: var(--s2) var(--s3); min-height: var(--target-min); min-width: 0"]]],
+  [".bk-text", [[10, "display: flex; flex: 1 1 8rem; flex-direction: column; gap: 2px; min-width: 0"]]],
+  [".bk-note", [[10, "display: grid; flex: 1 1 100%; font-size: var(--fs-meta); gap: 2px; margin: 0; overflow-wrap: anywhere"]]],
+  [".reads", [[10, "align-items: center; display: inline-flex; flex-wrap: wrap; overflow-wrap: anywhere"]]],
+  [".stars svg", [[10, "height: 0.875rem; width: 0.875rem"], [20, "height: min(0.875rem, 3.4vw); width: min(0.875rem, 3.4vw)"]]],
+  [".reader", [[10, "display: grid; gap: var(--s2); grid-template-columns: minmax(0, 1fr); margin: 0 0 var(--s4); overflow-wrap: anywhere"]]],
+  [".entry-brand", [[10, "display: block; font: 800 2.75rem / 1 var(--font-display); font-size: 1.75rem; letter-spacing: -0.02em; margin-bottom: var(--s5)"], [17, "display: block; font: 800 2.75rem / 1 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--s7)"]]],
+  [".entry-body h1", [[10, "margin: 0"]]],
+  [".hero", [[10, "--column: 40rem; --gutter: var(--s2); padding: var(--s2) max(var(--gutter), calc((100% - var(--column)) / 2 + var(--gutter))) var(--s6)"], [20, "--column: 40rem; --gutter: var(--s5); padding: var(--s2) max(var(--gutter), calc((100% - var(--column)) / 2 + var(--gutter))) var(--s6)"]]],
+  [".count-n", [[10, "align-items: flex-end; display: flex; flex-wrap: wrap; font: inherit; gap: 0 0.875rem; letter-spacing: normal; margin: 0; overflow-wrap: normal"]]],
+  [".count-n .num", [[10, "flex: none; font: 850 min(var(--fs-count), 28vw) / 0.8 var(--font-display); letter-spacing: -0.035em; margin-left: -0.25rem"]]],
+  [".hero-money", [[10, "border-top: 1px solid color-mix(in oklch, var(--on-hero) 18%, transparent); display: flex; flex-wrap: wrap; font-size: var(--fs-meta); gap: 2px var(--s4); margin: var(--s5) 0 0; min-width: 0; padding-top: var(--s4)"]]],
+  [".journey-tabs", [[10, "margin: var(--s4) var(--s4) 0; margin-inline: var(--s2)"], [20, "margin: var(--s4) var(--s4) 0"]]],
+  [".spine", [[10, "padding: var(--s5) var(--s4) 0 0; padding-right: var(--s2)"], [20, "padding: var(--s5) var(--s4) 0 0"]]],
+  [".loose", [[10, "padding-left: var(--s2)"], [20, "padding-left: var(--s4)"]]],
+  [".group", [[10, "margin: var(--s5) 0 0"]]],
+  [".group h2", [[10, "align-items: baseline; display: flex; font-size: var(--fs-meta); gap: var(--s2); line-height: 1; margin: 0 0 var(--s2); overflow-wrap: anywhere"]]],
+  [".group > h3", [[10, "align-items: baseline; display: flex; font-size: var(--fs-meta); gap: var(--s2); line-height: 1; margin: 0 0 var(--s2); overflow-wrap: anywhere"]]],
+  [".event-h", [[10, "align-items: baseline; display: flex; flex-wrap: wrap; gap: 0 var(--s4); justify-content: space-between"]]],
+  [".event-h h3", [[10, "font: 700 var(--fs-station) / 1.2 var(--font-text); letter-spacing: -0.005em; overflow-wrap: anywhere"]]],
+  [".event-m", [[10, "display: flex; flex-wrap: wrap; font-size: var(--fs-meta); gap: 0 var(--s3); margin: var(--s1) 0 var(--s3); overflow-wrap: anywhere"]]],
+  [".line", [[10, "align-items: baseline; display: grid; gap: 2px var(--s3); grid-template-columns: minmax(0, 1fr); min-height: var(--row-min); padding: var(--s3) var(--s4); padding-inline: var(--s2)"], [20, "align-items: baseline; display: grid; gap: 2px var(--s3); grid-template-columns: minmax(0, 1fr) auto; min-height: var(--row-min); padding: var(--s3) var(--s4)"]]],
+  [".plan", [[10, "grid-column: 1; overflow-wrap: anywhere"], [20, "grid-column: 2; overflow-wrap: anywhere"]]],
+  [".line-s", [[10, "display: flex; flex-wrap: wrap; font-size: var(--fs-meta); gap: 0 var(--s3); grid-column: 1 / -1; overflow-wrap: anywhere"]]],
+  [".sheet-h", [[10, "display: none"]]],
+  [".sides li", [[10, "align-items: center; display: flex; font-size: var(--fs-meta); gap: var(--s2); min-width: 0; overflow-wrap: anywhere; padding: 0.4375rem var(--s3) 0.4375rem 0.4375rem"]]],
+  [".rt-block h3", [[10, "font-size: var(--fs-meta); line-height: inherit; margin: 0 0 var(--s1); overflow-wrap: anywhere"]]],
+  [".rt-week", [[10, "display: grid; gap: 2px; grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr)); margin: 0 0 var(--s4); padding: 0"], [20, "display: grid; gap: 2px; grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr)); margin: 0 0 var(--s4); padding: 0"]]],
+  [".rt-week li", [[10, "border: 2px solid transparent; display: grid; gap: 2px; min-width: 0; padding: var(--s2)"]]],
+  [".rt-week-d", [[10, "align-items: center; display: inline-flex; font-size: var(--fs-meta); gap: 2px; justify-content: center"]]],
+  [".rt-week-l", [[10, "font-size: var(--fs-micro); overflow-wrap: anywhere"]]],
+  [".start-head", [[10, "align-items: center; display: flex; flex-wrap: wrap; gap: var(--s2)"]]],
+  [".start-name", [[10, "flex: 1 1 0; font-size: var(--fs-station); margin: 0; max-width: 100%; min-width: auto; overflow-wrap: break-word"], [20, "flex: 1 1 8rem; font-size: var(--fs-station); margin: 0; min-width: 0; overflow-wrap: anywhere"]]],
+  [".start-pos", [[10, "margin: 0; overflow-wrap: anywhere"]]],
+  [".start-meta", [[10, "margin: 0; overflow-wrap: anywhere"]]],
+  [".start-up", [[10, "margin: 0; overflow-wrap: anywhere"]]],
+  [".setl", [[10, "margin: 0; overflow: hidden; padding: 0"]]],
+  [".setl > li", [[10, "align-items: center; display: flex; flex-wrap: wrap; gap: var(--s3); min-height: var(--row-min); padding: var(--s2) var(--s1) var(--s2) var(--s4)"]]],
+  [".setl .v", [[10, "flex: 1 1 8rem; min-width: 0"]]],
+];
+
+test("every declaration that sets a size, a wrap, a gap, a spacing or an alignment in the rules the large-text rules lean on stays as measured, at the large, the narrow and the plain width", () => {
+  for (const [selector, steps] of layouts) for (const width of [LARGE, 17, PHONE]) assert.equal(layout(selector, width), steps.findLast(([from]) => from <= width)![1], `${selector} at ${width}rem`);
 });
