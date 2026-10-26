@@ -1,6 +1,8 @@
 import type { ItemRow } from "../../shared/tables.ts";
+import { isScreenKind, yearOf } from "../domain/screen.ts";
+import { askedAbout, matches, posterPatch, purgePatch, validId } from "../domain/tmdb.ts";
 import { createLookup, fillBook, fillTitle } from "./lookup.ts";
-import type { Fetcher, Lookup } from "./lookup.ts";
+import type { Fetcher, Filled, Lookup } from "./lookup.ts";
 import type { Written } from "./store.ts";
 
 export const GAP_MS = 1000;
@@ -38,7 +40,38 @@ export const detailsLookup = createLookup({ fetcher: paced((url, init) => fetch(
 
 export const needsDetails = (book: ItemRow) => book.data?.ol == null && book.data?.gb == null;
 
-export const findDetails = async ({
+export const pending = (rows: readonly ItemRow[], needs: (row: ItemRow) => boolean, seen: ReadonlySet<string>) => rows.filter((row) => needs(row) && !seen.has(row.id));
+
+export type Attempted<P> = Filled<P> | { kind: "unsure" | "changed" };
+
+export type Attempt<P = Record<string, string>> = (lookup: Lookup, row: ItemRow, current: () => ItemRow) => Promise<Attempted<P>>;
+
+export const bookAttempt: Attempt = (lookup, book, current) => {
+  const code = typeof book.data?.isbn === "string" ? book.data.isbn : null;
+  return code === null ? fillTitle(lookup, current) : fillBook(lookup, code, current);
+};
+
+export const fillScreen = async (lookup: Lookup, read: () => ItemRow, today: string): Promise<Attempted<Record<string, unknown>>> => {
+  const asked = read();
+  if (!isScreenKind(asked.kind)) return { kind: "nothing" };
+  const id = validId(asked.data?.tmdb);
+  if (id !== null) {
+    const out = await lookup.screenById(asked.kind, id);
+    if (out.kind !== "ok") return out;
+    const now = read();
+    if (validId(now.data?.tmdb) !== id || !askedAbout(asked, now)) return { kind: "changed" };
+    return out.value === null ? { kind: "patch", patch: purgePatch().data, counts: "empty" } : { kind: "patch", patch: posterPatch(now, out.value, today) };
+  }
+  const out = await lookup.screen({ kind: asked.kind, title: asked.title, year: yearOf(asked) });
+  if (out.kind !== "ok") return out;
+  const now = read();
+  if (validId(now.data?.tmdb) !== null || !askedAbout(asked, now)) return { kind: "changed" };
+  if (out.value.length === 0) return { kind: "empty" };
+  const [hit, ...more] = matches(now, out.value);
+  return hit !== undefined && more.length === 0 ? { kind: "patch", patch: posterPatch(now, hit, today) } : { kind: "unsure" };
+};
+
+export const findDetails = async <P = Record<string, string>>({
   ids,
   lookup,
   read,
@@ -46,14 +79,16 @@ export const findDetails = async ({
   signal,
   onStep,
   wait = sleep,
+  attempt: run = bookAttempt as unknown as Attempt<P>,
 }: {
   ids: readonly string[];
   lookup: Lookup;
   read: (id: string) => ItemRow | undefined;
-  save: (id: string, patch: Record<string, string>) => Promise<Written>;
+  save: (id: string, patch: P) => Promise<Written>;
   signal: AbortSignal;
   onStep: (id: string, tally: Tally) => void;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+  attempt?: Attempt<P>;
 }): Promise<Finish> => {
   const tally: Tally = { filled: 0, empty: 0, failed: 0, unsure: 0 };
   let busy = 0;
@@ -64,9 +99,8 @@ export const findDetails = async ({
       const book = read(id);
       if (signal.aborted) return "stopped";
       if (book === undefined) continue;
-      const code = typeof book.data?.isbn === "string" ? book.data.isbn : null;
       const current = () => read(id) ?? book;
-      const attempt = () => (code === null ? fillTitle(lookup, current) : fillBook(lookup, code, current));
+      const attempt = () => run(lookup, book, current);
       let out = await attempt();
       while (!signal.aborted && (out.kind === "slow" || (out.kind === "failed" && out.retry !== undefined))) {
         const pause = Math.max(Math.min(BACKOFF_MS * 2 ** busy, BACKOFF_CAP_MS), out.retry ?? 0);
@@ -78,8 +112,8 @@ export const findDetails = async ({
       busy = 0;
       if (signal.aborted || out.kind === "stale") return "stopped";
       if (out.kind === "offline") return "offline";
-      if (out.kind === "patch") tally[(await save(id, out.patch)).ok ? "filled" : "failed"]++;
-      else tally[out.kind === "unsure" ? "unsure" : out.kind === "failed" ? "failed" : "empty"]++;
+      if (out.kind === "patch") tally[(await save(id, out.patch)).ok ? (out.counts ?? "filled") : "failed"]++;
+      else tally[out.kind === "unsure" || out.kind === "changed" ? "unsure" : out.kind === "failed" ? "failed" : "empty"]++;
       onStep(id, { ...tally });
     }
     return "finished";

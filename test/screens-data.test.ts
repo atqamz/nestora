@@ -79,7 +79,7 @@ test("the year bounds are one pair of constants that the add sheet, the edit for
 test("movie and series share one field set, so the registry cannot drift between them", () => {
   assert.deepEqual(tables.items.variants.movie, tables.items.variants.series);
   assert.deepEqual(Object.keys(tables.items.variants.movie.data), ["original_title", "year", "rating_a", "rating_b", "cover", "tmdb", "tmdb_at", "collection", "order"]);
-  assert.deepEqual([tables.items.variants.movie.data.cover, tables.items.variants.movie.data.tmdb, tables.items.variants.movie.data.tmdb_at], ["cover", "tmdb", "date"]);
+  assert.deepEqual([tables.items.variants.movie.data.cover, tables.items.variants.movie.data.tmdb, tables.items.variants.movie.data.tmdb_at], ["poster", "tmdb", "date"]);
 });
 
 const POSTER = "https://image.tmdb.org/t/p/w342/abcDEF123_-xyz.jpg";
@@ -93,9 +93,9 @@ for (const kind of kinds) {
     assert.deepEqual(validateChange("items", stored, { data: { tmdb: 910002, tmdb_at: "2026-10-27" } }), []);
   });
 
-  test(`a ${kind} refuses a cover that is not on a known cover host, in the TMDB shape or not`, () => {
-    for (const cover of ["https://evil.example/a.jpg", "https://image.tmdb.org.evil.example/t/p/w342/a.jpg", "http://image.tmdb.org/t/p/w342/a.jpg", "https://image.tmdb.org/t/p/original/a.jpg", "https://image.tmdb.org/t/p/w342/a.jpg?x=1", "javascript:alert(1)", 5, ""]) {
-      assert.match(validateCreate("items", screen(kind, { data: { cover } })).join("\n"), /data\.cover: must be an https URL on/, String(cover));
+  test(`a ${kind} refuses a cover that is not the TMDB poster shape, a book's cover hosts included`, () => {
+    for (const cover of ["https://evil.example/a.jpg", "https://image.tmdb.org.evil.example/t/p/w342/a.jpg", "http://image.tmdb.org/t/p/w342/a.jpg", "https://image.tmdb.org/t/p/original/a.jpg", "https://image.tmdb.org/t/p/w342/a.jpg?x=1", "javascript:alert(1)", "https://covers.openlibrary.org/b/id/1-M.jpg", "https://books.google.com/books/content?id=a", "https://books.googleusercontent.com/books/content?id=a", 5, ""]) {
+      assert.match(validateCreate("items", screen(kind, { data: { cover } })).join("\n"), /data\.cover: must be a TMDB poster URL/, String(cover));
     }
   });
 

@@ -24,13 +24,13 @@ const notice = (search: Search<ScreenHit>, noun: string) =>
               ? WORDS.found(search.hits.length)
               : "";
 
-const choose = (event: MouseEvent<HTMLButtonElement>, hit: ScreenHit, onPick: (hit: ScreenHit) => void) => {
-  const title = event.detail === 0 ? event.currentTarget.closest("dialog")?.querySelector<HTMLInputElement>('input[name="title"]') : null;
+export const choose = (event: Pick<MouseEvent<HTMLButtonElement>, "currentTarget">, hit: ScreenHit, onPick: (hit: ScreenHit) => void) => {
+  const title = event.currentTarget.closest("dialog")?.querySelector<HTMLInputElement>('input[name="title"]');
   onPick(hit);
   title?.focus();
 };
 
-export function ScreenLookup({ kind, search, onPick }: { kind: ScreenKind; search: Search<ScreenHit>; onPick: (hit: ScreenHit) => void }) {
+export function ScreenLookup({ kind, search, have, onPick }: { kind: ScreenKind; search: Search<ScreenHit>; have: ReadonlySet<number>; onPick: (hit: ScreenHit) => void }) {
   return (
     <div className="lookup">
       <p className="hint look-note" role="status">
@@ -48,6 +48,7 @@ export function ScreenLookup({ kind, search, onPick }: { kind: ScreenKind; searc
                     <span className="bk-text">
                       <span className="title">{hit.title}</span>
                       {sub !== "" && <span className="bk-by">{sub}</span>}
+                      {have.has(hit.tmdb) && <span className="bk-by">{WORDS.have}</span>}
                     </span>
                   </button>
                 </li>

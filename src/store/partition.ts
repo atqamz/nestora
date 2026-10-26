@@ -59,7 +59,7 @@ export const createSession = ({ disk, hint, api, later = timer, purge = () => {}
   let tries = 0;
   let first = true;
   let cancel = () => {};
-  let bare: Snapshot = { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true };
+  let bare: Snapshot = { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true, dated: false };
   const listeners = new Set<() => void>();
 
   const emit = () => {
@@ -132,6 +132,7 @@ export const createSession = ({ disk, hint, api, later = timer, purge = () => {}
       return () => void listeners.delete(listener);
     },
     getSnapshot: () => (state.at === "open" ? state.store.getSnapshot() : bare),
+    serverNow: () => (state.at === "open" ? state.store.serverNow() : null),
     open: run,
     sync: () => (state.at === "open" && state.down === null ? state.store.sync() : run().catch(() => undefined)),
     poll: () => (state.at === "open" ? state.store.poll() : Promise.resolve(false)),

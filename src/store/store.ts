@@ -7,6 +7,8 @@ import { validateChange, validateMutation } from "../../shared/validate.ts";
 import type { Api } from "./api.ts";
 import { absorb, changedFields, live, newer, overlay, stable, takeBatch, toMaps, wire } from "./outbox.ts";
 import type { Pending, Persistence, Rows, Write } from "./persistence.ts";
+import { learned, newestStamp, unknown } from "./server-clock.ts";
+import type { Clock } from "./server-clock.ts";
 
 export type Link = "online" | "offline" | "expired" | "mismatch";
 
@@ -20,6 +22,7 @@ export type Snapshot = {
   storage: "ok" | "failed";
   notice: { discarded: number } | null;
   paused: boolean;
+  dated: boolean;
 };
 
 export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; paused?: true; step?: number };
@@ -53,6 +56,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let epoch: string | null = null;
   let generation: string | null = null;
   let verified = false;
+  let clock: Clock = unknown;
   let notice: Snapshot["notice"] = null;
   let me: Side | null = null;
   let link: Link = "online";
@@ -68,7 +72,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let calm = false;
   let struck = false;
   let reached = false;
-  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held };
+  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held, dated: false };
   const listeners = new Set<() => void>();
 
   const emit = () => {
@@ -84,6 +88,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       storage,
       notice,
       paused: held,
+      dated: clock.skew !== null,
     };
     for (const listener of listeners) listener();
   };
@@ -116,6 +121,10 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   };
 
   const persist = (write: Write) => persisting(() => persistence.write(write));
+
+  const learn = (served: number | null) => {
+    clock = learned(clock, served, Date.now(), () => newestStamp(base.items.values()));
+  };
 
   const holdsServerData = () => rev > 0 || tableNames.some((table) => base[table].size > 0);
 
@@ -181,7 +190,9 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       rev = next;
       me = res.body.me;
       verified = true;
-      const quiet = unchanged && link === "online";
+      const wasDated = clock.skew !== null;
+      learn(res.served);
+      const quiet = unchanged && link === "online" && wasDated === (clock.skew !== null);
       link = "online";
       struck = false;
       reached = true;
@@ -207,6 +218,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       try {
         const res = await api.push(batch.map(wire));
         if (res.kind === "ok") {
+          learn(res.served);
           if ((await reconcile(res.body, batch.length)) === "reset") continue;
           const rows = newer(base, res.body.rows);
           await persist({ rows, outbox: { drop: batch.map((entry) => entry.seq) } });
@@ -420,6 +432,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       return () => void listeners.delete(listener);
     },
     getSnapshot: () => snapshot,
+    serverNow: () => (clock.skew === null ? null : new Date(Date.now() + clock.skew)),
     open,
     sync,
     poll,

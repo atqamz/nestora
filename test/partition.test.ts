@@ -107,7 +107,7 @@ test("a fresh browser asks the server for the side with a bare probe, then opens
   const server = createServer();
   const p = await profile(server, "a");
   const tab = p.tab();
-  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true });
+  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true, dated: false });
   await tab.open();
   const snap = tab.getSnapshot();
   assert.deepEqual([snap.ready, snap.me, snap.link, snap.paused], [true, "a", "online", false]);
@@ -115,6 +115,15 @@ test("a fresh browser asks the server for the side with a bare probe, then opens
   assert.equal(p.state.hint, "a");
   assert.deepEqual(server.seen.slice(0, 2).map((request) => [request.since, request.side]), [[Number.MAX_SAFE_INTEGER, null], [0, "a"]]);
   assert.deepEqual(await saved(p, "b"), { rows: { items: [], budget_entries: [], settings: [] }, outbox: [], meta: { rev: 0, me: null, epoch: null, generation: null, adopted: null } });
+});
+
+test("the session knows the server's time only while a store is open", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  const tab = p.tab();
+  assert.equal(tab.serverNow(), null);
+  await tab.open();
+  assert.ok(tab.serverNow() instanceof Date);
 });
 
 test("with no hint and no network nothing is opened, and the app shows its connect screen", async () => {
