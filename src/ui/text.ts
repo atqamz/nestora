@@ -286,7 +286,7 @@ export const text = {
     offline: (n: number) => (n > 0 ? "Offline, saved on this phone" : "Offline"),
     rejected: (n: number) => `${plural(n, "change")} ${n === 1 ? "needs" : "need"} a look`,
     login: "Log in again",
-    onlineBody: "Connected. Changes are sent as soon as you make them.",
+    onlineBody: "Connected. Changes are sent as soon as you make them, and your partner's arrive while the app is open.",
     offlineBody: "The server cannot be reached. Everything you enter is saved on this phone and sent later.",
     pausedExpiredBody: "Your login expired. Log in again to confirm it. Changes are paused until then.",
     expiredBody: "Your login expired. Log in again to send your changes. Nothing is lost.",
