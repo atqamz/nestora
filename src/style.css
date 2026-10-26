@@ -258,6 +258,14 @@ a {
 }
 
 @media (max-width: 18.5rem) {
+  :root {
+    --tabs: calc(56px + var(--s2) + var(--s1) + 1px);
+  }
+
+  html {
+    scroll-padding-top: calc(4.25rem + var(--safe-t) + var(--s2));
+  }
+
   .bar {
     flex-wrap: wrap;
     padding-block: calc(var(--safe-t) + var(--s1)) var(--s1);
