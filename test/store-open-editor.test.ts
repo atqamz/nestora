@@ -165,13 +165,16 @@ test("an open form takes every value from its own snapshot, and a deleted row ke
 });
 
 test("every screen that mounts the item form keeps it through a delete instead of showing the deleted page", () => {
-  for (const file of ["views/generic-item.tsx", "views/person.tsx", "views/money-line.tsx", "views/book.tsx"]) {
+  for (const file of ["views/generic-item.tsx", "views/person.tsx", "views/money-line.tsx", "views/book.tsx", "views/screen.tsx"]) {
     const source = read(file);
     assert.match(source, /const \{ row(: \w+)?, gone \} = useOpenRow\(/, file);
-    assert.match(source, /<ItemForm [^>]*gone=\{gone\}/, file);
+    assert.match(source, /<ItemForm\s[^>]*gone=\{gone\}/, file);
     assert.match(source, /if \(!(row|line|open)\) return <Gone /, file);
   }
   assert.match(read("views/money-line.tsx"), /<section aria-labelledby="payments" inert=\{gone\}>/);
+  const screen = read("views/screen.tsx");
+  assert.match(screen, /\{!gone && <Status /);
+  assert.match(screen, /\{!gone && watched && <Ratings /);
   const book = read("views/book.tsx");
   assert.match(book, /\{!gone && <FillBook /);
   assert.match(book, /\{gone \? null : wish \? \(/);

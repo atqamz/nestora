@@ -53,24 +53,23 @@ test("a routine the partner deleted leaves its last rows to the open sheet, and 
   assert.equal(open.gone, true);
   assert.equal(open.row, seen);
   const theirs = routineFlows({ items: items(b.store), actions: b.store, me: "b", day: "2026-10-26", go: () => undefined });
-  assert.equal((await theirs.restore(open.row!.routine, open.row!.actions)).ok, true);
+  assert.equal((await theirs.restore(open.row!.routine)).ok, true);
   await b.store.sync();
   await a.store.sync();
   assert.deepEqual([routine, ...steps].map((id) => stored(server, id).deleted_at), [null, null, null]);
   assert.equal(found()?.actions.length, 2);
 });
 
-test("the routine page keeps its edit sheet mounted through a partner's delete, with Save and Delete off and Undo shown", () => {
+test("the routine page keeps its edit sheet mounted through a partner's delete and hands it the gone flag", () => {
   const page = read("views/routine.tsx");
   assert.match(page, /const \{ row: open, gone \} = useOpenRow\(found\);\s*const kept = open !== undefined && me !== null;/);
   assert.match(page, /\{kept && !gone \? <RoutinePage \{\.\.\.open\} [^>]*\/> : <Missing \/>\}/);
   assert.match(page, /\{kept && sheet === "edit" && <RoutineSheet start=\{draftOf\(open\.routine, open\.actions\)\} current=\{open\} [^>]*gone=\{gone\}/);
   assert.match(page, /\{kept && !gone && sheet === "pause" && /);
+});
+
+test("Undo in the sheet asks the store to restore the routine and then, once the row is back, puts focus in the first field", () => {
   const sheet = read("ui/routine-sheet.tsx");
-  assert.match(sheet, /<p id=\{notice\} className=\{gone \? "hint sheet-hint" : "visually-hidden"\} role="status">\s*\{gone \? copy\.goneOpen : ""\}\s*<\/p>/);
-  assert.match(sheet, /<button type="button" className="secondary" aria-describedby=\{notice\} disabled=\{busy\} onClick=\{restore\}>/);
-  assert.match(sheet, /<button type="submit" disabled=\{busy \|\| gone\}>/);
-  assert.match(sheet, /className="danger rt-delete" disabled=\{busy \|\| gone\}/);
-  assert.match(sheet, /const result = await flows\.restore\(current!\.routine, current!\.actions\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
+  assert.match(sheet, /revived\.current = true;\s*const result = await flows\.restore\(current!\.routine\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
   assert.match(sheet, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*body\.current\?\.querySelector<HTMLElement>\("input"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
 });

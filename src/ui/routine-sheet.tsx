@@ -180,7 +180,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
   const restore = () =>
     once(async () => {
       revived.current = true;
-      const result = await flows.restore(current!.routine, current!.actions);
+      const result = await flows.restore(current!.routine);
       if (!result.ok) revived.current = false;
       setFailure(failureOf(result));
     });
@@ -241,22 +241,20 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
       onClose={onClose}
       onSubmit={submit}
       foot={
-        <>
-          <p id={notice} className={gone ? "hint sheet-hint" : "visually-hidden"} role="status">
-            {gone ? copy.goneOpen : ""}
-          </p>
-          {gone && (
-            <button type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
-              {text.undo}
-            </button>
-          )}
-          <button type="submit" disabled={busy || gone}>
-            {creating ? form.create : form.save}
-          </button>
-        </>
+        <button type="submit" disabled={busy || gone}>
+          {creating ? form.create : form.save}
+        </button>
       }
     >
       <div className="form rt-form" ref={body}>
+        <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
+          {gone ? copy.goneOpen : ""}
+        </p>
+        {gone && (
+          <button type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
+            {text.undo}
+          </button>
+        )}
         <Field control={{ name: "routine-title", label: form.name, type: "text", value: draft.title, max: LIMITS.title, onChange: (title) => set({ title }) }} error={own.title} />
         {creating && (
           <div className="field check-field">

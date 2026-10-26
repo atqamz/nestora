@@ -284,7 +284,7 @@ export function BookDetail({ id }: { id: string }) {
       )}
       <section aria-labelledby="bk-edit">
         <h2 id="bk-edit">{text.books.edit}</h2>
-        <BookForm key={book.id} book={book} gone={gone} onRemove={() => removeBook(book, open.copies)} onRestore={() => restoreBook(book, open.copies)} />
+        <BookForm key={book.id} book={book} gone={gone} onRemove={() => removeBook(book, open.copies)} onRestore={() => restoreBook(book)} />
       </section>
       {sheet !== null && !gone && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
     </>

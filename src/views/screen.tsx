@@ -3,6 +3,7 @@ import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useOpenRow } from "../hooks/use-open-row.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
@@ -88,7 +89,8 @@ function Ratings({ row }: { row: ItemRow }) {
 export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   const rows = useTable("items");
   const { me } = usePartner();
-  const { row, elsewhere } = screenDetail(rows, kind, id);
+  const { row: live, elsewhere } = screenDetail(rows, kind, id);
+  const { row, gone } = useOpenRow(live ?? undefined);
   const words = kind === "movie" ? text.movies : text.series;
   const back = `#/${views[kind].route}`;
   if (!row && elsewhere) {
@@ -126,8 +128,8 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           )}
         </div>
       </div>
-      <Status row={row} watchedOn={watchedOn} />
-      {watched && <Ratings row={row} />}
+      {!gone && <Status row={row} watchedOn={watchedOn} />}
+      {!gone && watched && <Ratings row={row} />}
       {row.note && (
         <section aria-labelledby="sc-notes">
           <h2 id="sc-notes">{text.screen.notes}</h2>
@@ -140,6 +142,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           key={row.id}
           name={kind}
           row={row}
+          gone={gone}
           onRemove={() =>
             removeScreen(
               {

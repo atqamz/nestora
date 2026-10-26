@@ -30,9 +30,9 @@ export const backHref = (name: ViewName, row: Row) =>
       ? "#/wishlist"
       : `#/${views[name].route}`;
 
-type Props = { name: ViewName; row: Row; gone?: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written> };
+type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written> };
 
-export function ItemForm({ name, row, gone = false, only, onRemove, onRestore }: Props) {
+export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
   const form = useRef<HTMLFormElement>(null);

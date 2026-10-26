@@ -12,7 +12,7 @@ import { text } from "./text.ts";
 
 type Deps = {
   items: readonly ItemRow[];
-  actions: Pick<Store, "create" | "update" | "remove" | "many">;
+  actions: Pick<Store, "create" | "update" | "remove" | "many" | "restore">;
   stamp: () => string;
   me: Side | null;
   go: (hash: string) => void;
@@ -34,8 +34,6 @@ const undoing = (work: () => Promise<Written[]>) => ({
 
 export const bookFlows = ({ items, actions, stamp, me, go }: Deps) => {
   const revive = (id: string) => actions.update("items", id, { deleted_at: null });
-
-  const reviveBook = async (book: ItemRow, copies: readonly ItemRow[]) => [await revive(book.id), ...(await Promise.all(copies.map((copy) => revive(copy.id))))];
 
   const move = async (copy: ItemRow, placeId: string | null, name: string): Promise<Written> => {
     const patch = moveCopy(copy, placeId, stamp(), me);
@@ -72,15 +70,15 @@ export const bookFlows = ({ items, actions, stamp, me, go }: Deps) => {
   };
 
   const removeBook = async (book: ItemRow, copies: readonly ItemRow[]): Promise<Written> => {
-    const result = settled(await Promise.all([...copies.map((copy) => actions.remove("items", copy.id)), actions.remove("items", book.id)]));
+    const result = await actions.many([book, ...copies].map((row) => ({ op: "delete" as const, table: "items" as const, id: row.id })));
     if (result.ok) {
       go(book.status === "wish" ? "/wishlist" : "/books");
-      overlay.announce(text.books.deleted(book.title), undoing(() => reviveBook(book, copies)));
+      overlay.announce(text.books.deleted(book.title), undoing(async () => [await actions.restore(book.id)]));
     }
     return result;
   };
 
-  const restoreBook = async (book: ItemRow, copies: readonly ItemRow[]): Promise<Written> => settled(await reviveBook(book, copies));
+  const restoreBook = (book: ItemRow) => actions.restore(book.id);
 
   const removeCopy = async (copy: ItemRow): Promise<Written> => {
     const result = await actions.remove("items", copy.id);

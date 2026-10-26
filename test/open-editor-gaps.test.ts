@@ -95,13 +95,13 @@ test("the book form's Undo brings back the copies the book's delete took with it
   assert.equal(items(b.store).some((row) => row.id === book || row.id === copy), false);
   assert.deepEqual(openRow(seen, undefined), { row: seen, gone: true });
   const theirs = bookFlows({ items: items(b.store), actions: b.store, stamp: () => "2026-10-26", me: "b", go: () => undefined });
-  assert.equal((await theirs.restoreBook(seen.book, seen.copies)).ok, true);
+  assert.equal((await theirs.restoreBook(seen.book)).ok, true);
   await b.store.sync();
   await a.store.sync();
   assert.deepEqual([stored(server, book).deleted_at, stored(server, copy).deleted_at], [null, null]);
   assert.deepEqual(items(a.store).map((row) => row.id).sort(), [book, copy].sort());
   const source = read("views/book.tsx");
-  assert.match(source, /onRestore=\{\(\) => restoreBook\(book, open\.copies\)\}/);
+  assert.match(source, /onRestore=\{\(\) => restoreBook\(book\)\}/);
   assert.match(source, /useOpenRow\(found && \{ book: found, copies: copies\.get\(found\.id\) \?\? \[\] \}\)/);
 });
 
