@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN_HITS_MAX, SCREEN_URL, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, validId, validYear } from "../src/domain/tmdb.ts";
+import type { ItemRow } from "../shared/tables.ts";
+import { SCREEN_HITS_MAX, SCREEN_URL, adopt, heldPick, hitSub, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, tmdbData, tmdbPage, usesTmdb, validId, validYear } from "../src/domain/tmdb.ts";
 import type { ScreenQuery } from "../src/domain/tmdb.ts";
 
 const of = (query: string) => screenQueryOf(new URLSearchParams(query));
@@ -159,4 +160,50 @@ test("a hit of another kind than the one asked for is dropped, and a repeated id
 test("eight distinct hits are kept however many repeats and bad rows come first", () => {
   const rows = [...Array.from({ length: 50 }, () => ({ ...good, tmdb: 1 })), ...Array.from({ length: 12 }, (_, n) => ({ ...good, tmdb: 10 + n }))];
   assert.deepEqual(parseScreenHits({ hits: rows }, "movie").map((hit) => hit.tmdb), [1, 10, 11, 12, 13, 14, 15, 16]);
+});
+
+test("a hit fills the title and the year only when the year is empty, and keeps what the hit knows for the row", () => {
+  const hit = { ...good, kind: "movie" as const, original: "Original", year: 2017 };
+  assert.deepEqual(adopt({ year: "" }, hit), { title: good.title, year: "2017", picked: { title: good.title, tmdb: 910001, original: "Original", cover: good.cover } });
+  assert.equal(adopt({ year: "   " }, hit).year, "2017");
+  assert.equal(adopt({ year: "1999" }, hit).year, "1999");
+  assert.equal(adopt({ year: "abc" }, hit).year, "abc");
+  assert.equal(adopt({ year: "" }, { ...hit, year: null }).year, "");
+});
+
+test("a pick holds for its own title only, folded, and lets go as soon as the title is changed", () => {
+  const picked = { title: "Amélie", tmdb: 5, original: null, cover: null };
+  assert.equal(heldPick(picked, "Amélie"), picked);
+  assert.equal(heldPick(picked, "  AMELIE "), picked);
+  assert.equal(heldPick(picked, "Amélie 2"), null);
+  assert.equal(heldPick(picked, ""), null);
+  assert.equal(heldPick(null, "Amélie"), null);
+});
+
+test("the data a pick writes is the original title, the poster, the id and the day, and nothing else; no pick writes nothing", () => {
+  assert.deepEqual(tmdbData(null, "2026-10-26"), {});
+  assert.deepEqual(tmdbData({ title: "T", tmdb: 5, original: "O", cover: good.cover }, "2026-10-26"), { original_title: "O", cover: good.cover, tmdb: 5, tmdb_at: "2026-10-26" });
+  assert.deepEqual(tmdbData({ title: "T", tmdb: 5, original: null, cover: null }, "2026-10-26"), { tmdb: 5, tmdb_at: "2026-10-26" });
+});
+
+test("a hit shows its original title and year on one line, and no line when it has neither", () => {
+  assert.equal(hitSub({ ...good, original: "灯台守の夏", year: 2001 }), "灯台守の夏 · 2001");
+  assert.equal(hitSub({ ...good, original: null, year: 2001 }), "2001");
+  assert.equal(hitSub({ ...good, original: "O", year: null }), "O");
+  assert.equal(hitSub({ ...good, original: null, year: null }), "");
+});
+
+test("the TMDB page of a row is the movie or tv path of its id on the public site", () => {
+  assert.equal(tmdbPage("movie", 910001), "https://www.themoviedb.org/movie/910001");
+  assert.equal(tmdbPage("series", 920001), "https://www.themoviedb.org/tv/920001");
+});
+
+test("a list shows TMDB when a row of its kind has a poster or an id, and not for the other kind or a typed row", () => {
+  const row = (kind: string, data: Record<string, unknown> | null) => ({ id: "x", kind, title: "T", data }) as unknown as ItemRow;
+  assert.equal(usesTmdb([row("movie", { cover: good.cover })], "movie"), true);
+  assert.equal(usesTmdb([row("movie", { tmdb: 5 })], "movie"), true);
+  assert.equal(usesTmdb([row("movie", { cover: good.cover })], "series"), false);
+  assert.equal(usesTmdb([row("movie", { year: 2001, original_title: "O" }), row("movie", null)], "movie"), false);
+  assert.equal(usesTmdb([row("movie", { cover: "https://evil.example/a.jpg", tmdb: 0 })], "movie"), false);
+  assert.equal(usesTmdb([], "movie"), false);
 });

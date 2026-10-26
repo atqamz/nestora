@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
+import { tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
@@ -15,6 +16,7 @@ import { views } from "../ui/registry.ts";
 import { moveScreen, removeScreen } from "../ui/screen-save.ts";
 import { text } from "../ui/text.ts";
 import { DetailTitle } from "../ui/split.tsx";
+import { TmdbCredit } from "../ui/tmdb-credit.tsx";
 import { Title } from "../ui/title.tsx";
 import { Gone } from "./generic-item.tsx";
 
@@ -105,6 +107,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   }
   if (!row) return <Gone name={kind} id={id} back={back} />;
   const { original, year, side, watched, watchedOn } = screenFacts(row, me);
+  const tmdb = validId(row.data?.tmdb);
   return (
     <>
       <p className="trail">
@@ -114,7 +117,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
         </a>
       </p>
       <div className="bk-head">
-        <Cover book={row} />
+        <Cover book={row} alt={text.screen.posterOf(row.title)} />
         <div className="bk-id">
           <Title>{row.title}</Title>
           {original && <p className="bk-sub">{text.screen.original(original)}</p>}
@@ -133,6 +136,13 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           <h2 id="sc-notes">{text.screen.notes}</h2>
           <p className="bk-text-block">{row.note}</p>
         </section>
+      )}
+      {tmdb !== null && (
+        <p>
+          <a className="button secondary" href={tmdbPage(kind, tmdb)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+            {text.screen.tmdb}
+          </a>
+        </p>
       )}
       <section aria-labelledby="sc-edit">
         <h2 id="sc-edit">{text.screen.edit}</h2>
@@ -154,6 +164,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           }
         />
       </section>
+      {usesTmdb([row], kind) && <TmdbCredit />}
     </>
   );
 }

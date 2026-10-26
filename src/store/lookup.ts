@@ -139,21 +139,21 @@ export const createLookup = ({
   };
 };
 
-export type Search = { state: "idle" | "busy" | "offline" | "failed" | "slow" | "empty" | "found"; hits: Hit[] };
+export type Search<T = Hit> = { state: "idle" | "busy" | "offline" | "failed" | "slow" | "empty" | "found"; hits: T[] };
 
-export const IDLE: Search = { state: "idle", hits: [] };
+export const IDLE: Search<never> = { state: "idle", hits: [] };
 
-export const searchOf = (out: Outcome<Hit[]>): Search =>
+export const searchOf = <T>(out: Outcome<T[]>): Search<T> =>
   out.kind === "stale" ? IDLE : out.kind !== "ok" ? { state: out.kind, hits: [] } : out.value.length === 0 ? { state: "empty", hits: [] } : { state: "found", hits: out.value };
 
-export const follow = (lookup: Lookup, ready: boolean, input: { title: string; author: string; original: string }, set: (search: Search) => void): (() => void) => {
+const trail = <T>(lookup: Lookup, ready: boolean, run: () => Promise<Outcome<T[]>>, set: (search: Search<T>) => void): (() => void) => {
   if (!ready) {
     set(IDLE);
     return () => {};
   }
   let current = true;
   set({ state: "busy", hits: [] });
-  void lookup.search(input).then((out) => {
+  void run().then((out) => {
     if (current) set(searchOf(out));
   });
   return () => {
@@ -161,6 +161,12 @@ export const follow = (lookup: Lookup, ready: boolean, input: { title: string; a
     lookup.cancel();
   };
 };
+
+export const follow = (lookup: Lookup, ready: boolean, input: { title: string; author: string; original: string }, set: (search: Search) => void) =>
+  trail(lookup, ready, () => lookup.search(input), set);
+
+export const followScreen = (lookup: Lookup, ready: boolean, input: { kind: ScreenKind; title: string; year: number | null }, set: (search: Search<ScreenHit>) => void) =>
+  trail(lookup, ready, () => lookup.screen(input), set);
 
 export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale"; retry?: number };
 

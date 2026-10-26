@@ -1,6 +1,8 @@
+import type { ItemRow } from "../../shared/tables.ts";
 import { isCover, YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
 import { TITLE_MAX, tidy } from "./lookup.ts";
 import { dict } from "./openlibrary.ts";
+import { fold } from "./search.ts";
 import { isScreenKind } from "./screen.ts";
 import type { ScreenKind } from "./screen.ts";
 
@@ -72,3 +74,23 @@ export const parseScreenHits = (body: unknown, kind: ScreenKind): ScreenHit[] =>
   }
   return kept;
 };
+
+export const hitSub = (hit: ScreenHit) => [hit.original, hit.year === null ? null : String(hit.year)].filter(Boolean).join(" · ");
+
+export const usesTmdb = (rows: readonly ItemRow[], kind: ScreenKind) =>
+  rows.some((row) => row.kind === kind && (isCover(row.data?.cover) || validId(row.data?.tmdb) !== null));
+
+export const tmdbPage = (kind: ScreenKind, id: number) => `https://www.themoviedb.org/${kind === "movie" ? "movie" : "tv"}/${id}`;
+
+export type Picked = { title: string; tmdb: number; original: string | null; cover: string | null };
+
+export const adopt = (typed: { year: string }, hit: ScreenHit) => ({
+  title: hit.title,
+  year: typed.year.trim() === "" && hit.year !== null ? String(hit.year) : typed.year,
+  picked: { title: hit.title, tmdb: hit.tmdb, original: hit.original, cover: hit.cover },
+});
+
+export const heldPick = (picked: Picked | null, title: string) => (picked !== null && fold(picked.title) === fold(title) ? picked : null);
+
+export const tmdbData = (picked: Picked | null, today: string) =>
+  picked === null ? {} : { ...(picked.original === null ? {} : { original_title: picked.original }), ...(picked.cover === null ? {} : { cover: picked.cover }), tmdb: picked.tmdb, tmdb_at: today };

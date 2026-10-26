@@ -472,6 +472,7 @@ export const text = {
   },
   movies: {
     title: "Movies",
+    noun: "movie",
     add: "Add a movie",
     sheetTitle: "Add a movie",
     search: "Search movies",
@@ -481,6 +482,7 @@ export const text = {
   },
   series: {
     title: "Series",
+    noun: "series",
     add: "Add a series",
     sheetTitle: "Add a series",
     search: "Search series",
@@ -504,6 +506,7 @@ export const text = {
     notes: "Notes",
     edit: "Edit details",
     original: (title: string) => `Original title: ${title}`,
+    posterOf: (title: string) => `Poster of ${title}`,
     added: (title: string) => `Added: ${title}`,
     deleted: (title: string) => `Deleted: ${title}`,
     moved: (title: string, to: string) => `Moved to ${to}: ${title}`,
@@ -514,8 +517,24 @@ export const text = {
       year: "Year (optional)",
       owner: "Whose pick is it?",
       save: "Add",
+      asTyped: "Add as typed",
       needTitle: "Add a title.",
     },
+    lookup: {
+      results: "Matches from TMDB",
+      searching: (noun: string) => `Searching for the ${noun}`,
+      offline: "Offline: type it in.",
+      failed: (noun: string) => `The ${noun} lookup did not answer. Keep typing.`,
+      slow: (noun: string) => `The ${noun} lookup is slow. Keep typing.`,
+      empty: "No match. Keep typing.",
+      found: (n: number) => (n === 1 ? "1 match" : `${n} matches`),
+    },
+    tmdb: "Open on TMDB",
+  },
+  tmdb: {
+    logo: "TMDB",
+    credit: "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
+    credits: "Credits",
   },
   books: {
     title: "Books",
