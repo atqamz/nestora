@@ -69,3 +69,12 @@ export const applyPatch = <T extends Record<string, unknown>>(row: T, patch: Rec
   }
   return merged as T;
 };
+
+export const POSTER_KEYS = ["cover", "tmdb", "tmdb_at"] as const;
+
+export const POSTER_PURGE = { cover: null, tmdb: null, tmdb_at: null } as const;
+
+export const dropsPoster = (table: TableName, row: Record<string, unknown>) => table === "items" && (row.kind === "movie" || row.kind === "series");
+
+export const withoutPoster = <T extends Record<string, unknown>>(table: TableName, row: T): T =>
+  dropsPoster(table, row) ? applyPatch(row, { data: POSTER_PURGE }) : row;

@@ -22,6 +22,10 @@
   margin: 0;
 }
 
+.posters [data-spent] {
+  visibility: hidden;
+}
+
 .bk-tools svg,
 .bk-add svg,
 .bk-new svg,

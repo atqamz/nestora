@@ -531,6 +531,8 @@ export const text = {
       have: "Already on your list",
     },
     tmdb: "Open on TMDB",
+    removePoster: "Remove poster",
+    posterRemoved: (title: string) => `Poster removed: ${title}`,
     posters: {
       find: "Find posters",
       need: (n: number) => (n === 1 ? "1 poster needs a refresh" : `${n} posters need a refresh`),

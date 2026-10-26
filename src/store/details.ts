@@ -1,6 +1,6 @@
 import type { ItemRow } from "../../shared/tables.ts";
 import { isScreenKind, yearOf } from "../domain/screen.ts";
-import { matches, posterPatch, purgePatch, validId } from "../domain/tmdb.ts";
+import { askedAbout, matches, posterPatch, purgePatch, validId } from "../domain/tmdb.ts";
 import { createLookup, fillBook, fillTitle } from "./lookup.ts";
 import type { Fetcher, Filled, Lookup } from "./lookup.ts";
 import type { Written } from "./store.ts";
@@ -40,7 +40,7 @@ export const detailsLookup = createLookup({ fetcher: paced((url, init) => fetch(
 
 export const needsDetails = (book: ItemRow) => book.data?.ol == null && book.data?.gb == null;
 
-export type Attempted<P> = Filled<P> | { kind: "unsure" };
+export type Attempted<P> = Filled<P> | { kind: "unsure" | "changed" };
 
 export type Attempt<P = Record<string, string>> = (lookup: Lookup, row: ItemRow, current: () => ItemRow) => Promise<Attempted<P>>;
 
@@ -50,21 +50,23 @@ export const bookAttempt: Attempt = (lookup, book, current) => {
 };
 
 export const fillScreen = async (lookup: Lookup, read: () => ItemRow, today: string): Promise<Attempted<Record<string, unknown>>> => {
-  const row = read();
-  if (!isScreenKind(row.kind)) return { kind: "nothing" };
-  const id = validId(row.data?.tmdb);
+  const asked = read();
+  if (!isScreenKind(asked.kind)) return { kind: "nothing" };
+  const id = validId(asked.data?.tmdb);
   if (id !== null) {
-    const out = await lookup.screenById(row.kind, id);
+    const out = await lookup.screenById(asked.kind, id);
     if (out.kind !== "ok") return out;
-    if (validId(read().data?.tmdb) !== id) return { kind: "nothing" };
-    return out.value === null ? { kind: "patch", patch: purgePatch().data, counts: "empty" } : { kind: "patch", patch: posterPatch(read(), out.value, today) };
+    const now = read();
+    if (validId(now.data?.tmdb) !== id || !askedAbout(asked, now)) return { kind: "changed" };
+    return out.value === null ? { kind: "patch", patch: purgePatch().data, counts: "empty" } : { kind: "patch", patch: posterPatch(now, out.value, today) };
   }
-  const out = await lookup.screen({ kind: row.kind, title: row.title, year: yearOf(row) });
+  const out = await lookup.screen({ kind: asked.kind, title: asked.title, year: yearOf(asked) });
   if (out.kind !== "ok") return out;
-  if (validId(read().data?.tmdb) !== null) return { kind: "nothing" };
+  const now = read();
+  if (validId(now.data?.tmdb) !== null || !askedAbout(asked, now)) return { kind: "changed" };
   if (out.value.length === 0) return { kind: "empty" };
-  const [hit, ...more] = matches(read(), out.value);
-  return hit !== undefined && more.length === 0 ? { kind: "patch", patch: posterPatch(read(), hit, today) } : { kind: "unsure" };
+  const [hit, ...more] = matches(now, out.value);
+  return hit !== undefined && more.length === 0 ? { kind: "patch", patch: posterPatch(now, hit, today) } : { kind: "unsure" };
 };
 
 export const findDetails = async <P = Record<string, string>>({
@@ -109,7 +111,7 @@ export const findDetails = async <P = Record<string, string>>({
       if (signal.aborted || out.kind === "stale") return "stopped";
       if (out.kind === "offline") return "offline";
       if (out.kind === "patch") tally[(await save(id, out.patch)).ok ? (out.counts ?? "filled") : "failed"]++;
-      else tally[out.kind === "unsure" ? "unsure" : out.kind === "failed" ? "failed" : "empty"]++;
+      else tally[out.kind === "unsure" || out.kind === "changed" ? "unsure" : out.kind === "failed" ? "failed" : "empty"]++;
       onStep(id, { ...tally });
     }
     return "finished";

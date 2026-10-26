@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { useStamp } from "../hooks/use-plan.ts";
+import { useSettings } from "../hooks/use-plan.ts";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
 import { AddSheet } from "./add-sheet.tsx";
 import { Pair } from "./avatar.tsx";
@@ -8,7 +8,7 @@ import { sweepUndone } from "./book-import.ts";
 import { Icon } from "./icons.tsx";
 import { isCurrent, navEntries } from "./nav.ts";
 import { overlay, useOverlay } from "./overlay.ts";
-import { sweepExpired } from "./screen-save.ts";
+import { sweepDay, sweepDeps, sweepExpired } from "./screen-save.ts";
 import { SyncBadge } from "./sync-badge.tsx";
 import { text } from "./text.ts";
 
@@ -33,11 +33,12 @@ function Nav({ className, section, locked }: { className: "tabs" | "rail"; secti
 }
 
 export function Shell({ section, children }: { section: string; children: ReactNode }) {
-  const { link, notice, paused, rows } = useSnapshot();
+  const snapshot = useSnapshot();
+  const { link, notice, paused, rows } = snapshot;
   const { toast } = useOverlay();
-  const stamp = useStamp();
+  const { timezone } = useSettings();
   useEffect(() => sweepUndone(rows.items, actions.many), [rows.items]);
-  useEffect(() => sweepExpired(rows.items, stamp(), actions.many), [rows.items]);
+  useEffect(() => sweepExpired(rows.items, sweepDay(snapshot, actions.serverNow(), timezone), actions.many), [...sweepDeps(snapshot), timezone]);
   const journey = section === "marriage";
   return (
     <div className="shell">

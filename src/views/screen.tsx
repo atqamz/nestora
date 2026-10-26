@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
-import { tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
+import { hasPoster, revivePatch, tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
@@ -14,7 +14,7 @@ import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
 import { ItemForm } from "../ui/item-form.tsx";
 import { views } from "../ui/registry.ts";
-import { moveScreen, removeScreen } from "../ui/screen-save.ts";
+import { moveScreen, removePoster, removeScreen } from "../ui/screen-save.ts";
 import { text } from "../ui/text.ts";
 import { DetailTitle } from "../ui/split.tsx";
 import { TmdbCredit } from "../ui/tmdb-credit.tsx";
@@ -49,6 +49,31 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
         </p>
       )}
     </section>
+  );
+}
+
+function PosterRemoval({ row }: { row: ItemRow }) {
+  const { busy, once } = useBusy();
+  const [failure, setFailure] = useState<string[]>([]);
+  const remove = () =>
+    once(async () => {
+      const result = await removePoster(actions, row);
+      setFailure(failureOf(result));
+      if (result.ok) document.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+    });
+  return (
+    <>
+      <p>
+        <button type="button" className="secondary" disabled={busy} onClick={remove}>
+          {text.screen.removePoster}
+        </button>
+      </p>
+      {failure.length > 0 && (
+        <p className="error" role="alert">
+          {failure.join(" ")}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -146,6 +171,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           </a>
         </p>
       )}
+      {!gone && hasPoster(row) && <PosterRemoval row={row} />}
       <section aria-labelledby="sc-edit">
         <h2 id="sc-edit">{text.screen.edit}</h2>
         <ItemForm
@@ -153,6 +179,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           name={kind}
           row={row}
           gone={gone}
+          onRestore={() => actions.update("items", row.id, revivePatch(row))}
           onRemove={() =>
             removeScreen(
               {

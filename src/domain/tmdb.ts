@@ -1,4 +1,5 @@
-import type { ItemRow } from "../../shared/tables.ts";
+import { POSTER_KEYS, POSTER_PURGE } from "../../shared/api.ts";
+import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { isPoster, YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
 import { daysBetween } from "./dates.ts";
 import { TITLE_MAX, tidy } from "./lookup.ts";
@@ -112,12 +113,12 @@ export const REFRESH_DAYS = 120;
 
 export const PURGE_DAYS = 170;
 
-const PURGE = { cover: null, tmdb: null, tmdb_at: null } as const;
+export const FUTURE_DAYS = 1;
 
 export const posterAge = (row: ItemRow, today: string) => {
   const stamp = row.data?.tmdb_at;
   const age = typeof stamp === "string" ? daysBetween(stamp, today) : NaN;
-  return Number.isFinite(age) ? age : null;
+  return Number.isFinite(age) && age >= -FUTURE_DAYS ? age : null;
 };
 
 export const expired = (row: ItemRow, today: string) => {
@@ -132,7 +133,15 @@ export const needsPoster = (row: ItemRow, today: string) => {
   return validId(row.data?.tmdb) === null || age === null || age >= REFRESH_DAYS;
 };
 
-export const purgePatch = () => ({ data: { ...PURGE } });
+export const purgePatch = () => ({ data: { ...POSTER_PURGE } });
+
+export const posterKeys = (row: ItemRow) => Object.fromEntries(POSTER_KEYS.filter((key) => row.data?.[key] != null).map((key) => [key, row.data?.[key]]));
+
+export const hasPoster = (row: ItemRow) => row.data?.cover != null || row.data?.tmdb != null;
+
+export const restorePosterPatch = (row: ItemRow): Patch<"items"> => ({ data: posterKeys(row) });
+
+export const revivePatch = (row: ItemRow): Patch<"items"> => ({ deleted_at: null, ...(Object.keys(posterKeys(row)).length > 0 ? restorePosterPatch(row) : {}) });
 
 export const expiredSteps = (rows: readonly ItemRow[], today: string) =>
   rows.filter((row) => expired(row, today)).map((row) => ({ op: "update" as const, table: "items" as const, id: row.id, change: purgePatch() }));
@@ -141,6 +150,9 @@ const sameTitle = (row: ItemRow, hit: ScreenHit) => {
   const title = fold(row.title);
   return title !== "" && [hit.title, hit.original].some((name) => name !== null && fold(name) === title);
 };
+
+export const askedAbout = (asked: ItemRow, now: ItemRow) =>
+  asked.title === now.title && (asked.data?.original_title ?? null) === (now.data?.original_title ?? null) && yearOf(asked) === yearOf(now);
 
 export const matches = (row: ItemRow, hits: readonly ScreenHit[]) => {
   const year = yearOf(row);

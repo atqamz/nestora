@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
+import type { Ref } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { needsPoster } from "../domain/tmdb.ts";
 import { useDetails } from "../hooks/use-details.ts";
 import type { Details } from "../hooks/use-details.ts";
-import { useStamp } from "../hooks/use-plan.ts";
+import { useTmdbDay } from "../hooks/use-plan.ts";
 import { fillScreen } from "../store/details.ts";
 import { text } from "./text.ts";
 
@@ -28,29 +30,27 @@ export const postersLine = ({ phase, done, total, tally }: Pick<Details, "phase"
                 ? WORDS.need(remaining)
                 : "";
 
-export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly ItemRow[] }) {
-  const stamp = useStamp();
-  const { state, remaining, tried, start, stop } = useDetails(`screens-${kind}`, rows, {
-    needs: (row) => needsPoster(row, stamp()),
-    attempt: (lookup, _, current) => fillScreen(lookup, current, stamp()),
-  });
-  const going = state.phase === "running" || state.phase === "stopping";
-  const again = tried > 0 || state.phase === "stopped" || state.phase === "offline" || state.phase === "busy";
-  const line = postersLine(state, remaining, kind);
-  if (line === "") return null;
+type Bar = { phase: Details["phase"]; line: string; remaining: number; again: boolean; start: () => void; stop: () => void };
+
+export const takesFocus = (phase: Details["phase"], inside: boolean, active: unknown, body: unknown) =>
+  phase === "finished" && (inside || active === null || active === body);
+
+export function PostersBar({ phase, line, remaining, again, start, stop, status, bar }: Bar & { status?: Ref<HTMLParagraphElement>; bar?: Ref<HTMLDivElement> }) {
+  const going = phase === "running" || phase === "stopping";
+  const spent = phase === "finished" && remaining === 0;
   return (
-    <div className="posters">
-      <p className="hint imp-progress" role="status">
+    <div className="posters" ref={bar}>
+      <p className="hint imp-progress" role="status" tabIndex={-1} ref={status}>
         {line}
       </p>
       <div className="imp-acts">
-        {going ? (
-          <button type="button" className="secondary" disabled={state.phase === "stopping"} onClick={stop}>
+        {going || spent ? (
+          <button type="button" className="secondary" disabled={phase === "stopping"} data-spent={spent || undefined} onClick={stop}>
             {BOOKS.stop}
           </button>
         ) : (
           remaining > 0 && (
-            <button type="button" className="secondary" onClick={() => void start()}>
+            <button type="button" className="secondary" onClick={start}>
               {again ? BOOKS.resume : WORDS.find}
             </button>
           )
@@ -58,4 +58,21 @@ export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly
       </div>
     </div>
   );
+}
+
+export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly ItemRow[] }) {
+  const stamp = useTmdbDay();
+  const { state, remaining, tried, start, stop } = useDetails(`screens-${kind}`, rows, {
+    needs: (row) => needsPoster(row, stamp()),
+    attempt: (lookup, _, current) => fillScreen(lookup, current, stamp()),
+  });
+  const status = useRef<HTMLParagraphElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const again = tried > 0 || state.phase === "stopped" || state.phase === "offline" || state.phase === "busy";
+  const line = postersLine(state, remaining, kind);
+  useEffect(() => {
+    if (takesFocus(state.phase, bar.current?.contains(document.activeElement) ?? false, document.activeElement, document.body)) status.current?.focus();
+  }, [state.phase]);
+  if (line === "") return null;
+  return <PostersBar phase={state.phase} line={line} remaining={remaining} again={again} start={() => void start()} stop={stop} status={status} bar={bar} />;
 }

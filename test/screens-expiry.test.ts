@@ -1,14 +1,15 @@
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { ItemRow } from "../shared/tables.ts";
 import { validateChange } from "../shared/validate.ts";
-import { addDays } from "../src/domain/dates.ts";
+import { addDays, todayIn } from "../src/domain/dates.ts";
 import { PURGE_DAYS, REFRESH_DAYS, expired, expiredSteps, needsPoster, posterAge, purgePatch } from "../src/domain/tmdb.ts";
 import { createApi } from "../src/store/api.ts";
 import { memoryPersistence } from "../src/store/memory.ts";
 import { createStore, paused } from "../src/store/store.ts";
-import { sweepExpired } from "../src/ui/screen-save.ts";
+import type { Snapshot } from "../src/store/store.ts";
+import { sweepDay, sweepDeps, sweepExpired } from "../src/ui/screen-save.ts";
 import { item } from "./domain-rows.ts";
 import { client, idOf } from "./store-client.ts";
 import { createServer } from "./store-server.ts";
@@ -51,9 +52,17 @@ test("a stamp that is not a date counts as missing", () => {
   }
 });
 
-test("a stamp from the future never expires anything", () => {
-  assert.equal(posterAge(aged(-3), TODAY), -3);
-  assert.deepEqual([expired(aged(-3), TODAY), needsPoster(aged(-3), TODAY)], [false, false]);
+test("a stamp up to a day ahead is fresh, and one further ahead counts as invalid like a missing stamp", () => {
+  for (const days of [0, -1]) {
+    assert.equal(posterAge(aged(days), TODAY), days);
+    assert.deepEqual([expired(aged(days), TODAY), needsPoster(aged(days), TODAY)], [false, false], String(days));
+  }
+  for (const stamp of [addDays(TODAY, 2), addDays(TODAY, 3), addDays(TODAY, 400), "9999-12-31"]) {
+    const row = aged(5, { tmdb_at: stamp });
+    assert.equal(posterAge(row, TODAY), null, stamp);
+    assert.deepEqual([expired(row, TODAY), needsPoster(row, TODAY)], [true, true], stamp);
+    assert.deepEqual(expiredSteps([row], TODAY).map((step) => step.id), [row.id], stamp);
+  }
 });
 
 test("a row with neither poster nor id has nothing to purge, and a hand-typed row needs a lookup at any age", () => {
@@ -225,8 +234,203 @@ test("a store that has not loaded refuses too, so the sweep before the first loa
   assert.equal(server.seen.filter((request) => request.method === "POST").length, 0);
 });
 
-test("the Shell runs the sweep beside the undo sweep, on the rows and today's date, through the store's own many", () => {
+test("the Shell runs the sweep beside the undo sweep, on the server's day, through the store's own many and the readiness deps", () => {
   const shell = readFileSync(new URL("../src/ui/shell.tsx", import.meta.url), "utf8");
-  assert.match(shell, /useEffect\(\(\) => sweepUndone\(rows\.items, actions\.many\), \[rows\.items\]\);\s*useEffect\(\(\) => sweepExpired\(rows\.items, stamp\(\), actions\.many\), \[rows\.items\]\);/);
-  assert.match(shell, /const stamp = useStamp\(\);/);
+  assert.match(shell, /useEffect\(\(\) => sweepUndone\(rows\.items, actions\.many\), \[rows\.items\]\);\s*useEffect\(\(\) => sweepExpired\(rows\.items, sweepDay\(snapshot, actions\.serverNow\(\), timezone\), actions\.many\), \[\.\.\.sweepDeps\(snapshot\), timezone\]\);/);
+  assert.doesNotMatch(shell, /useStamp/);
+});
+
+const ZONE = "Asia/Jakarta";
+
+const SERVER_DAY = "2027-03-01";
+
+const fixedServerDate = (server: ReturnType<typeof createServer>, at = `${SERVER_DAY}T05:00:00Z`) => {
+  server.control.date = () => new Date(at).toUTCString();
+};
+
+const deviceAt = (at: string) => mock.timers.enable({ apis: ["Date"], now: new Date(at) });
+
+test("the sweep day is the server's day in the app's zone, and none while the store is paused, has no side or has not heard from the server", () => {
+  const ready = { paused: false, me: "a" as const };
+  const now = new Date("2027-03-01T20:00:00Z");
+  assert.equal(sweepDay(ready, now, ZONE), "2027-03-02");
+  assert.equal(sweepDay(ready, now, "UTC"), "2027-03-01");
+  assert.equal(sweepDay({ ...ready, paused: true }, now, ZONE), null);
+  assert.equal(sweepDay({ ...ready, me: null }, now, ZONE), null);
+  assert.equal(sweepDay(ready, null, ZONE), null);
+  const calls: number[] = [];
+  sweepExpired([aged(400)], null, async (steps) => (calls.push(steps.length), paused));
+  assert.deepEqual(calls, []);
+});
+
+test("a store learns the server's time from the Date header of its answers, whatever its own clock says, and knows nothing without one", async () => {
+  const server = createServer();
+  fixedServerDate(server);
+  deviceAt("2027-09-17T05:00:00Z");
+  try {
+    const store = client(server, "a").store;
+    assert.equal(store.serverNow(), null);
+    assert.equal(store.getSnapshot().dated, false);
+    await store.open();
+    assert.equal(store.getSnapshot().dated, true);
+    assert.ok(Math.abs(store.serverNow()!.getTime() - new Date(`${SERVER_DAY}T05:00:00Z`).getTime()) < 1000);
+    assert.equal(todayIn(store.serverNow()!, ZONE), SERVER_DAY);
+  } finally {
+    mock.timers.reset();
+  }
+  const bare = createServer();
+  bare.control.date = null;
+  const undated = client(bare, "a").store;
+  await undated.open();
+  idOf(await undated.create("items", { kind: "task", title: "Typed", status: "todo" }));
+  await undated.sync();
+  assert.deepEqual([undated.serverNow(), undated.getSnapshot().dated, undated.getSnapshot().pending], [null, false, 0]);
+});
+
+test("a phone whose clock is 200 days ahead sweeps nothing fresh: the sweep runs on the server's day, and the device's day would have wiped it", async () => {
+  const { server, ids } = await seeded();
+  const days = (extra: Record<string, unknown>) => ({ original_title: "Last Harbour", year: 2017, cover: POSTER, tmdb: 910001, ...extra });
+  const recent = await (async () => {
+    const a = client(server, "a").store;
+    await a.open();
+    return idOf(await a.create("items", { kind: "movie", title: "Baru", status: "want", data: days({ tmdb_at: addDays(SERVER_DAY, -3) }) } as never));
+  })();
+  fixedServerDate(server);
+  deviceAt("2027-09-17T05:00:00Z");
+  try {
+    const ahead = client(server, "a").store;
+    await ahead.open();
+    const items = own(ahead);
+    assert.equal(items.length, 7);
+    const deviceDay = todayIn(new Date(), ZONE);
+    assert.equal(deviceDay, "2027-09-17");
+    assert.equal(expiredSteps(items, deviceDay).length, 7);
+    const posts = server.seen.filter((request) => request.method === "POST").length;
+    sweepExpired(items, sweepDay(ahead.getSnapshot(), ahead.serverNow(), ZONE), ahead.many);
+    await ahead.sync();
+    assert.equal(server.seen.filter((request) => request.method === "POST").length - posts, 1);
+    assert.equal((server.row("items", recent)!.data as { tmdb: number }).tmdb, 910001);
+    for (const id of [ids.fresh, ids.refresh, ids.late]) assert.equal((server.row("items", id)!.data as { tmdb: number }).tmdb, 910001, String(id));
+    for (const id of [ids.purge, ids.more, ids.none]) assert.deepEqual(server.row("items", id)!.data, KEPT, String(id));
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a row stamped in the future is swept on the server's day, a day ahead is kept, and the sweep writes it once", async () => {
+  const { server, a } = await seeded();
+  fixedServerDate(server);
+  const make = async (title: string, stamp: string) =>
+    idOf(await a.create("items", { kind: "movie", title, status: "want", data: { cover: POSTER, tmdb: 910001, tmdb_at: stamp } } as never));
+  const far = await make("Far", "9999-12-31");
+  const year = await make("Year", addDays(SERVER_DAY, 365));
+  const edge = await make("Edge", addDays(SERVER_DAY, 1));
+  const past = await make("Past", addDays(SERVER_DAY, 2));
+  await a.sync();
+  sweepExpired(own(a), sweepDay(a.getSnapshot(), a.serverNow(), ZONE), a.many);
+  await a.sync();
+  for (const id of [far, year, past]) assert.deepEqual(server.row("items", id)!.data, {}, String(id));
+  assert.equal((server.row("items", edge)!.data as { tmdb: number }).tmdb, 910001);
+});
+
+test("offline with no server date yet, the sweep makes no write and no request", async () => {
+  const { server, ids } = await seeded();
+  const persistence = memoryPersistence();
+  const warm = createStore({ persistence, api: createApi(server.as("a"), "a") });
+  await warm.open();
+  const rows = own(warm);
+  server.control.down = true;
+  const cold = createStore({ persistence, api: createApi(server.as("a"), "a") });
+  const posts = server.seen.filter((request) => request.method === "POST").length;
+  await cold.open();
+  assert.equal(cold.serverNow(), null);
+  const sent: unknown[] = [];
+  sweepExpired(own(cold), sweepDay(cold.getSnapshot(), cold.serverNow(), ZONE), async (steps) => (sent.push(...steps), cold.many(steps)));
+  assert.deepEqual(sent, []);
+  assert.equal(server.seen.filter((request) => request.method === "POST").length, posts);
+  assert.equal(cold.getSnapshot().pending, 0);
+  assert.ok(rows.length > 0 && ids.purge.length > 0);
+});
+
+const effect = (store: ReturnType<typeof client>["store"], run: (snapshot: Snapshot) => void) => {
+  let last: readonly unknown[] | null = null;
+  const check = () => {
+    const snapshot = store.getSnapshot();
+    const deps = sweepDeps(snapshot);
+    if (last !== null && deps.every((dep, index) => Object.is(dep, last![index]))) return;
+    last = deps;
+    run(snapshot);
+  };
+  check();
+  return store.subscribe(check);
+};
+
+test("releasing a held store changes only the paused dep of the sweep: same row list, one more reason to run it", async () => {
+  const { server } = await seeded();
+  const store = createStore({ persistence: memoryPersistence(), api: createApi(server.as("a"), "a"), held: true });
+  await store.open();
+  await store.sync();
+  const before = sweepDeps(store.getSnapshot());
+  store.release();
+  const after = sweepDeps(store.getSnapshot());
+  assert.deepEqual(after.map((dep, index) => !Object.is(dep, before[index])), [false, true, false, false]);
+  assert.deepEqual([before[1], after[1], after[3]], [true, false, true]);
+});
+
+test("an expired row is swept after the reconnect: the effect runs again when the held store is released, though the row list is the same", async () => {
+  const { server, ids } = await seeded();
+  fixedServerDate(server);
+  const store = createStore({ persistence: memoryPersistence(), api: createApi(server.as("a"), "a"), held: true });
+  await store.open();
+  const runs: (string | null)[] = [];
+  const stop = effect(store, (snapshot) => {
+    const day = sweepDay(snapshot, store.serverNow(), ZONE);
+    runs.push(day);
+    sweepExpired(snapshot.rows.items, day, store.many);
+  });
+  await store.sync();
+  assert.deepEqual(runs, [null]);
+  assert.equal((server.row("items", ids.purge)!.data as { tmdb: number }).tmdb, 910001);
+  store.release();
+  await store.sync();
+  stop();
+  assert.equal(runs[0], null);
+  assert.equal(runs[1], SERVER_DAY);
+  assert.deepEqual(server.row("items", ids.purge)!.data, KEPT);
+  assert.equal((server.row("items", ids.fresh)!.data as { tmdb: number }).tmdb, 910001);
+});
+
+test("the sweep runs again when the first answer from the server arrives after the rows were already on the phone", async () => {
+  const { server, ids } = await seeded();
+  fixedServerDate(server);
+  const persistence = memoryPersistence();
+  const warm = createStore({ persistence, api: createApi(server.as("a"), "a") });
+  await warm.open();
+  server.control.down = true;
+  const store = createStore({ persistence, api: createApi(server.as("a"), "a") });
+  await store.open();
+  const runs: (string | null)[] = [];
+  const stop = effect(store, (snapshot) => {
+    const day = sweepDay(snapshot, store.serverNow(), ZONE);
+    runs.push(day);
+    sweepExpired(snapshot.rows.items, day, store.many);
+  });
+  assert.deepEqual(runs, [null]);
+  assert.equal(store.getSnapshot().rows.items.length, 6);
+  server.control.down = false;
+  await store.sync();
+  stop();
+  assert.equal(runs[1], SERVER_DAY);
+  assert.deepEqual(server.row("items", ids.purge)!.data, KEPT);
+});
+
+test("an idle store that gets the same answer again does not wake the Shell: the date arrives once", async () => {
+  const server = createServer();
+  const store = client(server, "a").store;
+  await store.open();
+  let emits = 0;
+  store.subscribe(() => emits++);
+  await store.sync();
+  await store.sync();
+  assert.equal(emits, 0);
 });

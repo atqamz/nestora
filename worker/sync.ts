@@ -1,4 +1,4 @@
-import { MAX_BODY_BYTES, MAX_MUTATIONS, applyPatch, toInstant } from "../shared/api.ts";
+import { MAX_BODY_BYTES, MAX_MUTATIONS, POSTER_KEYS, POSTER_PURGE, applyPatch, dropsPoster, toInstant, withoutPoster } from "../shared/api.ts";
 import type { Changes, Mutation, Rejection, Side, SyncResponse, SyncResult } from "../shared/api.ts";
 import { ACTION_KINDS } from "../shared/routines.ts";
 import { tableNames, tables } from "../shared/tables.ts";
@@ -151,7 +151,14 @@ const insert = (ctx: Context, name: TableName, mutation: Mutation): Failure | St
 };
 
 const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: Raw): Failure | Statement | undefined => {
-  const revives = Object.keys(patch).filter((key) => key !== "updated_at").join() === "deleted_at" && patch.deleted_at === null;
+  const revives =
+    patch.deleted_at === null &&
+    Object.entries(patch).every(
+      ([key, value]) =>
+        key === "deleted_at" ||
+        key === "updated_at" ||
+        (key === "data" && dropsPoster(name, stored) && typeof value === "object" && value !== null && Object.keys(value).every((held) => POSTER_KEYS.some((poster) => poster === held))),
+    );
   if (stored.deleted_at !== null && !revives) return undefined;
   const errors = validateChange(name, stored, patch);
   if (errors.length > 0) return { status: 400, errors };
@@ -166,8 +173,9 @@ const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: R
 
 const remove = (ctx: Context, name: TableName, id: string, stored: Raw): Failure | Statement | undefined => {
   if (stored.deleted_at !== null) return undefined;
-  ctx.world[name].set(id, { ...stored, deleted_at: ctx.stamp, updated_at: ctx.stamp, updated_by: ctx.who });
-  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, {});
+  ctx.world[name].set(id, { ...withoutPoster(name, stored), deleted_at: ctx.stamp, updated_at: ctx.stamp, updated_by: ctx.who });
+  const { data } = dropsPoster(name, stored) ? differences(name, stored, { data: POSTER_PURGE }) : { data: {} };
+  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, data);
 };
 
 const step = (ctx: Context, mutation: Mutation): Failure | Statement | undefined => {

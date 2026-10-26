@@ -20,6 +20,7 @@ export type Snapshot = {
   storage: "ok" | "failed";
   notice: { discarded: number } | null;
   paused: boolean;
+  dated: boolean;
 };
 
 export type Written = { ok: true; id: string } | { ok: false; errors: string[]; storage?: true; paused?: true; step?: number };
@@ -53,6 +54,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let epoch: string | null = null;
   let generation: string | null = null;
   let verified = false;
+  let skew: number | null = null;
   let notice: Snapshot["notice"] = null;
   let me: Side | null = null;
   let link: Link = "online";
@@ -64,7 +66,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let sending: ReadonlySet<number> = new Set();
   let running: Promise<void> | null = null;
   let again = false;
-  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held };
+  let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held, dated: false };
   const listeners = new Set<() => void>();
 
   const emit = () => {
@@ -80,6 +82,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       storage,
       notice,
       paused: held,
+      dated: skew !== null,
     };
     for (const listener of listeners) listener();
   };
@@ -107,6 +110,10 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   };
 
   const persist = (write: Write) => persisting(() => persistence.write(write));
+
+  const learn = (served: number | null) => {
+    if (served !== null) skew = served - Date.now();
+  };
 
   const holdsServerData = () => rev > 0 || tableNames.some((table) => base[table].size > 0);
 
@@ -172,7 +179,9 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       rev = next;
       me = res.body.me;
       verified = true;
-      const quiet = unchanged && link === "online";
+      const wasDated = skew !== null;
+      learn(res.served);
+      const quiet = unchanged && link === "online" && wasDated === (skew !== null);
       link = "online";
       if (!quiet) emit();
       if (!photoChecked) {
@@ -196,6 +205,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       try {
         const res = await api.push(batch.map(wire));
         if (res.kind === "ok") {
+          learn(res.served);
           if ((await reconcile(res.body, batch.length)) === "reset") continue;
           const rows = newer(base, res.body.rows);
           await persist({ rows, outbox: { drop: batch.map((entry) => entry.seq) } });
@@ -403,6 +413,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       return () => void listeners.delete(listener);
     },
     getSnapshot: () => snapshot,
+    serverNow: () => (skew === null ? null : new Date(Date.now() + skew)),
     open,
     sync,
     create,

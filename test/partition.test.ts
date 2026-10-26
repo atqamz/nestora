@@ -107,7 +107,7 @@ test("a fresh browser asks the server for the side with a bare probe, then opens
   const server = createServer();
   const p = await profile(server, "a");
   const tab = p.tab();
-  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true });
+  assert.deepEqual(tab.getSnapshot(), { ready: false, me: null, rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "offline", storage: "ok", notice: null, paused: true, dated: false });
   await tab.open();
   const snap = tab.getSnapshot();
   assert.deepEqual([snap.ready, snap.me, snap.link, snap.paused], [true, "a", "online", false]);

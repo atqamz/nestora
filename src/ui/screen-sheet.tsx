@@ -6,7 +6,7 @@ import { adopt, heldIds, heldPick, letGo } from "../domain/tmdb.ts";
 import type { Picked, ScreenHit } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useScreenSearch } from "../hooks/use-lookup.ts";
-import { usePartner, useStamp } from "../hooks/use-plan.ts";
+import { usePartner, useStamp, useTmdbDay } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { ownerOptions } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
@@ -23,6 +23,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const items = useTable("items");
   const { label } = usePartner();
   const stamp = useStamp();
+  const tmdbDay = useTmdbDay();
   const { busy, once } = useBusy();
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
@@ -59,7 +60,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
     setAttempt(true);
     if (problems.title !== undefined || problems.year !== undefined) return;
     return once(async () => {
-      const result = await saveScreen(items, actions.create, { kind, title, year, status, who, picked: settled }, stamp());
+      const result = await saveScreen(items, actions.create, { kind, title, year, status, who, picked: settled }, stamp(), tmdbDay());
       setFailure(failureOf(result));
       if (!result.ok) return;
       overlay.announce(text.screen.added(title.trim()));

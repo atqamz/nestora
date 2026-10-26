@@ -20,6 +20,7 @@ export const actions = {
   discard: store.discard,
   dismissNotice: store.dismissNotice,
   sync: store.sync,
+  serverNow: store.serverNow,
   logIn: () => location.assign(LOGIN_URL),
   reload: () => location.reload(),
 };

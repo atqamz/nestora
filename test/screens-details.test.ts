@@ -22,7 +22,7 @@ const JSON_TYPE = { "content-type": "application/json" };
 
 type Answer = (query: URL, call: number) => Response | ScreenHit[];
 
-const rig = (rows: ItemRow[], options: { answer?: Answer; online?: boolean; save?: "fail" } = {}) => {
+const rig = (rows: ItemRow[], options: { answer?: Answer; online?: boolean; save?: "fail"; during?: (table: Map<string, ItemRow>) => void } = {}) => {
   const clock = { now: 0, waits: [] as number[], calls: [] as string[], starts: [] as number[], ends: [] as number[] };
   const wait = async (ms: number) => {
     clock.waits.push(ms);
@@ -35,6 +35,7 @@ const rig = (rows: ItemRow[], options: { answer?: Answer; online?: boolean; save
     await Promise.resolve();
     clock.now += 40;
     clock.ends.push(clock.now);
+    options.during?.(table);
     const given = options.answer?.(url, clock.calls.length) ?? [];
     return given instanceof Response ? given : new Response(JSON.stringify({ hits: given }), { headers: JSON_TYPE });
   };
@@ -203,9 +204,17 @@ test("an id TMDB no longer knows purges the three keys and nothing else, counts 
   assert.equal(needsPoster(after, TODAY), true);
 });
 
-test("an answer for another id than the one asked is a purge, not a refresh to the wrong item", async () => {
+test("an answer about another id than the one asked is a failure, neither a refresh to the wrong item nor a purge", async () => {
   const row = stamped(130);
-  const { run, saved } = rig([row], { answer: () => [harbour({ tmdb: 910777 })] });
+  const { run, saved, steps } = rig([row], { answer: () => [harbour({ tmdb: 910777 })] });
+  await run();
+  assert.deepEqual(saved, []);
+  assert.deepEqual(steps.map(([, tally]) => tally), [{ ...empty, failed: 1 }]);
+});
+
+test("an answer with no hit at all for the id is the one that purges", async () => {
+  const row = stamped(130);
+  const { run, saved } = rig([row], { answer: () => [] });
   await run();
   assert.deepEqual(saved, [[row.id, { cover: null, tmdb: null, tmdb_at: null }]]);
 });
@@ -216,11 +225,11 @@ test("a row picked or edited while its lookup was out is left alone", async () =
   const original = gotId.table.get(row.id)!;
   gotId.table.set(row.id, { ...original, data: { ...original.data } });
   const lookup = createLookup({ fetcher: async () => (gotId.table.set(row.id, { ...original, data: { ...original.data, tmdb: 5, tmdb_at: TODAY } }), new Response(JSON.stringify({ hits: [harbour()] }), { headers: JSON_TYPE })), wait: 0 });
-  assert.deepEqual(await fillScreen(lookup, () => gotId.table.get(row.id)!, TODAY), { kind: "nothing" });
+  assert.deepEqual(await fillScreen(lookup, () => gotId.table.get(row.id)!, TODAY), { kind: "changed" });
   const refreshed = stamped(130);
   const moved = new Map([[refreshed.id, refreshed]]);
   const byId = createLookup({ fetcher: async () => (moved.set(refreshed.id, { ...refreshed, data: { ...refreshed.data, tmdb: 6 } }), new Response(JSON.stringify({ hits: [harbour()] }), { headers: JSON_TYPE })), wait: 0 });
-  assert.deepEqual(await fillScreen(byId, () => moved.get(refreshed.id)!, TODAY), { kind: "nothing" });
+  assert.deepEqual(await fillScreen(byId, () => moved.get(refreshed.id)!, TODAY), { kind: "changed" });
 });
 
 test("a book row is not a screen: nothing is asked and nothing is written", async () => {
@@ -318,4 +327,90 @@ test("fillScreen answers nothing for a book and empty for a title with no hits, 
   const row = typed("Pelabuhan Terakhir", { year: 2017 });
   assert.deepEqual(await fillScreen(lookup, () => row, TODAY), { kind: "empty" });
   assert.deepEqual(await fillScreen(lookup, () => typed("Pelabuhan Terakhir"), TODAY), { kind: "empty" });
+});
+
+const edit = (id: string, change: (row: ItemRow) => Partial<ItemRow>) => (table: Map<string, ItemRow>) => {
+  const row = table.get(id)!;
+  table.set(id, { ...row, ...change(row) });
+};
+
+test("a row renamed while its lookup was out is not written: the pass counts it as skipped and leaves the other partner's title alone", async () => {
+  const row = typed("Pelabuhan Terakhir", { year: 2017 });
+  const { run, saved, steps, table } = rig([row], { answer: () => [harbour()], during: edit(row.id, () => ({ title: "Pelabuhan Terakhir Redux" })) });
+  assert.equal(await run(), "finished");
+  assert.deepEqual(saved, []);
+  assert.deepEqual(steps.map(([, tally]) => tally), [{ ...empty, unsure: 1 }]);
+  assert.equal(table.get(row.id)!.title, "Pelabuhan Terakhir Redux");
+});
+
+test("a year or an original title changed while the lookup was out is the same: nothing is written", async () => {
+  for (const change of [
+    (current: ItemRow) => ({ data: { ...current.data, year: 2018 } }),
+    (current: ItemRow) => ({ data: { ...current.data, year: undefined } }),
+    (current: ItemRow) => ({ data: { ...current.data, original_title: "Last Harbour" } }),
+  ]) {
+    const row = typed("Pelabuhan Terakhir", { year: 2017 });
+    const { run, saved, steps } = rig([row], { answer: () => [harbour({ original: "Last Harbour" })], during: edit(row.id, change) });
+    await run();
+    assert.deepEqual(saved, [], JSON.stringify(change(row)));
+    assert.deepEqual(steps.map(([, tally]) => tally.unsure), [1]);
+  }
+});
+
+test("a year added while the lookup was out on a row that had none is a change too, and a field that does not identify the row is not", async () => {
+  const bare = typed("Pelabuhan Terakhir");
+  const gained = rig([bare], { answer: () => [harbour()], during: edit(bare.id, (current) => ({ data: { ...current.data, year: 2017 } })) });
+  await gained.run();
+  assert.deepEqual(gained.saved, []);
+  for (const change of [{ note: "Together" }, { status: "watching" }, { who: "a" }] as Partial<ItemRow>[]) {
+    const row = typed("Pelabuhan Terakhir", { year: 2017 });
+    const same = rig([row], { answer: () => [harbour()], during: edit(row.id, () => change) });
+    await same.run();
+    assert.equal(same.saved.length, 1, JSON.stringify(change));
+  }
+});
+
+test("a refresh by id for a row renamed while the lookup was out is skipped, and a purge is not done to a row that changed", async () => {
+  const row = stamped(130);
+  for (const answer of [() => [harbour()], () => []]) {
+    const { run, saved, steps } = rig([row], { answer, during: edit(row.id, () => ({ title: "Another Name" })) });
+    await run();
+    assert.deepEqual(saved, []);
+    assert.deepEqual(steps.map(([, tally]) => tally), [{ ...empty, unsure: 1 }]);
+  }
+});
+
+test("the patch is built from the row as it is when the answer lands, not from the row the pass started with", async () => {
+  const bare = typed("Pelabuhan Terakhir", { year: 2017 });
+  const covered = rig([bare], { answer: () => [harbour()], during: edit(bare.id, (current) => ({ data: { ...current.data, cover: OLD } })) });
+  await covered.run();
+  assert.deepEqual(covered.saved, [[bare.id, { tmdb: 910001, tmdb_at: TODAY }]]);
+  const row = stamped(130);
+  const same = rig([row], { answer: () => [harbour({ cover: NEW })], during: edit(row.id, (current) => ({ data: { ...current.data, cover: NEW } })) });
+  await same.run();
+  assert.deepEqual(same.saved, [[row.id, { tmdb: 910001, tmdb_at: TODAY, year: 2017 }]]);
+});
+
+test("a series is refreshed by id as a series, never as a movie", async () => {
+  const show = stamped(130, {}, "series");
+  const { run, clock, saved } = rig([show], { answer: () => [harbour({ kind: "series" })] });
+  await run();
+  assert.deepEqual(clock.calls, ["/api/lookup/screen?kind=series&id=910001"]);
+  assert.equal(saved.length, 1);
+  const film = rig([stamped(130)], { answer: () => [harbour()] });
+  await film.run();
+  assert.deepEqual(film.clock.calls, ["/api/lookup/screen?kind=movie&id=910001"]);
+});
+
+test("a title that only contains the hit's, or the other way round, is not the row: Dune is not Dune: Part Two", async () => {
+  for (const [title, hit] of [["Dune", "Dune: Part Two"], ["Dune: Part Two", "Dune"], ["Dune", "Dunes"], ["Dune Part Two", "Dune"]]) {
+    const row = typed(title);
+    const { run, saved, steps } = rig([row], { answer: () => [harbour({ title: hit, original: null, year: null })] });
+    await run();
+    assert.deepEqual(saved, [], `${title} / ${hit}`);
+    assert.deepEqual(steps.map(([, tally]) => tally.unsure), [1], `${title} / ${hit}`);
+  }
+  const exact = rig([typed("Dune")], { answer: () => [harbour({ title: "DUNE", original: null, year: null })] });
+  await exact.run();
+  assert.equal(exact.saved.length, 1);
 });

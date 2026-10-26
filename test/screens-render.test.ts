@@ -1,5 +1,6 @@
 import { after, before, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { addDays } from "../src/domain/dates.ts";
@@ -37,7 +38,7 @@ const posters = (html: string) => /<div class="posters">(.*?)<\/div><\/div>/.exe
 
 test("a list with a row typed by hand offers Find posters with the count, in one polite status line, between the add button and the search", async () => {
   const html = await page([typed("Pengabdi Setan")]);
-  assert.equal(posters(html), '<div class="posters"><p class="hint imp-progress" role="status">1 poster needs a refresh</p><div class="imp-acts"><button type="button" class="secondary">Find posters</button></div></div>');
+  assert.equal(posters(html), '<div class="posters"><p class="hint imp-progress" role="status" tabindex="-1">1 poster needs a refresh</p><div class="imp-acts"><button type="button" class="secondary">Find posters</button></div></div>');
   assert.ok(html.indexOf('class="bk-tools"') < html.indexOf('class="posters"'));
   assert.ok(html.indexOf('class="posters"') < html.indexOf('role="search"'));
   assert.equal(html.match(/role="status"/g)?.length, 1);
@@ -52,7 +53,7 @@ test("the count follows the rows of this screen only, and says posters from two 
 
 test("a row is offered a refresh from day 120 and not before, and a fresh or poster-less row with an id is never offered one", async () => {
   for (const days of [0, 119]) assert.equal(posters(await page([fetched("Seen", days)])), "", String(days));
-  for (const days of [120, 169, 170]) assert.match(await page([fetched("Seen", days)]), /<p class="hint imp-progress" role="status">1 poster needs a refresh<\/p>/, String(days));
+  for (const days of [120, 169, 170]) assert.match(await page([fetched("Seen", days)]), /<p class="hint imp-progress" role="status" tabindex="-1">1 poster needs a refresh<\/p>/, String(days));
   assert.equal(posters(await page([fetched("No poster", 10, "movie", { cover: null })])), "");
   assert.match(await page([fetched("No stamp", null)]), /1 poster needs a refresh/);
 });
@@ -134,4 +135,70 @@ test("Movies and Series are separate list instances, so a search, an open sheet 
   const series = screens!({ kind: "series" });
   assert.deepEqual([movies.key, series.key, movies.type.name, series.type.name], ["movie", "series", "ScreenList", "ScreenList"]);
   assert.equal(screens!({ kind: "movie", id: "x" }).key, "x");
+});
+
+const REMOVE = '<button type="button" class="secondary">Remove poster</button>';
+
+test("a detail page offers Remove poster while the row holds a poster or an id, and not otherwise", async () => {
+  for (const data of [{ cover: POSTER }, { tmdb: 910001 }, { cover: POSTER, tmdb: 910001, tmdb_at: addDays(TODAY, -3) }, { cover: "https://example.test/other.jpg" }]) {
+    const row = item({ kind: "movie", status: "want", title: "Seen", data });
+    assert.match(await page([row], "movie", row.id), new RegExp(`<p>${REMOVE}</p>`), JSON.stringify(data));
+  }
+  for (const data of [null, { year: 2001 }, { tmdb_at: addDays(TODAY, -3) }, { cover: null, tmdb: null }]) {
+    const row = item({ kind: "movie", status: "want", title: "Typed", data });
+    assert.doesNotMatch(await page([row], "movie", row.id), /Remove poster/, JSON.stringify(data));
+  }
+  const show = fetched("Show", 5, "series");
+  assert.match(await page([show], "series", show.id), /Remove poster/);
+});
+
+test("Remove poster comes after the TMDB link and before the edit form, and nothing else is added to the detail", async () => {
+  const row = fetched("Seen", 5);
+  const html = await page([row], "movie", row.id);
+  assert.ok(html.indexOf("Open on TMDB") < html.indexOf("Remove poster"));
+  assert.ok(html.indexOf("Remove poster") < html.indexOf('id="sc-edit"'));
+  assert.equal(html.split("Remove poster").length, 2);
+  assert.equal(html.match(/<h2/g)?.length, 2);
+});
+
+const barHtml = async (props: Record<string, unknown>) =>
+  plain(await markupOf("ui/screen-posters.tsx", ({ PostersBar }) => createElement(PostersBar, { line: "Line", remaining: 0, again: false, start: () => {}, stop: () => {}, ...props })));
+
+test("the Stop button is disabled while stopping and live while running, and Find posters or Resume shows only while rows remain", async () => {
+  assert.match(await barHtml({ phase: "running" }), /<button type="button" class="secondary">Stop<\/button>/);
+  assert.match(await barHtml({ phase: "stopping" }), /<button type="button" class="secondary" disabled="">Stop<\/button>/);
+  assert.match(await barHtml({ phase: "idle", remaining: 2 }), /<button type="button" class="secondary">Find posters<\/button>/);
+  assert.match(await barHtml({ phase: "idle", remaining: 2, again: true }), />Resume</);
+  assert.match(await barHtml({ phase: "stopped", remaining: 2, again: true }), />Resume</);
+  assert.doesNotMatch(await barHtml({ phase: "idle", remaining: 0 }), /<button/);
+  assert.doesNotMatch(await barHtml({ phase: "stopped", remaining: 0, again: true }), /<button/);
+  assert.doesNotMatch(await barHtml({ phase: "offline", remaining: 0, again: true }), /<button/);
+});
+
+test("when a pass ends with nothing left the Stop button stays in the layout, hidden, so the list below does not jump; with rows left Find posters shows", async () => {
+  const spent = await barHtml({ phase: "finished", remaining: 0, again: true });
+  assert.match(spent, /<button type="button" class="secondary" data-spent="true">Stop<\/button>/);
+  assert.doesNotMatch(spent, /Find posters|Resume/);
+  const css = readFileSync(new URL("../src/views/books.css", import.meta.url), "utf8");
+  assert.match(css, /\.posters \[data-spent\]\s*\{\s*visibility:\s*hidden;\s*\}/);
+  const more = await barHtml({ phase: "finished", remaining: 1, again: true });
+  assert.match(more, />Resume</);
+  assert.doesNotMatch(more, /data-spent/);
+  assert.doesNotMatch(await barHtml({ phase: "running", remaining: 0 }), /data-spent/);
+});
+
+test("the status line can take focus by script only, and is the same polite status as before", async () => {
+  assert.match(await barHtml({ phase: "finished", line: "Done." }), /<p class="hint imp-progress" role="status" tabindex="-1">Done\.<\/p>/);
+});
+
+test("focus moves to the status line when a pass finishes and focus was in the block or lost, and never when it sits elsewhere or the pass did not finish", async () => {
+  let takes: (phase: string, inside: boolean, active: unknown, body: unknown) => boolean;
+  await markupOf("ui/screen-posters.tsx", (loaded) => ((takes = loaded.takesFocus), createElement("p")));
+  const body = {};
+  const field = {};
+  assert.equal(takes!("finished", true, field, body), true);
+  assert.equal(takes!("finished", false, body, body), true);
+  assert.equal(takes!("finished", false, null, body), true);
+  assert.equal(takes!("finished", false, field, body), false);
+  for (const phase of ["idle", "running", "stopping", "stopped", "offline", "busy"]) assert.equal(takes!(phase, true, body, body), false, phase);
 });
