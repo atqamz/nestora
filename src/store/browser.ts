@@ -3,6 +3,7 @@ import { createApi } from "./api.ts";
 import { indexedDbDisk } from "./db.ts";
 import { createFeed } from "./feed.ts";
 import { createSession, sideHint } from "./partition.ts";
+import { placeStore } from "./places.ts";
 import { timerStore } from "./timers.ts";
 
 export const tabStorage = (() => {
@@ -15,12 +16,17 @@ export const tabStorage = (() => {
 
 export const timers = timerStore(tabStorage);
 
+export const places = placeStore(tabStorage, sideHint(localStorage).get);
+
 export const feedOf = (side: Side) => createFeed((url, init) => fetch(url, init), side);
 
 export const store = createSession({
   disk: indexedDbDisk(),
   hint: sideHint(localStorage),
-  purge: timers.purge,
+  purge: (side) => {
+    timers.purge(side);
+    places.purge(side);
+  },
   api: (side) => createApi((url, init) => fetch(url, init), side),
 });
 

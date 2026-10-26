@@ -1,12 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { placeStore } from "../src/store/places.ts";
+import type { Places } from "../src/store/places.ts";
+import type { Held } from "../src/store/timers.ts";
 
 class FakeElement {
   focused = 0;
   options: unknown;
   href: string | null;
   tab: boolean;
+  top = 100;
+  height = 20;
+  closedIn: FakeElement | null = null;
+  summary: FakeElement | null = null;
+  parentElement: FakeElement | null = null;
   constructor(href: string | null = null, tab = false) {
     this.href = href;
     this.tab = tab;
@@ -14,8 +22,14 @@ class FakeElement {
   getAttribute(name: string) {
     return name === "href" ? this.href : null;
   }
-  closest() {
-    return this;
+  getBoundingClientRect() {
+    return { top: this.top, bottom: this.top + this.height, height: this.height };
+  }
+  closest(selector: string) {
+    return selector === "a" ? this : this.closedIn;
+  }
+  querySelector(selector: string) {
+    return selector === "summary" ? this.summary : null;
   }
   matches() {
     return this.tab;
@@ -23,12 +37,13 @@ class FakeElement {
   focus(options?: unknown) {
     this.options = options;
     this.focused++;
-    world.focus = this;
+    if (this.height > 0) world.focus = this;
   }
 }
 
 type Entry = { hash: string; state: unknown };
-type Listener = (event?: { target?: unknown }) => void;
+type Event = { target?: unknown; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number };
+type Listener = (event?: Event) => void;
 
 const world = {
   entries: [{ hash: "", state: null }] as Entry[],
@@ -47,10 +62,13 @@ const world = {
   across: 0,
   options: new Map<string, unknown>(),
   store: new Map<string, string>(),
+  side: "a" as "a" | "b" | null,
+  tabbable: [] as FakeElement[],
+  sealed: false,
 };
 
 const on = (type: string, listener: Listener) => world.listeners.set(type, [...(world.listeners.get(type) ?? []), listener]);
-const fire = (type: string, event?: { target?: unknown }) => world.listeners.get(type)?.forEach((listener) => listener(event));
+const fire = (type: string, event?: Event) => world.listeners.get(type)?.forEach((listener) => listener(event));
 const clamp = (y: number) => Math.max(0, Math.min(world.max, y));
 
 Object.assign(globalThis, {
@@ -69,7 +87,10 @@ Object.assign(globalThis, {
   requestAnimationFrame: (run: () => void) => world.frames.push(run),
   document: {
     addEventListener: (type: string, listener: Listener) => on(`document:${type}`, listener),
-    querySelectorAll: (selector: string) => (selector === "main details" ? world.open : selector === "main a" ? world.links : []),
+    get activeElement() {
+      return world.focus;
+    },
+    querySelectorAll: (selector: string) => (selector === "main details" ? world.open : selector === "main a" ? world.links : selector.includes("summary") ? world.tabbable : []),
     querySelector: (selector: string) => (selector === "h1" ? world.heading : null),
   },
   history: {
@@ -78,6 +99,7 @@ Object.assign(globalThis, {
       return world.entries[world.at].state;
     },
     replaceState: (state: unknown) => {
+      if (world.sealed) throw new Error("SecurityError");
       world.entries[world.at].state = state;
     },
   },
@@ -87,21 +109,30 @@ Object.assign(globalThis, {
     },
   },
 });
+Object.assign(globalThis, { innerHeight: 800 });
 Object.defineProperty(globalThis, "scrollY", { configurable: true, get: () => world.y });
 
-const storage = () => ({
-  getItem: (key: string) => world.store.get(key) ?? null,
-  setItem: (key: string, value: string) => void world.store.set(key, value),
+const held = (): Held => ({
+  get length() {
+    return world.store.size;
+  },
+  key: (at) => [...world.store.keys()][at] ?? null,
+  getItem: (key) => world.store.get(key) ?? null,
+  setItem: (key, value) => void world.store.set(key, value),
+  removeItem: (key) => void world.store.delete(key),
 });
+
+const places = (side: "a" | "b" | null = world.side) => placeStore(held(), () => side);
 
 let loads = 0;
 const load = async () => {
   world.listeners.clear();
-  return (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: ReturnType<typeof storage> | null) => void; landPlace: (how: "first" | "move" | "beside") => void };
+  const module = (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: Places, hidden: (route: string) => boolean) => void; landPlace: (how: "first" | "move" | "beside") => void };
+  return { landPlace: module.landPlace, startPlace: (kept: Places, hidden: (route: string) => boolean = () => false) => module.startPlace(kept, hidden) };
 };
 
 const reset = (hash: string) => {
-  Object.assign(world, { entries: [{ hash, state: null }], at: 0, y: 0, max: 3000, open: [], links: [], heading: new FakeElement(), focus: null, frames: [], scrolls: 0, behaviors: new Set<string>(), drift: 0, across: 0, options: new Map<string, unknown>() });
+  Object.assign(world, { entries: [{ hash, state: null }], at: 0, y: 0, max: 3000, open: [], links: [], heading: new FakeElement(), focus: null, frames: [], scrolls: 0, behaviors: new Set<string>(), drift: 0, across: 0, options: new Map<string, unknown>(), tabbable: [], side: "a", sealed: false });
   world.store.clear();
 };
 
@@ -134,21 +165,21 @@ const forward = () => {
   fire("hashchange");
 };
 const focused = () => world.focus;
-const click = (link: FakeElement) => fire("document:click", { target: link });
+const click = (link: FakeElement, event: Event = {}) => fire("document:click", { target: link, ...event });
 
 const ROUTINE = "#/routines/r1";
 
 test("startPlace takes over scroll restoration from the browser", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   assert.equal(history.scrollRestoration, "manual");
 });
 
 test("Back restores the scroll position and the open state, and focuses the link that was opened", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   place.landPlace("first");
   page([ROUTINE, "#/books"], [false, true]);
   world.y = 1500;
@@ -176,7 +207,7 @@ test("Back restores the scroll position and the open state, and focuses the link
 test("forward navigation lands at the top with focus on the heading", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   place.landPlace("first");
   page([ROUTINE]);
   world.y = 1500;
@@ -192,7 +223,7 @@ test("forward navigation lands at the top with focus on the heading", async () =
 test("Forward after Back restores the later screen too", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 100;
   push("#/routines/r1");
@@ -210,7 +241,7 @@ test("Forward after Back restores the later screen too", async () => {
 test("a link back to the screen this one was opened from returns to where that screen was left", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 1500;
   push("#/routines/r1");
@@ -227,7 +258,7 @@ test("a link back to the screen this one was opened from returns to where that s
 test("a link to a screen that was not the one it was opened from lands at the top", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/routines"]);
   world.y = 700;
   push("#/routines");
@@ -248,7 +279,7 @@ test("a link to a screen that was not the one it was opened from lands at the to
 test("a tab link returns to the tab's own position, and a plain link to the same screen does not", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/routines"]);
   world.y = 1200;
   click(new FakeElement("#/routines", true));
@@ -291,7 +322,7 @@ test("a tab link returns to the tab's own position, and a plain link to the same
 test("a click on a link that is not a tab does not turn the next navigation into a tab change", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/routines"]);
   world.y = 900;
   push("#/routines");
@@ -310,7 +341,7 @@ test("a click on a link that is not a tab does not turn the next navigation into
 test("a tab click that goes nowhere is not remembered for a later plain link", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/routines"]);
   world.y = 900;
   push("#/routines");
@@ -326,7 +357,7 @@ test("a tab click that goes nowhere is not remembered for a later plain link", a
 test("a screen replaced by another returns to the position of the screen it was opened from", async () => {
   reset("#/routines/r1");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/routines/r1/start"]);
   world.y = 400;
   push("#/routines/r1/start");
@@ -341,7 +372,7 @@ test("a screen replaced by another returns to the position of the screen it was 
 
 test("a reload restores the position without moving focus", async () => {
   reset("#/");
-  const kept = storage();
+  const kept = places();
   const first = await load();
   first.startPlace(kept);
   page([ROUTINE], [true]);
@@ -361,7 +392,7 @@ test("a reload restores the position without moving focus", async () => {
 test("a first visit leaves the scroll and the focus alone", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 300;
   place.landPlace("first");
@@ -373,7 +404,7 @@ test("a first visit leaves the scroll and the focus alone", async () => {
 test("content that arrives late is waited for, and the position is applied once it is tall enough", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 1500;
   push("#/routines/r1");
@@ -399,7 +430,7 @@ test("a touch, wheel, key or pointer press stops the restoring", async () => {
   for (const type of ["wheel", "touchstart", "keydown", "pointerdown"]) {
     reset("#/");
     const place = await load();
-    place.startPlace(storage());
+    place.startPlace(places());
     page([ROUTINE]);
     world.y = 1500;
     push("#/routines/r1");
@@ -419,7 +450,7 @@ test("a touch, wheel, key or pointer press stops the restoring", async () => {
 test("a restore that has not finished is dropped when the route changes again", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 1500;
   push("#/routines/r1");
@@ -438,7 +469,7 @@ test("a restore that has not finished is dropped when the route changes again", 
 test("saved open states that no longer match the page are left alone", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE], [false, true]);
   world.y = 100;
   push("#/routines/r1");
@@ -456,34 +487,30 @@ test("saved open states that no longer match the page are left alone", async () 
 test("a broken session storage never throws", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace({
-    getItem: () => {
-      throw new Error("blocked");
-    },
-    setItem: () => {
-      throw new Error("blocked");
-    },
-  });
+  const blocked = () => {
+    throw new Error("blocked");
+  };
+  place.startPlace(placeStore({ length: 1, key: blocked, getItem: blocked, setItem: blocked, removeItem: blocked }, () => "a"));
   page([ROUTINE]);
   push("#/routines/r1");
   fire("pagehide");
-  place.startPlace(null);
+  place.startPlace(placeStore(null, () => "a"));
 });
 
 test("main hands every route change to the place module and keeps the split-view branches", () => {
   const main = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-  assert.match(main, /startPlace\(tabStorage\);/);
+  assert.match(main, /startPlace\(places, \(route\) => \{/);
   assert.match(main, /useLayoutEffect\(\(\) => \{\s*const now = document\.querySelector\("\.split"\);/);
   assert.match(main, /const how = first\.current \? "first" : selecting \|\| closing \? "beside" : "move";/);
   assert.match(main, /first\.current = false;\s*landPlace\(how\);\s*if \(closing\) \(row \?\? document\.querySelector<HTMLElement>\("h1"\)\)\?\.focus\(\{ preventScroll: !row \}\)/);
   assert.doesNotMatch(main, /scrollTo\(/);
-  assert.match(readFileSync(new URL("../src/store/browser.ts", import.meta.url), "utf8"), /export const tabStorage = /);
+  assert.match(readFileSync(new URL("../src/store/browser.ts", import.meta.url), "utf8"), /export const places = placeStore\(tabStorage/);
 });
 
 test("an entry on the same screen under another spelling of the address gets its own place", async () => {
   reset("");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 800;
   push("#/");
@@ -506,7 +533,7 @@ test("an entry on the same screen under another spelling of the address gets its
 test("beside a split pane the position comes back but focus stays with the pane code, and a plain selection leaves the page alone", async () => {
   reset("#/guests");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page(["#/guests/g1"]);
   world.y = 150;
   push("#/guests/g1");
@@ -526,7 +553,7 @@ test("beside a split pane the position comes back but focus stays with the pane 
 test("a screen visited again is remembered where it was left the second time", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 500;
   push("#/routines/r1");
@@ -549,7 +576,7 @@ test("a screen visited again is remembered where it was left the second time", a
 test("the same arrival handled twice leaves the page where the first one put it", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 500;
   push("#/routines/r1");
@@ -569,18 +596,18 @@ test("the same arrival handled twice leaves the page where the first one put it"
 test("the places are written to the session storage on every navigation, not only when the page is hidden", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   assert.equal(world.store.size, 1);
   page([ROUTINE]);
   world.y = 640;
   push("#/routines/r1");
-  assert.match(world.store.get("nestora.place") ?? "", /"y":640/);
+  assert.match(world.store.get("wp.place.a") ?? "", /"y":640/);
 });
 
 test("a position that lands one pixel short counts as reached, so the restore does not keep fighting the browser", async () => {
   reset("#/");
   const place = await load();
-  place.startPlace(storage());
+  place.startPlace(places());
   page([ROUTINE]);
   world.y = 1500;
   push("#/routines/r1");
@@ -592,4 +619,572 @@ test("a position that lands one pixel short counts as reached, so the restore do
   place.landPlace("move");
   assert.equal(world.y, 1499);
   assert.equal(world.frames.length, 0);
+});
+
+const withClock = async (run: (tick: (ms: number) => void) => Promise<void> | void) => {
+  const real = Date.now;
+  let now = 1_700_000_000_000;
+  Date.now = () => now;
+  try {
+    await run((ms) => void (now += ms));
+  } finally {
+    Date.now = real;
+  }
+};
+
+const hiddenLink = (href: string, summary = new FakeElement()) => {
+  const link = new FakeElement(href);
+  link.height = 0;
+  link.closedIn = new FakeElement();
+  link.closedIn.summary = summary;
+  return { link, summary };
+};
+
+const openThenBack = async (hash: string, link: string, left: string) => {
+  reset(hash);
+  const place = await load();
+  place.startPlace(places());
+  page([link]);
+  world.y = 1500;
+  push(left);
+  page(["#/"]);
+  place.landPlace("move");
+  return place;
+};
+
+test("Back to a link inside a closed details focuses the summary of that details, and never leaves focus on the body", async () => {
+  const place = await openThenBack("#/", "#/routines", "#/routines");
+  back();
+  const { link, summary } = hiddenLink("#/routines");
+  page([]);
+  world.links = [link];
+  world.open = [{ open: false }];
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+  assert.equal(world.focus, summary);
+  assert.deepEqual(summary.options, { preventScroll: true });
+  assert.equal(link.focused, 0);
+});
+
+test("a summary that is off screen gives way to the heading, and a heading off screen to the first control in view", async () => {
+  const place = await openThenBack("#/", "#/routines", "#/routines");
+  back();
+  const { link, summary } = hiddenLink("#/routines");
+  summary.top = 5000;
+  page([]);
+  world.links = [link];
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, world.heading);
+  push("#/books");
+  page([]);
+  place.landPlace("move");
+  back();
+  const next = hiddenLink("#/books");
+  next.summary.top = 5000;
+  page([]);
+  world.links = [next.link];
+  world.heading!.top = -1400;
+  const reachable = new FakeElement("#/tasks");
+  reachable.top = 300;
+  world.tabbable = [new FakeElement("#/off"), reachable];
+  world.tabbable[0].top = -900;
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, reachable);
+});
+
+test("a link in a details nested in a closed details falls back to the outer summary", async () => {
+  const place = await openThenBack("#/", "#/routines", "#/routines");
+  back();
+  const { link, summary } = hiddenLink("#/routines");
+  const outer = new FakeElement();
+  outer.summary = new FakeElement();
+  const holder = new FakeElement();
+  holder.closedIn = outer;
+  link.closedIn!.parentElement = holder;
+  page([]);
+  world.links = [link];
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, outer.summary);
+  assert.equal(summary.focused, 0);
+});
+
+test("a tab link restore keeps the place and leaves focus on the pressed link when the heading is off screen", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/books"]);
+  world.y = 1500;
+  click(new FakeElement("#/books", true));
+  push("#/books");
+  page(["#/books/b1"]);
+  place.landPlace("move");
+  world.y = 40;
+  click(new FakeElement("#/", true));
+  push("#/");
+  page(["#/books"]);
+  world.heading!.top = -1400;
+  world.tabbable = [new FakeElement("#/books")];
+  const pressed = new FakeElement("#/");
+  world.focus = pressed;
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+  assert.equal(world.heading!.focused, 0);
+  assert.equal(world.focus, pressed);
+  assert.equal(world.tabbable[0].focused, 0);
+});
+
+test("a tab link restore at the top still focuses the heading", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/books"]);
+  world.y = 0;
+  click(new FakeElement("#/books", true));
+  push("#/books");
+  page([]);
+  place.landPlace("move");
+  click(new FakeElement("#/", true));
+  push("#/");
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.focus, world.heading);
+});
+
+test("browser Forward lands on the heading, not on the link back to the screen it left", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE]);
+  world.y = 1500;
+  push("#/routines/r1");
+  page(["#/"]);
+  place.landPlace("move");
+  back();
+  page([ROUTINE]);
+  place.landPlace("move");
+  assert.equal(world.focus?.href, ROUTINE);
+  forward();
+  page(["#/"]);
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, world.heading);
+});
+
+test("opening a screen from a list that was itself opened from it lands on the heading, not on the link back", async () => {
+  reset("#/routines/r1");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/routines"]);
+  world.y = 600;
+  push("#/routines");
+  page(["#/routines/r1"]);
+  world.y = 900;
+  place.landPlace("move");
+  push("#/routines/r1");
+  page(["#/routines"]);
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.y, 600);
+  assert.equal(world.focus, world.heading);
+});
+
+test("Back to Home after a tab press does not focus a body link the user never pressed", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/routines"]);
+  world.y = 0;
+  click(new FakeElement("#/routines", true));
+  push("#/routines");
+  page(["#/routines/r1"]);
+  place.landPlace("move");
+  back();
+  page(["#/routines"]);
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, world.heading);
+});
+
+test("a click with a modifier or another button on a tab link does not make the next plain link to that route a tab change", async () => {
+  for (const event of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+    reset("#/");
+    const place = await load();
+    place.startPlace(places());
+    page(["#/routines"]);
+    world.y = 900;
+    push("#/routines");
+    page(["#/books"]);
+    world.y = 250;
+    push("#/books");
+    page(["#/"]);
+    place.landPlace("move");
+    click(new FakeElement("#/", true), event);
+    push("#/");
+    page(["#/routines"]);
+    place.landPlace("move");
+    assert.equal(world.y, 0, JSON.stringify(event));
+  }
+});
+
+test("a replaceState that throws leaves navigation working", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  world.sealed = true;
+  page([ROUTINE]);
+  world.y = 700;
+  push("#/routines/r1");
+  page(["#/"]);
+  place.landPlace("move");
+  assert.equal(world.y, 0);
+  world.sealed = false;
+  push("#/books");
+  page([]);
+  place.landPlace("move");
+  back();
+  page([]);
+  place.landPlace("move");
+  fire("pagehide");
+});
+
+test("a route left while its restore was still waiting keeps the place it was waiting for", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE]);
+  world.y = 1500;
+  push("#/routines/r1");
+  page([]);
+  place.landPlace("move");
+  back();
+  page([ROUTINE], [], 0);
+  place.landPlace("move");
+  assert.ok(world.frames.length > 0);
+  push("#/books");
+  page([]);
+  place.landPlace("move");
+  back();
+  page([ROUTINE]);
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+});
+
+test("details that appear after the first frame are waited for and opened as they were", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE], [false, true]);
+  world.y = 1500;
+  push("#/routines/r1");
+  page([]);
+  place.landPlace("move");
+  back();
+  page([ROUTINE], []);
+  place.landPlace("move");
+  settle(3);
+  assert.ok(world.frames.length > 0);
+  assert.deepEqual(world.open, []);
+  world.open = [{ open: true }, { open: false }];
+  settle();
+  assert.deepEqual(
+    world.open.map((one) => one.open),
+    [false, true],
+  );
+  assert.equal(world.y, 1500);
+  assert.equal(world.frames.length, 0);
+});
+
+test("details that never appear are given up on after one second, not after a number of frames", async () => {
+  await withClock(async (tick) => {
+    reset("#/");
+    const place = await load();
+    place.startPlace(places());
+    page([ROUTINE], [true]);
+    world.y = 1500;
+    push("#/routines/r1");
+    page([]);
+    place.landPlace("move");
+    back();
+    page([ROUTINE], []);
+    place.landPlace("move");
+    for (let frame = 0; frame < 300; frame++) world.frames.shift()?.();
+    assert.ok(world.frames.length > 0);
+    tick(999);
+    world.frames.shift()!();
+    assert.ok(world.frames.length > 0);
+    tick(1);
+    world.frames.shift()!();
+    assert.equal(world.frames.length, 0);
+    assert.equal(world.y, 1500);
+  });
+});
+
+test("a place the page is too short to reach stops being chased after one second and listeners are dropped", async () => {
+  await withClock(async (tick) => {
+    reset("#/");
+    const place = await load();
+    place.startPlace(places());
+    page([ROUTINE]);
+    world.y = 1500;
+    push("#/routines/r1");
+    page([]);
+    place.landPlace("move");
+    back();
+    page([ROUTINE], [], 200);
+    place.landPlace("move");
+    for (let frame = 0; frame < 300; frame++) world.frames.shift()?.();
+    assert.ok(world.frames.length > 0);
+    const scrolls = world.scrolls;
+    tick(1000);
+    world.frames.shift()!();
+    assert.equal(world.frames.length, 0);
+    assert.equal(world.scrolls, scrolls + 1);
+    assert.equal(world.listeners.get("wheel")?.length ?? 0, 0);
+  });
+});
+
+test("the second is counted from the first heading, so a slow probe behind a splash screen still restores", async () => {
+  await withClock(async (tick) => {
+    reset("#/");
+    const place = await load();
+    place.startPlace(places());
+    page([ROUTINE]);
+    world.y = 1500;
+    push("#/routines/r1");
+    page([]);
+    place.landPlace("move");
+    back();
+    page([], [], 0);
+    world.heading = null;
+    place.landPlace("move");
+    tick(2500);
+    settle(5);
+    assert.ok(world.frames.length > 0);
+    page([ROUTINE]);
+    tick(500);
+    settle();
+    assert.equal(world.y, 1500);
+    assert.equal(world.focus?.href, ROUTINE);
+  });
+});
+
+test("a screen that never shows a heading is given up on after ten seconds", async () => {
+  await withClock(async (tick) => {
+    reset("#/");
+    const place = await load();
+    place.startPlace(places());
+    page([ROUTINE]);
+    world.y = 1500;
+    push("#/routines/r1");
+    page([]);
+    place.landPlace("move");
+    back();
+    page([], [], 0);
+    world.heading = null;
+    place.landPlace("move");
+    tick(9999);
+    world.frames.shift()!();
+    assert.ok(world.frames.length > 0);
+    tick(1);
+    world.frames.shift()!();
+    assert.equal(world.frames.length, 0);
+  });
+});
+
+test("the places of a private routine are never written, and still serve Back while the page is open", async () => {
+  reset("#/routines");
+  const place = await load();
+  place.startPlace(places(), (route) => route.startsWith("/routines/r6"));
+  page(["#/routines/r6"]);
+  world.y = 800;
+  push("#/routines/r6");
+  page(["#/routines/r6/start"]);
+  place.landPlace("move");
+  world.y = 300;
+  push("#/routines/r6/start");
+  page([]);
+  place.landPlace("move");
+  push("#/routines");
+  fire("pagehide");
+  const kept = world.store.get("wp.place.a") ?? "";
+  assert.doesNotMatch(kept, /r6/);
+  assert.match(kept, /"\/routines"/);
+  back();
+  page(["#/routines/r6/start"]);
+  place.landPlace("move");
+  back();
+  page(["#/routines/r6"]);
+  place.landPlace("move");
+  assert.equal(world.y, 300);
+});
+
+test("one tab used by two partners: what the first one visited is gone once the second one is confirmed", async () => {
+  reset("#/routines");
+  const kept = places("a");
+  const place = await load();
+  place.startPlace(kept);
+  page(["#/routines/r6"]);
+  world.y = 800;
+  push("#/routines/r6");
+  page([]);
+  place.landPlace("move");
+  push("#/routines/r6/start");
+  fire("pagehide");
+  assert.deepEqual([...world.store.keys()], ["wp.place.a"]);
+  assert.match(world.store.get("wp.place.a")!, /r6/);
+  kept.purge("b");
+  push("#/tasks");
+  fire("pagehide");
+  assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
+  assert.doesNotMatch(world.store.get("wp.place.b")!, /r6/);
+  const second = await load();
+  second.startPlace(places("b"));
+  assert.doesNotMatch(JSON.stringify([...world.store]), /r6/);
+});
+
+test("a memory read for a side the probe then contradicts is dropped, not carried over", async () => {
+  reset("#/");
+  const first = await load();
+  const mine = places("a");
+  first.startPlace(mine);
+  page([ROUTINE]);
+  world.y = 640;
+  push("#/routines/r1");
+  fire("pagehide");
+  const second = await load();
+  const hinted = places("a");
+  second.startPlace(hinted);
+  hinted.purge("b");
+  push("#/books");
+  assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
+  assert.doesNotMatch(world.store.get("wp.place.b")!, /r1|640/);
+});
+
+test("with no side known nothing is written, and the memory is kept in the page until a side is confirmed", async () => {
+  reset("#/");
+  const none = places(null);
+  const place = await load();
+  place.startPlace(none);
+  page([ROUTINE]);
+  world.y = 640;
+  push("#/routines/r1");
+  fire("pagehide");
+  assert.equal(world.store.size, 0);
+  none.purge("a");
+  push("#/books");
+  assert.match(world.store.get("wp.place.a")!, /"y":640/);
+});
+
+test("a target counts as in view only when it has height and overlaps the viewport by at least a pixel", async () => {
+  const place = await openThenBack("#/", "#/routines", "#/routines");
+  back();
+  page([]);
+  const flat = new FakeElement("#/flat");
+  flat.height = 0;
+  const above = new FakeElement("#/above");
+  above.top = -20;
+  const below = new FakeElement("#/below");
+  below.top = 800;
+  const reachable = new FakeElement("#/tasks");
+  reachable.top = -19;
+  world.heading!.top = -20;
+  world.tabbable = [flat, above, below, reachable];
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, reachable);
+  assert.deepEqual(reachable.options, { preventScroll: true });
+  assert.equal(world.heading!.focused, 0);
+  assert.equal(above.focused + below.focused, 0);
+});
+
+test("a one pixel tall target in view counts as in view", async () => {
+  const place = await openThenBack("#/", "#/routines", "#/routines");
+  back();
+  page([]);
+  const thin = new FakeElement("#/thin");
+  thin.height = 1;
+  world.heading!.top = -900;
+  world.tabbable = [thin];
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, thin);
+});
+
+test("opening a screen beside its sibling from the sibling that was opened from it lands on the heading", async () => {
+  reset("#/books/b1");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/books/b2"]);
+  world.y = 400;
+  push("#/books/b2");
+  page(["#/books/b1"]);
+  place.landPlace("move");
+  world.y = 200;
+  push("#/books/b1");
+  page(["#/books/b2"]);
+  world.focus = null;
+  place.landPlace("move");
+  assert.equal(world.focus, world.heading);
+});
+
+test("a position two pixels short is still chased", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE]);
+  world.y = 1500;
+  push("#/routines/r1");
+  page([]);
+  place.landPlace("move");
+  back();
+  page([ROUTINE]);
+  world.drift = 2;
+  place.landPlace("move");
+  assert.equal(world.y, 1498);
+  assert.ok(world.frames.length > 0);
+});
+
+test("a reload waits for details that arrive late even though there is no focus to place", async () => {
+  reset("#/");
+  const kept = places();
+  const first = await load();
+  first.startPlace(kept);
+  page([ROUTINE], [true, false]);
+  world.y = 1700;
+  fire("pagehide");
+  const second = await load();
+  second.startPlace(kept);
+  page([ROUTINE], []);
+  second.landPlace("first");
+  settle(3);
+  assert.ok(world.frames.length > 0);
+  world.open = [{ open: false }, { open: true }];
+  settle();
+  assert.deepEqual(
+    world.open.map((one) => one.open),
+    [true, false],
+  );
+  assert.equal(world.y, 1700);
+});
+
+test("an entry that came from nowhere, or from a tab link, is stored with a null origin so it survives a reload", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/books"]);
+  click(new FakeElement("#/books", true));
+  push("#/books");
+  fire("pagehide");
+  const stored = JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, { from: unknown; route: string }> };
+  assert.deepEqual(
+    Object.values(stored.entries).map((entry) => [entry.route, entry.from]),
+    [
+      ["/", null],
+      ["/books", null],
+    ],
+  );
 });

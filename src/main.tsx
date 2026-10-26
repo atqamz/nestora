@@ -1,10 +1,11 @@
 import { StrictMode, useEffect, useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { takeDenied } from "./domain/access.ts";
+import { privateRoute } from "./domain/place.ts";
 import { screenFor } from "./domain/status.ts";
 import { openStore, useSnapshot } from "./hooks/use-store.ts";
 import { useRoute } from "./router.ts";
-import { tabStorage } from "./store/browser.ts";
+import { places, store } from "./store/browser.ts";
 import { ErrorBoundary } from "./ui/error-boundary.tsx";
 import { landPlace, startPlace } from "./ui/place.ts";
 import { Recovery } from "./ui/recovery-screen.tsx";
@@ -112,7 +113,10 @@ function App() {
 }
 
 applyTheme(readTheme());
-startPlace(tabStorage);
+startPlace(places, (route) => {
+  const { ready, rows } = store.getSnapshot();
+  return privateRoute(route, ready, rows.items);
+});
 
 const root = createRoot(document.getElementById("root")!);
 
