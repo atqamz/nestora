@@ -48,7 +48,7 @@ test("the detail shows a rating control only for the signed-in partner, and none
   assert.equal(view.match(/ratingPatch\(/g)?.length, 1);
   assert.match(view, /onClick=\{\(\) => run\(ratingPatch\(row, side, n\)\)\}/);
   assert.match(view, /text\.screen\.notRated/);
-  assert.match(view, /\{watched && <Ratings row=\{row\} \/>\}/);
+  assert.match(view, /\{!gone && watched && <Ratings row=\{row\} \/>\}/);
 });
 
 test("the status control moves a row through the registry's three statuses and does nothing for the current one", () => {

@@ -4,6 +4,8 @@ import { bySort, compare } from "./order.ts";
 
 export const EVENT_ORDER = ["engagement", "ceremony", "reception"];
 
+export const eventKeys = (used: Iterable<string>, own: string | null) => [...new Set([...EVENT_ORDER, ...used, ...(own === null ? [] : [own])])];
+
 export const DUE_DAYS = 30;
 
 export type Line = {

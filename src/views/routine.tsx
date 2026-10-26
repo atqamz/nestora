@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
+import type { Side } from "../../shared/api.ts";
 import { actionOccursOn, dayLabel, isTimetable, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
+import type { ItemRow } from "../../shared/tables.ts";
 import { copyDraft, draftOf } from "../domain/routine-draft.ts";
 import { pagesOf } from "../domain/routine-start.ts";
 import { actionsOf, momentOf, runs, weekStrip } from "../domain/routines.ts";
 import { weekOf } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { Who } from "../ui/avatar.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
 import { RoutineAction } from "../ui/routine-action.tsx";
+import type { Flows } from "../ui/routine-flows.ts";
 import { RoutineWeek } from "../ui/routine-week.tsx";
 import { momentLabel, scheduleLine, whenLine } from "../ui/routine-label.ts";
 import { PauseSheet, RoutineSheet } from "../ui/routine-sheet.tsx";
@@ -21,28 +25,27 @@ const copy = text.routines;
 
 type Sheet = "edit" | "copy" | "pause" | null;
 
-export function RoutineDetail({ id }: { id: string }) {
-  const rows = useRoutines();
-  const flows = useRoutineFlows(rows);
-  const { items, me, day } = rows;
+type Open = { routine: ItemRow; actions: ItemRow[] };
+
+function Missing() {
+  return (
+    <>
+      <Title>{copy.missing}</Title>
+      <p className="trail">
+        <a href="#/routines">
+          <Icon name="back" />
+          {copy.back}
+        </a>
+      </p>
+    </>
+  );
+}
+
+type PageProps = Open & { me: Side; day: string; flows: Flows; setSheet: (sheet: Sheet) => void };
+
+function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) {
   const { busy, once } = useBusy();
-  const [sheet, setSheet] = useState<Sheet>(null);
   const [failure, setFailure] = useState<string[]>([]);
-  const routine = items.find((row) => row.id === id && row.kind === "routine");
-  const actions = useMemo(() => (routine ? actionsOf(items, routine) : []), [items, routine]);
-  if (!routine || me === null) {
-    return (
-      <>
-        <Title>{copy.missing}</Title>
-        <p className="trail">
-          <a href="#/routines">
-            <Icon name="back" />
-            {copy.back}
-          </a>
-        </p>
-      </>
-    );
-  }
   const away = paused(routine, day);
   const today = occursOn(routine, day);
   const todays = actions.filter((action) => actionOccursOn(routine, action, day));
@@ -116,11 +119,29 @@ export function RoutineDetail({ id }: { id: string }) {
           </section>
         ))
       )}
-      {sheet === "edit" && <RoutineSheet start={draftOf(routine, actions)} current={{ routine, actions }} me={me} today={day} flows={flows} onClose={() => setSheet(null)} />}
-      {sheet === "copy" && (
-        <RoutineSheet start={copyDraft(routine, actions, () => crypto.randomUUID())} current={null} me={me} today={day} duplicate={routine} flows={flows} onClose={() => setSheet(null)} />
+    </>
+  );
+}
+
+export function RoutineDetail({ id }: { id: string }) {
+  const rows = useRoutines();
+  const flows = useRoutineFlows(rows);
+  const { items, me, day } = rows;
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const found = useMemo(() => {
+    const routine = items.find((row) => row.id === id && row.kind === "routine");
+    return routine && { routine, actions: actionsOf(items, routine) };
+  }, [items, id]);
+  const { row: open, gone } = useOpenRow(found);
+  const kept = open !== undefined && me !== null;
+  return (
+    <>
+      {kept && !gone ? <RoutinePage {...open} me={me} day={day} flows={flows} setSheet={setSheet} /> : <Missing />}
+      {kept && sheet === "edit" && <RoutineSheet start={draftOf(open.routine, open.actions)} current={open} me={me} today={day} gone={gone} flows={flows} onClose={() => setSheet(null)} />}
+      {kept && sheet === "copy" && (
+        <RoutineSheet start={copyDraft(open.routine, open.actions, () => crypto.randomUUID())} current={null} me={me} today={day} duplicate={open.routine} flows={flows} onClose={() => setSheet(null)} />
       )}
-      {sheet === "pause" && <PauseSheet routine={routine} flows={flows} onClose={() => setSheet(null)} />}
+      {kept && !gone && sheet === "pause" && <PauseSheet routine={open.routine} flows={flows} onClose={() => setSheet(null)} />}
     </>
   );
 }

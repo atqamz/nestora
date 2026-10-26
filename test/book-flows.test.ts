@@ -34,6 +34,7 @@ const world = async (t: TestContext, me: "a" | "b" = "a") => {
         },
         remove: store.remove,
         many: store.many,
+        restore: store.restore,
       },
       stamp: () => DAY,
       me,
@@ -118,7 +119,7 @@ test("when the copy cannot be created, We got it puts the wish back and reports 
   const wish = await w.book("Laskar Pelangi", { status: "wish", who: "b" });
   const flows = bookFlows({
     items: w.rows(),
-    actions: { create: async () => ({ ok: false, errors: ["no"] }), update: w.store.update, remove: w.store.remove, many: w.store.many },
+    actions: { create: async () => ({ ok: false, errors: ["no"] }), update: w.store.update, remove: w.store.remove, many: w.store.many, restore: w.store.restore },
     stamp: () => DAY,
     me: "a",
     go: () => undefined,
@@ -182,7 +183,7 @@ test("when the store refuses the steps, Lost it leaves the book and its copies a
   const here = await w.copy(shelf);
   const flows = bookFlows({
     items: w.rows(),
-    actions: { create: w.store.create, update: w.store.update, remove: w.store.remove, many: async () => ({ ok: false, errors: ["no"], step: 1 }) },
+    actions: { create: w.store.create, update: w.store.update, remove: w.store.remove, many: async () => ({ ok: false, errors: ["no"], step: 1 }), restore: w.store.restore },
     stamp: () => DAY,
     me: "a",
     go: () => undefined,
@@ -225,7 +226,7 @@ test("We got it on a wish that already has a live copy, as when the other partne
   assert.deepEqual([w.row(shelf).status, live(w, shelf).map((row) => row.id)], ["wish", [added]]);
 });
 
-test("deleting a book removes its copies and Undo revives the book before its copies", async (t) => {
+test("deleting a book removes its copies and Undo revives the book with its copies", async (t) => {
   const w = await world(t);
   const home = await w.place("Home A", 0);
   const shelf = await w.book("Laskar Pelangi");
@@ -236,9 +237,7 @@ test("deleting a book removes its copies and Undo revives the book before its co
   assert.deepEqual(w.hashes, ["/books"]);
   assert.deepEqual(w.rows().map((row) => row.id), [home]);
   assert.equal(toast()?.message, text.books.deleted("Laskar Pelangi"));
-  w.calls.length = 0;
   await w.undo();
-  assert.deepEqual(w.calls, [shelf, one, two]);
   assert.deepEqual(w.rows().map((row) => row.id).sort(), [home, shelf, one, two].sort());
 });
 

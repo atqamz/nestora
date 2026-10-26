@@ -15,6 +15,7 @@ export const actions = {
   update: store.update,
   remove: store.remove,
   many: store.many,
+  restore: store.restore,
   setSetting: store.setSetting,
   discard: store.discard,
   dismissNotice: store.dismissNotice,

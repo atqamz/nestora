@@ -9,6 +9,7 @@ import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
+import type { Written } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { useBookActions } from "../ui/book-actions.ts";
 import { Cover, Stars } from "../ui/book-bits.tsx";
@@ -171,17 +172,24 @@ function Copy({ copy, book, places, onEdit }: { copy: ItemRow; book: ItemRow; pl
   );
 }
 
+function BookForm({ book, gone, onRemove, onRestore }: { book: ItemRow; gone: boolean; onRemove: () => Promise<Written>; onRestore: () => Promise<Written> }) {
+  const [wish] = useState(book.status === "wish");
+  return <ItemForm name="book" row={book} gone={gone} only={wish ? views.book.fields : SHELF_FIELDS} onRemove={onRemove} onRestore={onRestore} />;
+}
+
 export function BookDetail({ id }: { id: string }) {
   const { items, places, copies } = useLibrary();
   const { label } = usePartner();
-  const { gotIt, removeBook } = useBookActions();
+  const { gotIt, removeBook, restoreBook } = useBookActions();
   const { busy, once } = useBusy();
   const [sheet, setSheet] = useState<"add" | ItemRow | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
-  const { row: book, gone } = useOpenRow(items.find((row) => row.id === id && row.kind === "book"));
-  if (!book) return <Gone name="book" id={id} back="#/books" />;
+  const found = items.find((row) => row.id === id && row.kind === "book");
+  const { row: open, gone } = useOpenRow(found && { book: found, copies: copies.get(found.id) ?? [] });
+  if (!open) return <Gone name="book" id={id} back="#/books" />;
+  const { book } = open;
   const wish = book.status === "wish";
-  const mine = (copies.get(book.id) ?? []).filter((copy) => copy.status !== "gone").sort(bySort);
+  const mine = open.copies.filter((copy) => copy.status !== "gone").sort(bySort);
   const author = word(book, "author");
   const original = word(book, "original_title");
   const series = word(book, "series");
@@ -276,7 +284,7 @@ export function BookDetail({ id }: { id: string }) {
       )}
       <section aria-labelledby="bk-edit">
         <h2 id="bk-edit">{text.books.edit}</h2>
-        <ItemForm key={book.id} name="book" row={book} gone={gone} only={wish ? views.book.fields : SHELF_FIELDS} onRemove={() => removeBook(book, copies.get(book.id) ?? [])} />
+        <BookForm key={book.id} book={book} gone={gone} onRemove={() => removeBook(book, open.copies)} onRestore={() => restoreBook(book)} />
       </section>
       {sheet !== null && !gone && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
     </>

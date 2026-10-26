@@ -24,7 +24,7 @@ const timer: Later = (run, ms) => {
 
 type State = { at: "none" } | Open;
 
-type Write = "create" | "update" | "remove" | "many" | "setSetting" | "discard";
+type Write = "create" | "update" | "remove" | "many" | "restore" | "setSetting" | "discard";
 
 export const sideHint = (storage: Pick<Storage, "getItem" | "setItem">): Hint => ({
   get: () => {
@@ -138,6 +138,7 @@ export const createSession = ({ disk, hint, api, later = timer, purge = () => {}
     update: write("update"),
     remove: write("remove"),
     many: write("many"),
+    restore: write("restore"),
     setSetting: write("setSetting"),
     discard: write("discard"),
     dismissNotice: () => (state.at === "open" ? state.store.dismissNotice() : undefined),

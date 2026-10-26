@@ -242,7 +242,7 @@ test("an Undo that works says nothing, and an Undo that fails says why", async (
   assert.equal(overlay.getSnapshot().toast, null);
   const failing = routineFlows({
     items: w.rows(),
-    actions: { update: w.store.update, many: async (steps) => (steps.every((step) => step.op === "update") ? { ok: false, errors: ["row: boom"] } : w.store.many(steps)) },
+    actions: { update: w.store.update, many: w.store.many, restore: async () => ({ ok: false, errors: ["row: boom"] }) },
     me: "a",
     day: routineDay(NOW),
     go: () => undefined,
