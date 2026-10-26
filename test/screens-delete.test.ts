@@ -172,6 +172,8 @@ test("a revive may carry only the three keys, and only on a movie or a series: a
   await post(ids.movie, { deleted_at: null, title: "Renamed" });
   await post(ids.movie, { data: KEYS });
   await post(ids.book, { deleted_at: null, data: { cover: POSTER } });
+  await post(ids.movie, { deleted_at: null, data: { ...KEYS, year: 1999 } });
+  assert.equal((await post(ids.movie, { deleted_at: null, data: null })).status, 200);
   assert.notEqual(stored(server, ids.movie).deleted_at, null);
   assert.deepEqual(dataOf(server, ids.movie), KEPT);
   assert.notEqual(stored(server, ids.book).deleted_at, null);

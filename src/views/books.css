@@ -22,6 +22,10 @@
   margin: 0;
 }
 
+.posters .imp-progress {
+  min-height: 2lh;
+}
+
 .posters [data-spent] {
   visibility: hidden;
 }

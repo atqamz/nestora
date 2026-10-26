@@ -40,6 +40,8 @@ export const detailsLookup = createLookup({ fetcher: paced((url, init) => fetch(
 
 export const needsDetails = (book: ItemRow) => book.data?.ol == null && book.data?.gb == null;
 
+export const pending = (rows: readonly ItemRow[], needs: (row: ItemRow) => boolean, seen: ReadonlySet<string>) => rows.filter((row) => needs(row) && !seen.has(row.id));
+
 export type Attempted<P> = Filled<P> | { kind: "unsure" | "changed" };
 
 export type Attempt<P = Record<string, string>> = (lookup: Lookup, row: ItemRow, current: () => ItemRow) => Promise<Attempted<P>>;

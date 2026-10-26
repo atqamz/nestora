@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
-import { bookAttempt, detailsLookup, findDetails, needsDetails } from "../store/details.ts";
+import { bookAttempt, detailsLookup, findDetails, needsDetails, pending } from "../store/details.ts";
 import type { Attempt, Finish, Tally } from "../store/details.ts";
 import { actions, readItems } from "./use-store.ts";
 
@@ -20,11 +20,11 @@ export const useDetails = (batch: string, books: readonly ItemRow[], how: How = 
   useEffect(() => () => control.current?.abort(), []);
 
   const seen = tried.get(batch) ?? new Set<string>();
-  const remaining = books.filter((book) => how.needs(book) && !seen.has(book.id)).length;
+  const remaining = pending(books, how.needs, seen).length;
 
   const start = async () => {
     tried.set(batch, seen);
-    const ids = books.filter((book) => how.needs(book) && !seen.has(book.id)).map((book) => book.id);
+    const ids = pending(books, how.needs, seen).map((book) => book.id);
     const controller = new AbortController();
     control.current = controller;
     setState({ phase: "running", done: seen.size, total: seen.size + ids.length, tally: NONE });

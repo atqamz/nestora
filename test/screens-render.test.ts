@@ -202,3 +202,17 @@ test("focus moves to the status line when a pass finishes and focus was in the b
   assert.equal(takes!("finished", false, field, body), false);
   for (const phase of ["idle", "running", "stopping", "stopped", "offline", "busy"]) assert.equal(takes!(phase, true, body, body), false, phase);
 });
+
+test("Find posters turns into Resume after a row was tried or a pass ended early, never on a clean first view", async () => {
+  let resumes: (tried: number, phase: string) => boolean;
+  await markupOf("ui/screen-posters.tsx", (loaded) => ((resumes = loaded.resumes), createElement("p")));
+  assert.equal(resumes!(0, "idle"), false);
+  assert.equal(resumes!(0, "finished"), false);
+  assert.equal(resumes!(1, "idle"), true);
+  for (const phase of ["stopped", "offline", "busy"]) assert.equal(resumes!(0, phase), true, phase);
+});
+
+test("the posters block reserves two lines for its status, so a longer last line does not push the list down", () => {
+  const css = readFileSync(new URL("../src/views/books.css", import.meta.url), "utf8");
+  assert.match(css, /\.posters \.imp-progress \{\s*min-height: 2lh;\s*\}/);
+});

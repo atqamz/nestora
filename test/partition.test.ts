@@ -117,6 +117,15 @@ test("a fresh browser asks the server for the side with a bare probe, then opens
   assert.deepEqual(await saved(p, "b"), { rows: { items: [], budget_entries: [], settings: [] }, outbox: [], meta: { rev: 0, me: null, epoch: null, generation: null, adopted: null } });
 });
 
+test("the session knows the server's time only while a store is open", async () => {
+  const server = createServer();
+  const p = await profile(server, "a");
+  const tab = p.tab();
+  assert.equal(tab.serverNow(), null);
+  await tab.open();
+  assert.ok(tab.serverNow() instanceof Date);
+});
+
 test("with no hint and no network nothing is opened, and the app shows its connect screen", async () => {
   const server = createServer();
   const p = await profile(server, "a");

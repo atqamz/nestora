@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { ItemRow } from "../shared/tables.ts";
 import { validateChange } from "../shared/validate.ts";
 import { addDays, todayIn } from "../src/domain/dates.ts";
-import { PURGE_DAYS, REFRESH_DAYS, expired, expiredSteps, needsPoster, posterAge, purgePatch } from "../src/domain/tmdb.ts";
+import { PURGE_DAYS, REFRESH_DAYS, expired, expiredSteps, needsPoster, posterAge, posterPatch, purgePatch, revivePatch } from "../src/domain/tmdb.ts";
 import { createApi } from "../src/store/api.ts";
 import { memoryPersistence } from "../src/store/memory.ts";
 import { createStore, paused } from "../src/store/store.ts";
@@ -433,4 +433,32 @@ test("an idle store that gets the same answer again does not wake the Shell: the
   await store.sync();
   await store.sync();
   assert.equal(emits, 0);
+});
+
+test("the first Date header, after answers without one, wakes the Shell once and only then", async () => {
+  const server = createServer();
+  server.control.date = null;
+  const store = client(server, "a").store;
+  await store.open();
+  assert.equal(store.getSnapshot().dated, false);
+  fixedServerDate(server);
+  let emits = 0;
+  store.subscribe(() => emits++);
+  await store.sync();
+  assert.deepEqual([store.getSnapshot().dated, emits], [true, 1]);
+  await store.sync();
+  assert.equal(emits, 1);
+});
+
+test("a revive carries the poster keys the row holds, one by one, and nothing when it holds none", () => {
+  assert.deepEqual(revivePatch(aged(null, { cover: undefined, tmdb: undefined })), { deleted_at: null });
+  assert.deepEqual(revivePatch(aged(null, { cover: undefined })), { deleted_at: null, data: { tmdb: 910001 } });
+  assert.deepEqual(revivePatch(aged(5, { year: 2017 })), { deleted_at: null, data: { cover: POSTER, tmdb: 910001, tmdb_at: addDays(TODAY, -5) } });
+});
+
+test("a match with no year adds no year, and one with a year adds it only to a row without one", () => {
+  const hit = { kind: "movie" as const, tmdb: 910001, title: "Pelabuhan Terakhir", original: null, year: null, cover: POSTER };
+  assert.deepEqual(posterPatch(aged(null, { cover: undefined, tmdb: undefined }), hit, TODAY), { tmdb: 910001, tmdb_at: TODAY, cover: POSTER });
+  assert.deepEqual(posterPatch(aged(null, { year: 2017 }), { ...hit, year: 2018 }, TODAY).year, undefined);
+  assert.equal(posterPatch(aged(null, { cover: undefined, tmdb: undefined }), { ...hit, year: 2018 }, TODAY).year, 2018);
 });

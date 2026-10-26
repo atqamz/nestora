@@ -32,6 +32,8 @@ export const postersLine = ({ phase, done, total, tally }: Pick<Details, "phase"
 
 type Bar = { phase: Details["phase"]; line: string; remaining: number; again: boolean; start: () => void; stop: () => void };
 
+export const resumes = (tried: number, phase: Details["phase"]) => tried > 0 || phase === "stopped" || phase === "offline" || phase === "busy";
+
 export const takesFocus = (phase: Details["phase"], inside: boolean, active: unknown, body: unknown) =>
   phase === "finished" && (inside || active === null || active === body);
 
@@ -68,7 +70,7 @@ export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly
   });
   const status = useRef<HTMLParagraphElement>(null);
   const bar = useRef<HTMLDivElement>(null);
-  const again = tried > 0 || state.phase === "stopped" || state.phase === "offline" || state.phase === "busy";
+  const again = resumes(tried, state.phase);
   const line = postersLine(state, remaining, kind);
   useEffect(() => {
     if (takesFocus(state.phase, bar.current?.contains(document.activeElement) ?? false, document.activeElement, document.body)) status.current?.focus();
