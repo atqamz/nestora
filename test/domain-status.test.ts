@@ -107,6 +107,8 @@ test("export links name the table and the discriminator the worker expects, for 
       "format=csv&table=items&kind=book",
       "format=csv&table=items&kind=copy",
       "format=csv&table=items&kind=place",
+      "format=csv&table=items&kind=movie",
+      "format=csv&table=items&kind=series",
       "format=csv&table=budget_entries&entry_type=planned",
       "format=csv&table=budget_entries&entry_type=payment",
     ],

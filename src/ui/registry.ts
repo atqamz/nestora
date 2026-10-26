@@ -72,6 +72,20 @@ export const views = {
     fields: ["note"],
     summary: [],
   },
+  movie: {
+    table: "items",
+    variant: "movie",
+    route: "movies",
+    fields: ["data.original_title", "data.year", "who", "note"],
+    summary: [],
+  },
+  series: {
+    table: "items",
+    variant: "series",
+    route: "series",
+    fields: ["data.original_title", "data.year", "who", "note"],
+    summary: [],
+  },
   planned: {
     table: "budget_entries",
     variant: "planned",

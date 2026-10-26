@@ -66,6 +66,20 @@ const who = ["a", "b", "both"] as const;
 
 const days = { days: "days" } as const;
 const marks = { done_a: "date", done_b: "date" } as const;
+const screen = {
+  original_title: "text",
+  year: "int",
+  rating_a: ["1", "2", "3", "4", "5"],
+  rating_b: ["1", "2", "3", "4", "5"],
+} as const;
+const watchable = {
+  columns: ["status", "who", "done_on", "note"],
+  required: ["status"],
+  status: ["want", "watching", "watched"],
+  doneOnStatus: "watched",
+  caps: { "data.year": 2200 },
+  data: screen,
+} as const;
 const action = ["parent_id", "group_key", "note"] as const;
 const caps = { title: 120, group_key: 60, note: 2000 } as const;
 
@@ -241,6 +255,8 @@ export const tables = {
         data: { ...days, ...marks, unit: "text", value_a: "int", value_b: "int" },
       },
       text: { columns: action, required: ["parent_id"], caps, data: { ...days } },
+      movie: watchable,
+      series: watchable,
     },
   },
   budget_entries: {
