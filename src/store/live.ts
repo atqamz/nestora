@@ -6,7 +6,7 @@ const IDLE_MS = 30_000;
 const CAP_MS = 60_000;
 const IDLE_AFTER_MS = 60_000;
 const VERY_IDLE_AFTER_MS = 600_000;
-const TRIGGER_GAP_MS = 2_000;
+export const TRIGGER_GAP_MS = 2_000;
 
 export const delayOf = (idle: number, failures: number) =>
   Math.min((idle < IDLE_AFTER_MS ? ACTIVE_MS : idle < VERY_IDLE_AFTER_MS ? IDLE_MS : CAP_MS) * 2 ** failures, CAP_MS);
@@ -32,6 +32,7 @@ export const createLive = ({
   let began = -Infinity;
   let failures = 0;
   let running = false;
+  let waiting = false;
   let cancel = () => {};
 
   const eligible = () => {
@@ -42,11 +43,15 @@ export const createLive = ({
   const stop = () => {
     cancel();
     cancel = () => {};
+    waiting = false;
   };
 
   const arm = () => {
     stop();
-    if (visible() && online()) cancel = later(async () => (eligible() ? pull() : arm()), delayOf(now() - input, failures));
+    if (visible() && online()) {
+      waiting = true;
+      cancel = later(async () => ((waiting = false), eligible() ? pull() : arm()), delayOf(now() - input, failures));
+    }
   };
 
   const pull = async () => {
@@ -64,12 +69,10 @@ export const createLive = ({
   return {
     touch: () => void (input = now()),
     trigger: () => {
-      if (!eligible()) {
-        arm();
-        return false;
-      }
-      if (!running && now() - began >= Math.min(TRIGGER_GAP_MS * 2 ** failures, CAP_MS)) void pull();
-      return true;
+      const ready = eligible();
+      if (ready && !running && now() - began >= Math.min(TRIGGER_GAP_MS * 2 ** failures, CAP_MS)) void pull();
+      else if (!running && !waiting) arm();
+      return ready;
     },
     stop,
   };

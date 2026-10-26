@@ -444,13 +444,25 @@ for (const path of ["visibilitychange", "pageshow", "focus", "online"] as const)
   });
 }
 
-test("a page that cannot poll yet falls back to one probe per wake, and a pollable one never probes", async () => {
+test("a page that cannot poll yet falls back to one probe per wake at most every 2 s, and a pollable one never probes", async () => {
   const page = pageRig({ view: { link: "expired" } });
   fire(page.win, "focus");
   fire(page.win, "online");
+  assert.equal(page.state.syncs.length, 1);
+  await page.time.advance(1999);
+  fire(page.win, "focus");
+  assert.equal(page.state.syncs.length, 1);
+  await page.time.advance(1);
+  fire(page.win, "online");
   assert.equal(page.state.syncs.length, 2);
-  await page.time.advance(0);
   assert.deepEqual(page.state.polls, []);
+  const storm = pageRig({ view: { link: "expired" } });
+  await storm.time.advance(10 * 60 * SECOND, () => fire(storm.win, "focus"));
+  for (let n = 0; n < 6000; n++) {
+    fire(storm.win, "focus");
+    await storm.time.advance(100);
+  }
+  assert.ok(storm.state.syncs.length <= 600, String(storm.state.syncs.length));
   const healthy = pageRig();
   await healthy.time.advance(10 * 60 * SECOND + 3 * SECOND);
   fire(healthy.win, "focus");
@@ -582,4 +594,176 @@ test("a page whose navigator has no onLine value counts as online", async () => 
   fire(page.win, "focus");
   await page.time.advance(0);
   assert.deepEqual([page.state.polls.length, page.state.syncs.length], [1, 0]);
+});
+
+const sessionPage = async () => {
+  const server = createServer();
+  const time = clock();
+  const world = { down: false, hold: null as Promise<void> | null, hint: null as Side | null };
+  const fetcher: Fetch = async (url, init) => {
+    await world.hold;
+    if (world.down) throw new TypeError("fetch failed");
+    return server.as("a")(url, init);
+  };
+  const session = createSession({
+    disk: await memoryDisk(),
+    hint: { get: () => world.hint, set: (side) => void (world.hint = side) },
+    api: (side) => createApi(fetcher, side),
+    later: time.later,
+  });
+  await session.open();
+  const win = new Win();
+  const doc = new Doc();
+  const nav = { onLine: true };
+  const polls: number[] = [];
+  wirePage({ ...session, poll: () => (polls.push(time.now()), session.poll()) }, { win, doc, nav, now: time.now, later: time.later });
+  const hide = () => {
+    doc.visibilityState = "hidden";
+    fire(doc, "visibilitychange");
+  };
+  const show = () => {
+    doc.visibilityState = "visible";
+    fire(doc, "visibilitychange");
+    fire(win, "focus");
+    fire(win, "pageshow");
+  };
+  return { time, world, session, win, nav, polls, hide, show };
+};
+
+test("a hide and show within the trigger gap of a pull leaves one timer, and polling goes on", async () => {
+  const page = await sessionPage();
+  await page.time.advance(10 * SECOND);
+  assert.equal(page.polls.length, 1);
+  await page.time.advance(300);
+  page.hide();
+  await page.time.advance(600);
+  page.show();
+  await page.time.advance(0);
+  assert.deepEqual([page.polls.length, page.time.waiting()], [1, 1]);
+  await page.time.advance(10 * SECOND);
+  assert.equal(page.polls.length, 2);
+  assert.equal(page.time.waiting(), 1);
+});
+
+test("a hide and show inside the 60 s gap of a failing chain resumes once the network is back, within one interval", async () => {
+  const page = await sessionPage();
+  page.world.down = true;
+  await page.time.advance(190 * SECOND);
+  assert.deepEqual(page.polls.map((at) => at / SECOND), [10, 30, 70, 130, 190]);
+  await page.time.advance(300);
+  page.hide();
+  await page.time.advance(20 * SECOND);
+  page.world.down = false;
+  page.show();
+  await page.time.advance(0);
+  assert.equal(page.time.waiting(), 1);
+  await page.time.advance(60 * SECOND);
+  assert.equal(page.polls.length, 6);
+  assert.equal(page.session.getSnapshot().link, "online");
+  assert.equal(page.time.waiting(), 1);
+});
+
+test("a network blip while a pull is in flight resumes when the network is back, within one interval", async () => {
+  const page = await sessionPage();
+  let release!: () => void;
+  await page.time.advance(9 * SECOND);
+  page.world.hold = new Promise<void>((resolve) => (release = resolve));
+  await page.time.advance(SECOND);
+  assert.equal(page.polls.length, 1);
+  page.nav.onLine = false;
+  page.world.down = true;
+  release();
+  await page.time.advance(0);
+  assert.equal(page.time.waiting(), 0);
+  await page.time.advance(300);
+  page.nav.onLine = true;
+  page.world.down = false;
+  fire(page.win, "online");
+  await page.time.advance(0);
+  assert.equal(page.time.waiting(), 1);
+  await page.time.advance(20 * SECOND);
+  assert.equal(page.polls.length, 2);
+  assert.equal(page.time.waiting(), 1);
+});
+
+test("a trigger while a pull runs on a page that stopped being eligible arms no timer, so the timer cannot start a second pull", async () => {
+  const { time, state, live } = rig({ result: () => time.sleep(25 * SECOND).then(() => true) });
+  await time.advance(10 * SECOND);
+  await time.advance(SECOND);
+  state.kind = { link: "online", paused: true };
+  assert.equal(live.trigger(), false);
+  await time.advance(4 * SECOND);
+  state.kind = { link: "online", paused: false };
+  await time.advance(30 * SECOND);
+  assert.deepEqual([state.calls.map((at) => at / SECOND), state.peak], [[10, 45], 1]);
+});
+
+const random = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+};
+
+test("any sequence of wake events, hides, blips, failures and slow pulls keeps at most one timer, none on a hidden page, and one whenever a visible online page is idle", async () => {
+  const links: Kind[] = [{ link: "online", paused: false }, { link: "offline", paused: false }, { link: "expired", paused: false }, { link: "online", paused: true }];
+  const total = { calls: 0, skipped: 0 };
+  for (let seed = 1; seed <= 150; seed++) {
+    const next = random(seed);
+    const pick = (n: number) => Math.floor(next() * n);
+    const time = clock();
+    const state = { kind: links[0], visible: true, online: true, fail: false, slow: false, pending: [] as (() => void)[], calls: 0, busy: 0, peak: 0, bad: [] as string[] };
+    const live = createLive({
+      sync: async () => {
+        const { link, paused } = state.kind;
+        if (!state.visible || !state.online || paused || link === "expired" || link === "mismatch") state.bad.push(`call at ${time.now()} while ineligible`);
+        state.calls++;
+        state.peak = Math.max(state.peak, ++state.busy);
+        const outcome = !state.fail;
+        if (state.slow) await new Promise<void>((resolve) => state.pending.push(resolve));
+        state.busy--;
+        return outcome;
+      },
+      read: () => state.kind,
+      now: time.now,
+      later: time.later,
+      visible: () => state.visible,
+      online: () => state.online,
+    });
+    const steps: [string, () => Promise<void> | void][] = [
+      ["trigger", () => void (state.visible && live.trigger())],
+      ["hide", () => ((state.visible = false), live.stop())],
+      ["show", () => ((state.visible = true), live.trigger())],
+      ["online", () => ((state.online = true), state.visible && live.trigger())],
+      ["offline", () => void (state.online = false)],
+      ["fail", () => void (state.fail = !state.fail)],
+      ["slow", () => void (state.slow = !state.slow)],
+      ["finish", () => void state.pending.splice(0).forEach((release) => release())],
+      ["link", () => void (state.kind = links[pick(links.length)])],
+      ["touch", () => live.touch()],
+      ["gap skip", () => time.advance(pick(2000))],
+      ["advance", () => time.advance(2000 + pick(40_000))],
+      ["advance far", () => time.advance(60_000 + pick(60_000))],
+    ];
+    for (let step = 0; step < 120; step++) {
+      const [name, run] = steps[pick(steps.length)];
+      await run();
+      await time.advance(0);
+      const where = `seed ${seed} step ${step} after ${name} at ${time.now()}`;
+      assert.ok(time.waiting() <= 1, `${where}: ${time.waiting()} timers`);
+      assert.deepEqual(state.bad, [], where);
+      assert.ok(state.peak <= 1, `${where}: two pulls at once`);
+      if (!state.visible) assert.equal(time.waiting(), 0, `${where}: timer on a hidden page`);
+      if (state.visible && state.online && state.busy === 0) assert.equal(time.waiting(), 1, `${where}: dead chain`);
+    }
+    total.calls += state.calls;
+    state.online = false;
+    state.pending.splice(0).forEach((release) => release());
+    await time.advance(61 * SECOND);
+    assert.equal(time.waiting(), 0, `seed ${seed}: timer on an offline page`);
+    const settled = state.calls;
+    await time.advance(HOUR);
+    assert.deepEqual([state.calls, state.bad], [settled, []], `seed ${seed}`);
+  }
+  assert.ok(total.calls > 500, String(total.calls));
 });

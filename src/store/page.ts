@@ -1,4 +1,4 @@
-import { createLive } from "./live.ts";
+import { TRIGGER_GAP_MS, createLive } from "./live.ts";
 import type { Later } from "./partition.ts";
 import type { Store } from "./store.ts";
 
@@ -21,8 +21,11 @@ export const wirePage = (store: Pick<Store, "poll" | "sync" | "getSnapshot">, { 
     visible: () => doc.visibilityState === "visible",
     online: () => nav.onLine !== false,
   });
+  let probed = -Infinity;
   const wake = () => {
-    if (doc.visibilityState === "visible" && !live.trigger()) void store.sync();
+    if (doc.visibilityState !== "visible" || live.trigger() || now() - probed < TRIGGER_GAP_MS) return;
+    probed = now();
+    void store.sync();
   };
   const listeners: [EventTarget, string, () => void, AddEventListenerOptions?][] = [
     [win, "pointerdown", live.touch, touching],

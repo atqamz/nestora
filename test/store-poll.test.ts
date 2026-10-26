@@ -139,3 +139,17 @@ test("a poll that fails on a link that is not online is not quiet", async () => 
   await b.store.poll();
   assert.equal(b.store.getSnapshot().link, "offline");
 });
+
+test("a poll whose pull succeeds on an unverified store and whose push then fails is false", async () => {
+  const server = createServer();
+  const world = { refusePush: false };
+  const fetcher: Fetch = async (url, init) => (world.refusePush && init.method === "POST" ? new Response("upstream error", { status: 502 }) : server.as("b")(url, init));
+  const store = createStore({ persistence: memoryPersistence(), api: createApi(fetcher, "b") });
+  server.control.down = true;
+  await store.open();
+  idOf(await store.create("items", task("queued")));
+  server.control.down = false;
+  world.refusePush = true;
+  assert.equal(await store.poll(), false);
+  assert.equal(store.getSnapshot().pending, 1);
+});
