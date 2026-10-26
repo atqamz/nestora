@@ -78,7 +78,7 @@ test("Home shows the Today block between the capture box and the due list, and t
   assert.match(read("main.tsx"), /import "\.\/views\/routines\.css";/);
 });
 
-test("the Today block collapses by its own choice only, so a tick never moves the page", () => {
+test("the whole Today block collapses by its own choice only, so a tick never closes it under the thumb", () => {
   const today = read("views/today.tsx");
   assert.match(today, /useState\(!finished\)/);
   assert.match(today, /<details open=\{open\} onToggle=\{\(event\) => setOpen\(event\.currentTarget\.open\)\}>/);
@@ -89,9 +89,9 @@ test("a tick or a tap leaves keyboard focus on its control: nothing is disabled 
   const source = read("ui/routine-action.tsx");
   assert.doesNotMatch(source, /disabled=\{[^}]*busy/);
   assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} onChange=\{\(\) => run\(/);
-  assert.match(source, /className="rt-plus" disabled=\{!active\} aria-label/);
-  assert.match(source, /aria-disabled=\{count\(action, side, today\) === 0 \|\| undefined\}/);
-  assert.match(source, /onClick=\{\(\) => count\(action, side, today\) > 0 && run\(/);
+  assert.match(source, /className="pill rt-plus" disabled=\{!active\} aria-label/);
+  assert.match(source, /aria-disabled=\{taken === 0 \|\| undefined\}/);
+  assert.match(source, /onClick=\{\(\) => taken > 0 && run\(/);
   assert.match(source, /const run = \(work: [^\n]*\) => once\(/);
   assert.match(read("ui/ui.css"), /button:disabled,\s*button\[aria-disabled="true"\] \{\s*opacity: 0\.6;/);
 });
@@ -126,7 +126,8 @@ test("long names, notes and many actions wrap inside the row and never push the 
 
 test("every control keeps a 44 px target and the summaries are tall enough to tap", () => {
   for (const selector of [".rt-today summary", ".rt-more summary", ".rt-block h3 a"]) assert.match(rule(selector), /min-height:\s*var\(--target-min\)/, selector);
-  assert.match(rule(".rt-plus"), /min-width:\s*var\(--target-min\)/);
+  assert.match(rule(".rt-btns .rt-minus"), /min-width:\s*var\(--target-min\)/);
+  assert.match(rule(".rt-block h3 .rt-fold"), /min-height:\s*var\(--row-min\)/);
 });
 
 test("the routine styles use the existing tokens only, with no colour of their own and no gamification", () => {

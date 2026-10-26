@@ -1,14 +1,10 @@
 import { useMemo, useState } from "react";
-import { actionOccursOn, mine } from "../../shared/routines.ts";
-import { pagesOf } from "../domain/routine-start.ts";
-import { actionsOf, allDone, momentOf, routinesOf, tally, todayBlocks, weekStrip } from "../domain/routines.ts";
+import { mine } from "../../shared/routines.ts";
+import { allDone, routinesOf, sections, see, sum, tally, todayBlocks, unseen } from "../domain/routines.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { formatDay } from "../ui/format.ts";
-import { Icon } from "../ui/icons.tsx";
-import { RoutineAction } from "../ui/routine-action.tsx";
-import { RoutineWeek } from "../ui/routine-week.tsx";
-import { momentLabel } from "../ui/routine-label.ts";
 import { text } from "../ui/text.ts";
+import { TodayBlock } from "./today-block.tsx";
 
 const copy = text.routines;
 
@@ -24,6 +20,10 @@ export function Today() {
     setShown(day);
     setOpen(!finished);
   }
+  const [seen, setSeen] = useState(() => unseen(day));
+  const next = see(seen, blocks, day);
+  if (next !== seen) setSeen(next);
+  const { open: current, done: rested, needed } = sections(blocks, seen.rested);
   if (me === null) return null;
   const owned = routinesOf(items).some((routine) => mine(routine, me));
   const { done, total } = tally(blocks);
@@ -48,34 +48,28 @@ export function Today() {
           <h2 id="rt-today">{copy.today(formatDay(day, day))}</h2>
           {total > 0 && <span className="rt-tally">{finished ? copy.allDone : copy.progress(done, total)}</span>}
         </summary>
-        {blocks.map(({ routine, actions, label, progress, side }) => {
-          const strip = weekStrip(routine, actionsOf(items, routine), day, side);
-          return (
-            <div key={routine.id} className="rt-block">
-              <h3>
-                <a href={`#/routines/${routine.id}`}>{label === null ? routine.title : `${routine.title} · ${label}`}</a>
-                <span>{momentLabel(momentOf(routine))}</span>
-                {progress.total > 0 && <span>{copy.progress(progress.done, progress.total)}</span>}
-              </h3>
-              {strip !== null && <RoutineWeek strip={strip} compact />}
-              <ul className="rows">
-                {actions
-                  .filter((action) => action.kind !== "day_type")
-                  .map((action) => (
-                    <RoutineAction key={action.id} routine={routine} action={action} flows={flows} me={me} today={day} active={actionOccursOn(routine, action, day)} />
-                  ))}
-              </ul>
-              {pagesOf(actions).length > 0 && (
-                <p className="rt-start">
-                  <a className="button secondary" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(routine.title)}>
-                    <Icon name="play" />
-                    {copy.start.open}
-                  </a>
-                </p>
-              )}
-            </div>
-          );
-        })}
+        {current.map((block) => (
+          <TodayBlock key={block.routine.id} block={block} items={items} flows={flows} me={me} day={day} />
+        ))}
+        {rested.length > 0 && (
+          <>
+            <p className="rt-label">{copy.doneToday}</p>
+            {rested.map((block) => (
+              <TodayBlock key={block.routine.id} block={block} items={items} flows={flows} me={me} day={day} />
+            ))}
+          </>
+        )}
+        {needed.length > 0 && (
+          <details className="rt-needed">
+            <summary>
+              <span>{copy.whenNeeded}</span>
+              <span className="rt-tally">{copy.progress(sum(needed).done, sum(needed).total)}</span>
+            </summary>
+            {needed.map((block) => (
+              <TodayBlock key={block.routine.id} block={block} items={items} flows={flows} me={me} day={day} />
+            ))}
+          </details>
+        )}
         {trail}
       </details>
     </section>

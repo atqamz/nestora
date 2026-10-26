@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Side } from "../../shared/api.ts";
-import { actionOccursOn, dayLabel, isTimetable, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
+import { actionOccursOn, count, dayLabel, isTimetable, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { copyDraft, draftOf } from "../domain/routine-draft.ts";
 import { pagesOf } from "../domain/routine-start.ts";
-import { actionsOf, momentOf, runs, weekStrip } from "../domain/routines.ts";
+import { actionsOf, finished, momentOf, runs, weekStrip } from "../domain/routines.ts";
 import { weekOf } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
@@ -53,6 +53,7 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
   const today = occursOn(routine, day);
   const todays = actions.filter((action) => actionOccursOn(routine, action, day));
   const { done, total } = progress(todays, keyFor(routine.who, me), day);
+  const counted = todays.filter((action) => action.kind === "counter" && count(action, keyFor(routine.who, me), day) > 0);
   const strip = weekStrip(routine, actions, day, keyFor(routine.who, me));
   const label = today ? dayLabel(todays, day) : null;
   const table = isTimetable(routine);
@@ -75,12 +76,12 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
       <p className="hint rt-when">
         {whenLine(routine, day)}
         {label !== null && ` · ${copy.dayLabel(label)}`}
-        {today && total > 0 && ` · ${copy.progress(done, total)}`}
+        {today && total > 0 && ` · ${finished({ done, total }) ? copy.doneToday : copy.progress(done, total)}`}
       </p>
       {strip !== null && <RoutineWeek strip={strip} />}
       {table && <Timetable days={weekOf(routine, actions, day)} today={day} />}
       <div className="rt-tools">
-        {today && !away && pagesOf(todays).length > 0 && (
+        {today && !away && !finished({ done, total }) && pagesOf(todays).length > 0 && (
           <a className="button" href={`#/routines/${routine.id}/start`}>
             <Icon name="play" />
             {copy.start.open}
@@ -95,6 +96,7 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
           items={routineMenu({
             away,
             open: setSheet,
+            resetCounts: counted.length > 0 ? () => void once(async () => setFailure(failureOf(await flows.clear(routine, counted)))) : undefined,
             resume: () => void once(async () => setFailure(failureOf(await flows.resume(routine)))),
             remove: () => void once(async () => setFailure(failureOf(await flows.remove(routine)))),
           })}
