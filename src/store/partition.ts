@@ -15,7 +15,7 @@ type Down = "offline" | "expired";
 
 type Open = { at: "open"; side: Side; down: Down | null; store: Store };
 
-type Later = (run: () => Promise<unknown>, ms: number) => () => void;
+export type Later = (run: () => Promise<unknown>, ms: number) => () => void;
 
 const timer: Later = (run, ms) => {
   const handle = setTimeout(() => void run(), ms);
@@ -134,6 +134,7 @@ export const createSession = ({ disk, hint, api, later = timer, purge = () => {}
     getSnapshot: () => (state.at === "open" ? state.store.getSnapshot() : bare),
     open: run,
     sync: () => (state.at === "open" && state.down === null ? state.store.sync() : run().catch(() => undefined)),
+    poll: () => (state.at === "open" ? state.store.poll() : Promise.resolve(false)),
     create: write("create"),
     update: write("update"),
     remove: write("remove"),
