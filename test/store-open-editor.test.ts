@@ -157,8 +157,7 @@ test("an open form takes every value from its own snapshot, and a deleted row ke
   assert.doesNotMatch(form, /valueOf\(row,|value: row\.|\[row, siblings/);
   assert.match(form, /<button type="submit" disabled=\{busy \|\| gone\}>/);
   assert.match(form, /actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)/);
-  assert.match(form, /\{gone && \(\s*<p className="hint" role="status">\s*\{text\.goneOpen\}\s*<\/p>\s*\)\}/);
-  assert.match(form, /\{gone && \(\s*<button ref=\{undo\} type="button" disabled=\{busy\} onClick=\{restore\}>\s*\{text\.undo\}\s*<\/button>\s*\)\}/);
+  assert.match(form, /\{gone && \(\s*<button ref=\{undo\} type="button" aria-describedby=\{notice\} disabled=\{busy\} onClick=\{restore\}>\s*\{text\.undo\}\s*<\/button>\s*\)\}/);
   assert.match(form, /if \(!gone \|\| busy \|\| !removed\.current\) return;\s*removed\.current = false;\s*undo\.current\?\.focus\(\);/);
   assert.match(form, /\}, \[gone, busy\]\);/);
   assert.match(form, /removed\.current = true;\s*const result = await \(onRemove \? onRemove\(\) : actions\.remove\(view\.table, row\.id\)\);\s*if \(!result\.ok\) removed\.current = false;/);
@@ -170,7 +169,7 @@ test("every screen that mounts the item form keeps it through a delete instead o
     const source = read(file);
     assert.match(source, /const \{ row(: \w+)?, gone \} = useOpenRow\(/, file);
     assert.match(source, /<ItemForm [^>]*gone=\{gone\}/, file);
-    assert.match(source, /if \(!(row|line|book)\) return <Gone /, file);
+    assert.match(source, /if \(!(row|line|open)\) return <Gone /, file);
   }
   assert.match(read("views/money-line.tsx"), /<section aria-labelledby="payments" inert=\{gone\}>/);
   const book = read("views/book.tsx");
