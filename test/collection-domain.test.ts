@@ -260,3 +260,42 @@ test("a key exactly at the limit is a real key, and a move may land exactly on i
   const b = film("b", { created_at: "2026-10-02T00:00:00Z" }, { collection: "X", order: ORDER_MAX - 1 });
   assert.deepEqual(moveOrders([a, b], a.id, 1), [{ id: a.id, order: ORDER_MAX }]);
 });
+
+const keysAfter = (rows: ItemRow[], moves: { id: string; order: number }[]) =>
+  collections(rows.map((row) => ({ ...row, data: { ...row.data, order: moves.find((move) => move.id === row.id)?.order ?? row.data!.order } })), "movie")[0].rows.map((row) => [row.title, row.data!.order as number] as const);
+
+const strictlyIncreasing = (keyed: readonly (readonly [string, number])[]) => keyed.every(([, key], at) => at === 0 || key > keyed[at - 1][1]);
+
+const trio = (keys: [number, number, number]) => keys.map((order, at) => film("abc"[at], { created_at: `2026-10-0${at + 1}T00:00:00Z` }, { collection: "X", order }));
+
+test("a move whose midpoint rounds onto a neighbour's key renumbers, on the low side and on the high side", () => {
+  for (const keys of [[1, 1 + Number.EPSILON, 2], [1, 1 + 2 * Number.EPSILON, 2], [-Number.MIN_VALUE, 0, 1], [0, Number.MIN_VALUE, 1]] as [number, number, number][]) {
+    const rows = trio(keys);
+    const keyed = keysAfter(rows, moveOrders(rows, rows[2].id, -1));
+    assert.deepEqual(keyed.map(([title]) => title), ["a", "c", "b"], keys.join());
+    assert.ok(strictlyIncreasing(keyed), keys.join());
+  }
+});
+
+test("a tie at zero renumbers instead of reusing the tied key", () => {
+  const rows = trio([0, 0, 0]);
+  const keyed = keysAfter(rows, moveOrders(rows, rows[2].id, -1));
+  assert.deepEqual(keyed.map(([title]) => title), ["a", "c", "b"]);
+  assert.ok(strictlyIncreasing(keyed));
+});
+
+test("a move past the range limit on either side renumbers into range", () => {
+  for (const [keys, mover, step] of [[[-ORDER_MAX, 0, 1], 1, -1], [[0, 1, ORDER_MAX], 1, 1]] as const) {
+    const rows = trio([...keys] as [number, number, number]);
+    const keyed = keysAfter(rows, moveOrders(rows, rows[mover].id, step));
+    assert.ok(keyed.every(([, key]) => Math.abs(key) <= ORDER_MAX), keys.join());
+    assert.ok(strictlyIncreasing(keyed), keys.join());
+  }
+});
+
+test("a stored key beyond the limit, below or above, counts as missing and sorts after every set key", () => {
+  for (const junk of [-ORDER_MAX - 1, ORDER_MAX + 1, -ORDER_MAX * 2 + 1]) {
+    const rows = [film("junk", { created_at: "2026-10-01T00:00:00Z" }, { collection: "X", order: junk }), film("ok", { created_at: "2026-10-02T00:00:00Z" }, { collection: "X", order: 0 })];
+    assert.deepEqual(titles(collections(rows, "movie")[0].rows), ["ok", "junk"], String(junk));
+  }
+});

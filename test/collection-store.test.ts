@@ -279,3 +279,27 @@ test("a loose row moved nowhere, and a blank collection on a loose row, write no
   assert.equal(a.getSnapshot().pending, 0);
   assert.equal(overlay.getSnapshot().toast, null);
 });
+
+test("renaming a collection of one member renames that member, and Undo restores it", async () => {
+  const { a, ids } = await pair();
+  idOf(await setCollection(deps(a), "movie", rowOf(a, ids[0]), "Alien"));
+  overlay.dismissToast();
+  idOf(await renameCollection(deps(a), "movie", "Alien", "Aliens"));
+  assert.deepEqual(group(a).map(({ name, rows }) => [name, rows.length]), [["Aliens", 1], ["Hannibal", 3]]);
+  assert.equal(overlay.getSnapshot().toast!.message, "Renamed Alien to Aliens");
+  overlay.getSnapshot().toast!.action!.run();
+  await settle();
+  assert.equal(group(a)[0].name, "Alien");
+  overlay.dismissToast();
+});
+
+test("saving a member's own collection in another case or with spaces writes nothing and keeps its place", async () => {
+  const { a, ids } = await pair();
+  const before = a.getSnapshot().pending;
+  for (const raw of ["hannibal", "HANNIBAL", "  Hannibal  "]) {
+    assert.deepEqual(await setCollection(deps(a), "movie", rowOf(a, ids[1]), raw), { ok: true, id: ids[1] });
+  }
+  assert.equal(a.getSnapshot().pending, before);
+  assert.deepEqual(order(a), FILMS);
+  assert.equal(overlay.getSnapshot().toast, null);
+});

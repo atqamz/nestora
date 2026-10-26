@@ -67,7 +67,7 @@ export function CollectionSection({ kind, group }: { kind: ScreenKind; group: Co
           <Icon name="edit" />
         </button>
       </div>
-      <ol className="rows">
+      <ol className="rows" role="list">
         {group.rows.map((row, index) => (
           <ScreenRow
             key={row.id}

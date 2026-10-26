@@ -159,9 +159,17 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
   const live = rows.find((candidate) => candidate.id === row.id) ?? row;
   const current = collectionName(live);
   const group = collections(rows, kind).find(({ rows: members }) => members.some((member) => member.id === row.id));
-  const [typed, setTyped] = useState(current ?? "");
+  const [typed, setTyped] = useState<string | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
-  const run = (raw: string) => once(async () => setFailure(failureOf(await setCollection({ items: readItems, actions }, kind, row, raw))));
+  const draft = settleDraft(typed, current ?? "");
+  if (draft !== typed) setTyped(draft);
+  const shown = draft ?? current ?? "";
+  const run = (raw: string) =>
+    once(async () => {
+      const result = await setCollection({ items: readItems, actions }, kind, row, raw);
+      setFailure(failureOf(result));
+      if (result.ok) setTyped(null);
+    });
   const words = text.screen.collection;
   return (
     <section aria-labelledby="sc-collection">
@@ -171,11 +179,11 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          return run(typed);
+          return draft === null ? undefined : run(draft);
         }}
       >
         <Field
-          control={{ name: "collection", label: words.label, type: "text", words: true, max: COLLECTION_MAX, hint: words.hint, value: typed, onChange: setTyped, suggestions: collectionNames(rows, kind) }}
+          control={{ name: "collection", label: words.label, type: "text", words: true, max: COLLECTION_MAX, hint: words.hint, value: shown, onChange: setTyped, suggestions: collectionNames(rows, kind) }}
         />
         {group && (
           <p className="hint" role="status">
@@ -183,7 +191,7 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
           </p>
         )}
         <div className="form-actions">
-          <button type="submit" disabled={busy}>
+          <button type="submit" aria-disabled={busy || draft === null || undefined}>
             {words.save}
           </button>
           {current !== null && (
@@ -191,10 +199,7 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
               type="button"
               className="secondary"
               disabled={busy}
-              onClick={() => {
-                setTyped("");
-                return run("");
-              }}
+              onClick={() => run("")}
             >
               {words.remove}
             </button>

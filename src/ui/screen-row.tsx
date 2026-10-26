@@ -18,13 +18,13 @@ export function ScreenRow({ row, kind, member }: { row: ItemRow; kind: ScreenKin
   return (
     <li className="bk" data-member={member ? true : undefined} data-next={member?.next || undefined}>
       <a className="bk-link" href={`#/${views[kind].route}/${row.id}`}>
-        {member && <span className="co-no">{member.position}</span>}
+        {member && <span className="co-no" aria-hidden="true">{member.position}</span>}
         <Cover book={row} />
         <span className="bk-text">
           <span className="title">{row.title}</span>
           {sub !== "" && <span className="bk-by">{sub}</span>}
           <span className="meta">
-            {member && <span className="co-state">{text.screen.pick[watchOf(row)]}</span>}
+            {member && watchedOn === null && <span className="co-state">{text.screen.pick[watchOf(row)]}</span>}
             {member?.next && <span className="co-next">{words.nextUp}</span>}
             {side !== null && <Who side={side} />}
             {watchedOn !== null && <span>{text.screen.watchedOn(formatDate(watchedOn))}</span>}

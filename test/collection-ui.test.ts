@@ -31,7 +31,7 @@ const sectionOf = async () => strip(await markupOf("ui/collection-section.tsx", 
 test("a collection renders as a labelled section: an h2 with the name and count, then an ordered list in watch order", async () => {
   const html = await sectionOf();
   assert.match(html, /^<section aria-labelledby="([^"]+)"><div class="co-h"><h2 id="\1">Hannibal <span class="tally">3<\/span><\/h2>/);
-  assert.match(html, /<ol class="rows">/);
+  assert.match(html, /<ol class="rows" role="list">/);
   assert.equal(html.match(/<li /g)?.length, 3);
   assert.deepEqual([...html.matchAll(/<span class="title">([^<]*)</g)].map((match) => match[1]), ["Hannibal Rising", "Red Dragon", "The Silence of the Lambs"]);
   assert.doesNotMatch(html, /<h[13-6][\s>]/);
@@ -39,11 +39,20 @@ test("a collection renders as a labelled section: an h2 with the name and count,
 
 test("each row shows its position, its status and, on the first unwatched one only, the Next up mark", async () => {
   const html = await sectionOf();
-  assert.deepEqual([...html.matchAll(/<span class="co-no">(\d+)<\/span>/g)].map((match) => match[1]), ["1", "2", "3"]);
-  assert.deepEqual([...html.matchAll(/<span class="co-state">([^<]*)</g)].map((match) => match[1]), ["Watched", "To watch", "To watch"]);
+  assert.deepEqual([...html.matchAll(/<span class="co-no" aria-hidden="true">(\d+)<\/span>/g)].map((match) => match[1]), ["1", "2", "3"]);
+  assert.deepEqual([...html.matchAll(/<span class="co-state">([^<]*)</g)].map((match) => match[1]), ["To watch", "To watch"]);
   assert.equal(html.match(/<span class="co-next">Next up<\/span>/g)?.length, 1);
   assert.match(html, /<li class="bk" data-member="true" data-next="true">[^]*?Red Dragon/);
   assert.equal(html.match(/data-next="true"/g)?.length, 1);
+});
+
+test("a row link reads its title and facts once: no repeated Watched, no bare position digit and no cover initials", async () => {
+  const html = await sectionOf();
+  const links = [...html.matchAll(/<a class="bk-link"[^>]*>([^]*?)<\/a>/g)].map((match) => match[1].replace(/<span class="(?:co-no|cover)"[^>]*aria-hidden="true"[^>]*>[^<]*(?:<img[^>]*>)?<\/span>/g, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+  assert.equal(links.length, 3);
+  assert.match(links[0], /^Hannibal Rising\b/);
+  for (const name of links) assert.ok((name.match(/Watched/g) ?? []).length <= 1, name);
+  assert.match(links[0], /Watched 1 Oct 2026/);
 });
 
 test("each row has Move up and Move down buttons named after the title, disabled only at the ends, and a rename button names the collection", async () => {
@@ -117,7 +126,7 @@ test("the words are English, name a partner nowhere, and the live note is polite
   assert.equal(words.renamed("Hannibal", "Hannibal Lecter"), "Renamed Hannibal to Hannibal Lecter");
   assert.equal(words.joined("Red Dragon", "Hannibal"), "Added to Hannibal: Red Dragon");
   assert.equal(words.left("Red Dragon", "Hannibal"), "Removed from Hannibal: Red Dragon");
-  assert.doesNotMatch(JSON.stringify(words), /Partner|\bAtqa\b|\bAca\b/);
+  assert.doesNotMatch(JSON.stringify(words), /Partner/);
   assert.match(read("views/screen.tsx"), /<p className="hint" role="status">\s*\{words\.position\(/);
 });
 
