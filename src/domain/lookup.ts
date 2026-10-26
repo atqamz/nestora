@@ -12,7 +12,7 @@ const HITS_MAX = 8;
 
 const BLURB_MAX = 501;
 
-const tidy = (value: string) =>
+export const tidy = (value: string) =>
   value
     .normalize("NFC")
     .replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, " ")

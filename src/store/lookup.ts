@@ -3,6 +3,9 @@ import { fresh } from "../domain/scan.ts";
 import { lookupUrl, parseLookup } from "../domain/lookup.ts";
 import { fillPatch, isbnUrl, lacksBlurb, parseBlurb, parseIsbn, parseSearch, phraseOf, pickIsbn, queriesOf, sameAuthor, sameBook, searchUrl, workKey, workUrl } from "../domain/openlibrary.ts";
 import type { Hit } from "../domain/openlibrary.ts";
+import type { ScreenKind } from "../domain/screen.ts";
+import { parseScreenHits, screenLookupUrl, screenQueryOf, validId } from "../domain/tmdb.ts";
+import type { ScreenHit } from "../domain/tmdb.ts";
 
 export type Outcome<T> = { kind: "ok"; value: T } | { kind: "offline" | "failed" | "slow" | "stale"; retry?: number };
 
@@ -12,6 +15,8 @@ export type Lookup = {
   search(input: { title: string; author: string; original: string }): Promise<Outcome<Hit[]>>;
   byIsbn(isbn: string): Promise<Outcome<Hit | null>>;
   blurb(work: string): Promise<Outcome<string | null>>;
+  screen(input: { kind: ScreenKind; title: string; year: number | null }): Promise<Outcome<ScreenHit[]>>;
+  screenById(kind: ScreenKind, id: number): Promise<Outcome<ScreenHit | null>>;
   cancel(): void;
   stop(): void;
 };
@@ -114,6 +119,19 @@ export const createLookup = ({
     },
     byIsbn: (isbn) => find(begin(), lookupUrl({ kind: "isbn", isbn }), isbnUrl(isbn), (body) => pickIsbn(parseLookup(body), isbn), (body) => parseIsbn(body, isbn)),
     blurb: (work) => get(begin(), workUrl(work), parseBlurb),
+    screen: async ({ kind, title, year }) => {
+      const signal = begin(true);
+      await pause(signal);
+      if (signal.aborted) return { kind: "stale" };
+      const query = screenQueryOf(new URLSearchParams({ kind, title, ...(year === null ? {} : { year: String(year) }) }));
+      return query === null ? { kind: "ok", value: [] } : get(signal, screenLookupUrl(query), parseScreenHits, true);
+    },
+    screenById: async (kind, id) => {
+      const signal = begin();
+      if (validId(id) === null) return { kind: "ok", value: null };
+      const out = await get(signal, screenLookupUrl({ kind, by: "id", id }), parseScreenHits, true);
+      return out.kind === "ok" ? { kind: "ok", value: out.value.find((hit) => hit.tmdb === id) ?? null } : out;
+    },
     cancel: () => searching && current?.abort(),
     stop: () => current?.abort(),
   };

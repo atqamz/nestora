@@ -26,21 +26,28 @@ type Limit = { status: 429 | 503; retry: number };
 
 type Answer = { kind: "ok"; hits: Hit[] } | { kind: "bad"; limit: Limit | null };
 
-const body = async (res: Response) => {
+export const body = async (res: Response, max = MAX_BYTES, signal?: AbortSignal) => {
   const reader = res.body?.getReader();
   if (reader === undefined) return null;
-  const chunks: Uint8Array<ArrayBuffer>[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) return new Blob(chunks).text();
-    size += value.length;
-    if (size > MAX_BYTES) return void (await reader.cancel());
-    chunks.push(value as Uint8Array<ArrayBuffer>);
+  const stop = () => void reader.cancel().catch(() => {});
+  signal?.throwIfAborted();
+  signal?.addEventListener("abort", stop, { once: true });
+  try {
+    const chunks: Uint8Array<ArrayBuffer>[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return (signal?.throwIfAborted(), await new Blob(chunks).text());
+      size += value.length;
+      if (size > max) return void (await reader.cancel());
+      chunks.push(value as Uint8Array<ArrayBuffer>);
+    }
+  } finally {
+    signal?.removeEventListener("abort", stop);
   }
 };
 
-const waitOf = (header: string | null) => {
+export const waitOf = (header: string | null) => {
   const seconds = Number(header);
   return header !== null && header.trim() !== "" && Number.isFinite(seconds) ? Math.min(Math.max(Math.ceil(seconds), 1), 3600) : RETRY_SECONDS;
 };
@@ -64,24 +71,24 @@ const googleHits = (body: unknown) => {
 
 const openLibrary = (query: Query) => (query.kind === "isbn" ? isbnUrl(query.isbn) : searchUrl(phraseOf(query)));
 
-const refuse = (status: number, error: string, retry: number | null = null) =>
+export const refuse = (status: number, error: string, retry: number | null = null) =>
   json(retry === null ? { error } : { error, retry }, status, retry === null ? {} : { "retry-after": String(retry) });
 
-const recall = async (store: Store | null, key: Request): Promise<Hit[] | null> => {
+export const recall = async <T>(store: Store | null, key: Request, seconds: number): Promise<T[] | null> => {
   try {
     const hit = await store?.match(key);
     if (hit === undefined) return null;
-    const { hits, at } = (await hit.json()) as { hits: Hit[] | null; at: unknown };
+    const { hits, at } = (await hit.json()) as { hits: T[] | null; at: unknown };
     const age = typeof at === "number" ? Date.now() - at : NaN;
-    return Array.isArray(hits) && age >= 0 && age < CACHE_SECONDS * 1000 ? hits : null;
+    return Array.isArray(hits) && age >= 0 && age < seconds * 1000 ? hits : null;
   } catch {
     return null;
   }
 };
 
-const remember = async (store: Store | null, key: Request, hits: Hit[]) => {
+export const remember = async <T>(store: Store | null, key: Request, hits: T[], seconds: number) => {
   try {
-    await store?.put(key, Response.json({ hits, at: Date.now() }, { headers: { "cache-control": `public, max-age=${CACHE_SECONDS}` } }));
+    await store?.put(key, Response.json({ hits, at: Date.now() }, { headers: { "cache-control": `public, max-age=${seconds}` } }));
   } catch {}
 };
 
@@ -93,15 +100,15 @@ export const lookupBooks = async (url: URL, env: LookupEnv, { fetcher, store }: 
     cache = store();
   } catch {}
   const key = new Request(cacheKey(query));
-  const cached = await recall(cache, key);
+  const cached = await recall<Hit>(cache, key, CACHE_SECONDS);
   if (cached !== null) return json({ hits: cached });
   const secret = env.GOOGLE_BOOKS_KEY?.trim() ?? "";
   const google = secret === "" ? null : await ask(fetcher, googleUrl(query), { "x-goog-api-key": secret }, googleHits, GOOGLE_MS);
-  if (google?.kind === "ok" && google.hits.length > 0) return (await remember(cache, key, google.hits), json({ hits: google.hits }));
+  if (google?.kind === "ok" && google.hits.length > 0) return (await remember(cache, key, google.hits, CACHE_SECONDS), json({ hits: google.hits }));
   const open = await ask(fetcher, openLibrary(query), { "user-agent": OPEN_LIBRARY_AGENT }, parseSearch, OPEN_LIBRARY_MS);
   const definite = google === null || google.kind === "ok";
   if (open.kind === "ok" && (definite || open.hits.length > 0)) {
-    if (google?.kind === "ok") await remember(cache, key, open.hits);
+    if (google?.kind === "ok") await remember(cache, key, open.hits, CACHE_SECONDS);
     return json({ hits: open.hits });
   }
   const limit = [google, open].flatMap((answer) => (answer?.kind === "bad" && answer.limit !== null ? [answer.limit] : []))[0];

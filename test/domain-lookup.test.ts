@@ -161,7 +161,7 @@ test("a book row accepts a Google cover and refuses a lookalike", () => {
   const row = (cover: string) => ({ id: "00000000-0000-4000-8000-000000000001", kind: "book", title: "Placeholder", status: "wish", created_at: "2026-10-06T05:00:00Z", updated_at: "2026-10-06T05:00:00Z", data: { cover } });
   assert.deepEqual(validateCreate("items", row("https://books.google.com/books/content?id=abc")), []);
   assert.deepEqual(validateCreate("items", row("https://books.googleusercontent.com/x")), []);
-  assert.match(validateCreate("items", row("https://books.google.com.evil.test/books/content?id=abc")).join("\n"), /data\.cover: must be an https URL on covers\.openlibrary\.org, books\.google\.com or books\.googleusercontent\.com/);
+  assert.match(validateCreate("items", row("https://books.google.com.evil.test/books/content?id=abc")).join("\n"), /data\.cover: must be an https URL on covers\.openlibrary\.org, books\.google\.com, books\.googleusercontent\.com or image\.tmdb\.org/);
 });
 
 test("the size limits are inclusive: 200 characters of title, 400 of author, five ISBNs and 501 of blurb pass, one more does not", () => {

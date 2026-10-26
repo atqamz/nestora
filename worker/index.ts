@@ -7,11 +7,13 @@ import { exportData } from "./export.ts";
 import { feedStatus, revokeFeed, rotateFeed, serveFeed } from "./feed.ts";
 import { lookupBooks } from "./lookup.ts";
 import type { LookupEnv, Store } from "./lookup.ts";
+import { lookupScreen } from "./screen.ts";
+import type { ScreenEnv } from "./screen.ts";
 import { photoOf } from "./me.ts";
 import { getSync, json, postSync } from "./sync.ts";
 import type { Db } from "./sync.ts";
 
-export type Bindings = AuthEnv & LookupEnv & { DB: Db; DESIGN: { get(key: string, type: "text"): Promise<string | null> } };
+export type Bindings = AuthEnv & LookupEnv & ScreenEnv & { DB: Db; DESIGN: { get(key: string, type: "text"): Promise<string | null> } };
 
 const SIDED = new Set(["/api/sync", "/api/export", "/api/feed"]);
 
@@ -73,6 +75,8 @@ export const createWorker = (authenticate = createAuthenticator(), fetcher: type
           return method === "GET" ? await exportData(url, env.DB, who) : notAllowed("GET");
         case "/api/lookup":
           return method === "GET" ? await lookupBooks(url, env, { fetcher, store }) : notAllowed("GET");
+        case "/api/lookup/screen":
+          return method === "GET" ? await lookupScreen(url, env, { fetcher, store }) : notAllowed("GET");
         case "/api/me":
           return method === "GET" ? json({ photo: await photoOf(request, env, verified.payload, fetcher) }, 200, { "cache-control": "private, no-store" }) : notAllowed("GET");
         case "/api/feed":

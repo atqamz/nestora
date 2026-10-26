@@ -114,7 +114,7 @@ test("the sheet in the timetable moment offers only blocks, only one owner at a 
 test("the time fields are the native time input, so a 12-hour phone widget still hands over HH:MM", () => {
   const sheet = read("ui/routine-sheet.tsx");
   assert.match(sheet, /start: "time", end: "time"/);
-  assert.match(read("ui/field.tsx"), /type === "date" \|\| type === "time"\s*\? \{ type \}/);
+  assert.match(read("ui/field-attributes.ts"), /type === "date" \|\| type === "time"\s*\? \{ type \}/);
 });
 
 test("a tap swallowed by the settle guard marks the control pressed for a moment and then lets go", () => {
