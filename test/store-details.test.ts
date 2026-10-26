@@ -505,6 +505,8 @@ const dummyLookup = (calls: string[], search: Lookup["search"]): Lookup => ({
   search,
   byIsbn: async () => ({ kind: "ok", value: null }),
   blurb: async () => ({ kind: "ok", value: null }),
+  screen: async () => ({ kind: "ok", value: [] }),
+  screenById: async () => ({ kind: "ok", value: null }),
   cancel: () => void calls.push("cancel"),
   stop: () => void calls.push("stop"),
 });
