@@ -124,3 +124,13 @@ test("the words are English, name a partner nowhere, and the live note is polite
 test("the export and Find posters code paths are untouched by the feature: the collection files never read or write a TMDB key", () => {
   for (const file of ["domain/collection.ts", "ui/collection-flows.ts", "ui/collection-section.tsx"]) assert.doesNotMatch(read(file), /cover|tmdb_at|"tmdb"|data\.tmdb/, file);
 });
+
+test("an idle section renders no failure line and no open sheet, and the focus effect only runs after a press", async () => {
+  const html = await sectionOf();
+  assert.doesNotMatch(html, /role="alert"|<dialog/);
+  const section = read("ui/collection-section.tsx");
+  assert.match(section, /if \(pressed === null\) return;\n\s*moved\.current = null;/);
+  assert.match(section, /if \(!result\.ok\) moved\.current = null;/);
+  assert.match(section, /useRef<string \| null>\(null\)/);
+  assert.match(section, /\{failure\.length > 0 && \(\s*<p className="error" role="alert">/);
+});

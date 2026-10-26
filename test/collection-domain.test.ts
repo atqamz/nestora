@@ -251,3 +251,12 @@ test("Lately still shows a collection film as added only: a move, a rename or a 
   const renamed = item({ kind: "series", title: "Hannibal (TV)", status: "want", ...stamp, updated_at: "2026-10-05T10:00:00Z", data: { collection: "Hannibal", order: 0 } });
   assert.deepEqual(lately([added, moved, renamed], []).map((activity) => [activity.title, activity.verb]), [["Red Dragon", "added"]]);
 });
+
+test("a key exactly at the limit is a real key, and a move may land exactly on it", () => {
+  const top = film("top", { created_at: "2026-10-02T00:00:00Z" }, { collection: "X", order: ORDER_MAX });
+  const none = film("none", { created_at: "2026-10-01T00:00:00Z" }, { collection: "X" });
+  assert.deepEqual(titles(collections([none, top], "movie")[0].rows), ["top", "none"]);
+  const a = film("a", { created_at: "2026-10-01T00:00:00Z" }, { collection: "X", order: 0 });
+  const b = film("b", { created_at: "2026-10-02T00:00:00Z" }, { collection: "X", order: ORDER_MAX - 1 });
+  assert.deepEqual(moveOrders([a, b], a.id, 1), [{ id: a.id, order: ORDER_MAX }]);
+});

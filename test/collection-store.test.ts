@@ -249,3 +249,33 @@ test("a movie collection and a series collection with the same name stay apart",
   assert.equal(group(a, "movie")[0].rows.length, 4);
   assert.equal(group(a, "series")[0].rows.length, 1);
 });
+
+test("moving a row of the second collection moves that row, whatever the first collection holds", async () => {
+  const { server, a } = await pair();
+  const alien = ["Alien", "Aliens", "Alien 3"].map(async (title) => idOf(await saveScreen(items(a), a.create, { kind: "movie", title, year: "", status: "want", who: "both", collection: "Alien" }, "2026-10-26")));
+  const ids = await Promise.all(alien);
+  await a.sync();
+  assert.deepEqual(group(a).map(({ name }) => name), ["Alien", "Hannibal"]);
+  idOf(await moveMember(deps(a), "movie", rowOf(a, ids[2]), -1));
+  assert.deepEqual(group(a)[0].rows.map((row) => row.title), ["Alien", "Alien 3", "Aliens"]);
+  assert.deepEqual(order(a), group(a)[0].rows.map((row) => row.title));
+  assert.deepEqual(group(a)[1].rows.map((row) => row.title), FILMS);
+  await a.sync();
+  assert.deepEqual(server.row("items", ids[2])!.data, { collection: "Alien", order: 0.5 });
+  const [rising] = group(a)[1].rows;
+  idOf(await moveMember(deps(a), "movie", rising, 1));
+  assert.deepEqual(group(a)[1].rows.map((row) => row.title), ["Red Dragon", "Hannibal Rising", "The Silence of the Lambs", "Hannibal"]);
+  assert.deepEqual(group(a)[0].rows.map((row) => row.title), ["Alien", "Alien 3", "Aliens"]);
+  overlay.dismissToast();
+});
+
+test("a loose row moved nowhere, and a blank collection on a loose row, write nothing and announce nothing", async () => {
+  const { a } = await pair();
+  const loose = idOf(await saveScreen(items(a), a.create, { kind: "movie", title: "Heat", year: "", status: "want", who: "both" }, "2026-10-26"));
+  await a.sync();
+  overlay.dismissToast();
+  assert.deepEqual(await moveMember(deps(a), "movie", rowOf(a, loose), -1), { ok: true, id: loose });
+  assert.deepEqual(await setCollection(deps(a), "movie", rowOf(a, loose), ""), { ok: true, id: loose });
+  assert.equal(a.getSnapshot().pending, 0);
+  assert.equal(overlay.getSnapshot().toast, null);
+});
