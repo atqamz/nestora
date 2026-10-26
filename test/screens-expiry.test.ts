@@ -1,4 +1,4 @@
-import { mock, test } from "node:test";
+import { afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { ItemRow } from "../shared/tables.ts";
@@ -244,11 +244,17 @@ const ZONE = "Asia/Jakarta";
 
 const SERVER_DAY = "2027-03-01";
 
-const fixedServerDate = (server: ReturnType<typeof createServer>, at = `${SERVER_DAY}T05:00:00Z`) => {
-  server.control.date = () => new Date(at).toUTCString();
+const deviceAt = (at: string) => {
+  mock.timers.reset();
+  mock.timers.enable({ apis: ["Date"], now: new Date(at) });
 };
 
-const deviceAt = (at: string) => mock.timers.enable({ apis: ["Date"], now: new Date(at) });
+const fixedServerDate = (server: ReturnType<typeof createServer>, at = `${SERVER_DAY}T05:00:00Z`) => {
+  server.control.date = () => new Date(at).toUTCString();
+  deviceAt(at);
+};
+
+afterEach(() => mock.timers.reset());
 
 test("the sweep day is the server's day in the app's zone, and none while the store is paused, has no side or has not heard from the server", () => {
   const ready = { paused: false, me: "a" as const };
@@ -263,7 +269,7 @@ test("the sweep day is the server's day in the app's zone, and none while the st
   assert.deepEqual(calls, []);
 });
 
-test("a store learns the server's time from the Date header of its answers, whatever its own clock says, and knows nothing without one", async () => {
+test("a store learns the server's time from the Date header of its answers, whatever its own clock says once two answers agree, and knows nothing without one", async () => {
   const server = createServer();
   fixedServerDate(server);
   deviceAt("2027-09-17T05:00:00Z");
@@ -272,6 +278,9 @@ test("a store learns the server's time from the Date header of its answers, what
     assert.equal(store.serverNow(), null);
     assert.equal(store.getSnapshot().dated, false);
     await store.open();
+    assert.equal(store.getSnapshot().dated, false);
+    assert.equal(store.serverNow(), null);
+    await store.sync();
     assert.equal(store.getSnapshot().dated, true);
     assert.ok(Math.abs(store.serverNow()!.getTime() - new Date(`${SERVER_DAY}T05:00:00Z`).getTime()) < 1000);
     assert.equal(todayIn(store.serverNow()!, ZONE), SERVER_DAY);
@@ -305,6 +314,9 @@ test("a phone whose clock is 200 days ahead sweeps nothing fresh: the sweep runs
   try {
     const ahead = client(server, "a").store;
     await ahead.open();
+    assert.equal(ahead.serverNow(), null);
+    await ahead.sync();
+    assert.notEqual(ahead.serverNow(), null);
     const items = own(ahead);
     assert.equal(items.length, 7);
     const deviceDay = todayIn(new Date(), ZONE);
@@ -466,4 +478,64 @@ test("a match with no year adds no year, and one with a year adds it only to a r
   assert.deepEqual(posterPatch(aged(null, { cover: undefined, tmdb: undefined }), hit, TODAY), { tmdb: 910001, tmdb_at: TODAY, cover: POSTER });
   assert.deepEqual(posterPatch(aged(null, { year: 2017 }), { ...hit, year: 2018 }, TODAY).year, undefined);
   assert.equal(posterPatch(aged(null, { cover: undefined, tmdb: undefined }), { ...hit, year: 2018 }, TODAY).year, 2018);
+});
+
+const WRONG = "Thu, 01 Jan 2015 05:00:00 GMT";
+
+const posted = (server: ReturnType<typeof createServer>) => server.seen.filter((request) => request.method === "POST").length;
+
+const keepsPosters = (server: ReturnType<typeof createServer>, ids: string[]) => {
+  for (const id of ids) assert.equal((server.row("items", id)!.data as { tmdb: number }).tmdb, 910001, id);
+};
+
+test("one answer with a 2015 Date never causes a write: the store takes no server time from it, and the sweep that follows has no day", async () => {
+  const { server, a, ids } = await seeded();
+  await a.sync();
+  server.control.date = () => WRONG;
+  deviceAt(`${SERVER_DAY}T05:00:00Z`);
+  const store = client(server, "a").store;
+  await store.open();
+  assert.deepEqual([store.getSnapshot().dated, store.serverNow()], [false, null]);
+  const posts = posted(server);
+  sweepExpired(own(store), sweepDay(store.getSnapshot(), store.serverNow(), ZONE), store.many);
+  await store.sync();
+  assert.equal(posted(server), posts);
+  keepsPosters(server, Object.values(ids));
+});
+
+test("a good first answer, then one with a 2015 Date, then a row change: the server day stays the real one and the 3-day-old poster stays", async () => {
+  const { server, a, ids } = await seeded();
+  fixedServerDate(server);
+  const store = client(server, "a").store;
+  await store.open();
+  const recent = idOf(await store.create("items", { kind: "movie", title: "Baru", status: "want", data: { cover: POSTER, tmdb: 910001, tmdb_at: addDays(SERVER_DAY, -3) } } as never));
+  await store.sync();
+  assert.equal(todayIn(store.serverNow()!, ZONE), SERVER_DAY);
+  server.control.date = () => WRONG;
+  await store.sync();
+  assert.equal(todayIn(store.serverNow()!, ZONE), SERVER_DAY);
+  idOf(await store.update("items", ids.fresh, { note: "Rewatch" } as never));
+  await store.sync();
+  sweepExpired(own(store), sweepDay(store.getSnapshot(), store.serverNow(), ZONE), store.many);
+  await store.sync();
+  keepsPosters(server, [recent, ids.fresh, ids.refresh, ids.late]);
+  for (const id of [ids.purge, ids.more, ids.none]) assert.deepEqual(server.row("items", id)!.data, KEPT, id);
+});
+
+test("a 2015 Date that keeps coming, and one 2100 Date, take nothing either", async () => {
+  const { server, ids } = await seeded();
+  for (const date of [WRONG, "Fri, 01 Jan 2100 05:00:00 GMT"]) {
+    fixedServerDate(server);
+    server.control.date = () => date;
+    const store = client(server, "a").store;
+    await store.open();
+    await store.sync();
+    await store.sync();
+    assert.equal(store.serverNow(), null, date);
+    const posts = posted(server);
+    sweepExpired(own(store), sweepDay(store.getSnapshot(), store.serverNow(), ZONE), store.many);
+    await store.sync();
+    assert.equal(posted(server), posts, date);
+  }
+  keepsPosters(server, Object.values(ids));
 });

@@ -275,3 +275,69 @@ test("a phone that last synced before the migration pulls the cleaned tombstone,
   assert.deepEqual(dataOf(server, ids.movie), KEPT);
   assert.equal((await exported(server)).match(/invPoster0001/g)?.length, 3);
 });
+
+const interleaved = (server: WorkerServer, once: () => Promise<void>) => {
+  const real = server.db.batch.bind(server.db);
+  let armed = true;
+  server.db.batch = async (statements) => {
+    if (armed && (statements as unknown as { sql: string }[]).some((item) => item.sql.includes("deleted_at = ?"))) {
+      armed = false;
+      await once();
+    }
+    return real(statements);
+  };
+};
+
+test("a poster write that lands between the Worker's read and its batch does not survive on the tombstone", async () => {
+  const { server, open } = rig();
+  const a = open("a");
+  const b = open("b");
+  await a.store.open();
+  await b.store.open();
+  const id = idOf(await a.store.create("items", { kind: "movie", title: "Pelabuhan Terakhir", status: "watched", data: { year: 1999 } } as never));
+  await settle(a.store, b.store);
+  idOf(await a.store.remove("items", id));
+  interleaved(server, async () => {
+    idOf(await b.store.update("items", id, { data: KEYS } as never));
+    await b.store.sync();
+  });
+  await a.store.sync();
+  assert.notEqual(stored(server, id).deleted_at, null);
+  assert.deepEqual(dataOf(server, id), { year: 1999 });
+  await settle(a.store, b.store);
+  assert.deepEqual(dataOf(server, id), { year: 1999 });
+});
+
+test("a delete made by the old Worker between the migration and the deploy is purged by the step after the deploy, which bumps the revision once and then never", () => {
+  const { sqlite, put } = old();
+  sqlite.exec(migrations([PURGE])[0]);
+  put("late-movie", "movie", true, { ...KEPT, ...KEYS });
+  put("late-series", "series", true, KEYS);
+  put("late-book", "book", true, { cover: POSTER });
+  put("live-movie", "movie", false, { ...KEPT, ...KEYS });
+  const before = revOf(sqlite);
+  const sql = migrations([PURGE])[0];
+  sqlite.exec(sql);
+  assert.equal(revOf(sqlite), before + 1);
+  assert.deepEqual(JSON.parse(read(sqlite, "late-movie").data!), KEPT);
+  assert.deepEqual(JSON.parse(read(sqlite, "late-series").data!), {});
+  for (const id of ["late-movie", "late-series"]) assert.equal(read(sqlite, id).rev, before + 1, id);
+  assert.equal(read(sqlite, "late-book").rev, 7);
+  assert.deepEqual(JSON.parse(read(sqlite, "late-book").data!), { cover: POSTER });
+  assert.deepEqual(JSON.parse(read(sqlite, "live-movie").data!), { ...KEPT, ...KEYS });
+  const stamped = sqlite.prepare("SELECT id, rev, updated_at FROM items ORDER BY id").all();
+  sqlite.exec(sql);
+  sqlite.exec(sql);
+  assert.equal(revOf(sqlite), before + 1);
+  assert.deepEqual(sqlite.prepare("SELECT id, rev, updated_at FROM items ORDER BY id").all(), stamped);
+});
+
+test("the deploy job re-runs the purge after wrangler deploy, with the same credentials and the file of the migration", () => {
+  const steps = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").split("\n      - ");
+  const at = (needle: string) => steps.findIndex((step) => step.includes(needle));
+  const purge = at(`wrangler d1 execute wp --remote --file migrations/${PURGE}`);
+  assert.ok(at("wrangler d1 migrations apply wp --remote") < at("npx wrangler deploy"));
+  assert.ok(at("npx wrangler deploy") < purge);
+  assert.equal(at("npx wrangler deploy") + 1, purge);
+  assert.match(steps[purge], /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}\n\s+CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+});

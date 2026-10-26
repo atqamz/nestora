@@ -7,6 +7,8 @@ import { validateChange, validateMutation } from "../../shared/validate.ts";
 import type { Api } from "./api.ts";
 import { absorb, changedFields, live, newer, overlay, stable, takeBatch, toMaps, wire } from "./outbox.ts";
 import type { Pending, Persistence, Rows, Write } from "./persistence.ts";
+import { learned, newestStamp, unknown } from "./server-clock.ts";
+import type { Clock } from "./server-clock.ts";
 
 export type Link = "online" | "offline" | "expired" | "mismatch";
 
@@ -54,7 +56,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let epoch: string | null = null;
   let generation: string | null = null;
   let verified = false;
-  let skew: number | null = null;
+  let clock: Clock = unknown;
   let notice: Snapshot["notice"] = null;
   let me: Side | null = null;
   let link: Link = "online";
@@ -82,7 +84,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       storage,
       notice,
       paused: held,
-      dated: skew !== null,
+      dated: clock.skew !== null,
     };
     for (const listener of listeners) listener();
   };
@@ -112,7 +114,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   const persist = (write: Write) => persisting(() => persistence.write(write));
 
   const learn = (served: number | null) => {
-    if (served !== null) skew = served - Date.now();
+    clock = learned(clock, served, Date.now(), () => newestStamp(base.items.values()));
   };
 
   const holdsServerData = () => rev > 0 || tableNames.some((table) => base[table].size > 0);
@@ -179,9 +181,9 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       rev = next;
       me = res.body.me;
       verified = true;
-      const wasDated = skew !== null;
+      const wasDated = clock.skew !== null;
       learn(res.served);
-      const quiet = unchanged && link === "online" && wasDated === (skew !== null);
+      const quiet = unchanged && link === "online" && wasDated === (clock.skew !== null);
       link = "online";
       if (!quiet) emit();
       if (!photoChecked) {
@@ -413,7 +415,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       return () => void listeners.delete(listener);
     },
     getSnapshot: () => snapshot,
-    serverNow: () => (skew === null ? null : new Date(Date.now() + skew)),
+    serverNow: () => (clock.skew === null ? null : new Date(Date.now() + clock.skew)),
     open,
     sync,
     create,

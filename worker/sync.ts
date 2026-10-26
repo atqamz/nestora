@@ -175,8 +175,7 @@ const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: R
 const remove = (ctx: Context, name: TableName, id: string, stored: Raw): Failure | Statement | undefined => {
   if (stored.deleted_at !== null) return undefined;
   ctx.world[name].set(id, { ...withoutPoster(name, stored), deleted_at: ctx.stamp, updated_at: ctx.stamp, updated_by: ctx.who });
-  const { data } = dropsPoster(name, stored) ? differences(name, stored, { data: POSTER_PURGE }) : { data: {} };
-  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, data);
+  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, dropsPoster(name, stored) ? POSTER_PURGE : {});
 };
 
 const step = (ctx: Context, mutation: Mutation): Failure | Statement | undefined => {
