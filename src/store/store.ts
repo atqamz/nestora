@@ -89,7 +89,6 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   };
 
   const failed = (kind: Exclude<Link, "online">) => {
-    reached = false;
     if (calm && kind === "offline" && link === "online" && !struck) {
       struck = true;
       return;

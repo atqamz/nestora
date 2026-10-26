@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { Side } from "../shared/api.ts";
 import { createApi } from "../src/store/api.ts";
 import type { Fetch } from "../src/store/api.ts";
 import { memoryPersistence } from "../src/store/memory.ts";
@@ -114,4 +115,27 @@ test("quiet failures lose no row: both partners' rows are there after the recove
   await b.store.poll();
   assert.deepEqual(titles(b.store.getSnapshot().rows.items), ["from a", "from b"]);
   assert.equal(b.store.getSnapshot().pending, 0);
+});
+
+test("a poll that finds the tab signed in as someone else is false, and so is the next one", async () => {
+  const server = createServer();
+  const world = { who: "b" as Side };
+  const store = createStore({ persistence: memoryPersistence(), api: createApi((url, init) => server.as(world.who)(url, init), "b") });
+  await store.open();
+  assert.equal(await store.poll(), true);
+  world.who = "a";
+  assert.equal(await store.poll(), false);
+  assert.equal(store.getSnapshot().link, "mismatch");
+  assert.equal(await store.poll(), false);
+});
+
+test("a poll that fails on a link that is not online is not quiet", async () => {
+  const { server, b } = await pair();
+  server.control.session = "unauthorized";
+  await b.store.poll();
+  assert.equal(b.store.getSnapshot().link, "expired");
+  server.control.session = "ok";
+  server.control.down = true;
+  await b.store.poll();
+  assert.equal(b.store.getSnapshot().link, "offline");
 });

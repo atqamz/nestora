@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import type { Side } from "../shared/api.ts";
 import { badgeFor } from "../src/domain/status.ts";
 import { createApi } from "../src/store/api.ts";
 import type { Fetch } from "../src/store/api.ts";
 import { createLive, delayOf } from "../src/store/live.ts";
 import { memoryDisk } from "../src/store/memory.ts";
+import { wirePage } from "../src/store/page.ts";
 import { createSession } from "../src/store/partition.ts";
 import type { Snapshot } from "../src/store/store.ts";
 import { client, idOf, task, titles } from "./store-client.ts";
@@ -315,4 +317,269 @@ test("one failed background pull leaves the badge synced, two in a row show offl
   server.control.down = true;
   await time.advance(60 * SECOND);
   assert.equal(badge(), "synced");
+});
+
+test("a trigger on a loop that cannot poll arms the chain once, and it polls within one interval of the loop becoming eligible", async () => {
+  const { time, state, live } = rig({ view: { paused: true } });
+  live.stop();
+  assert.equal(time.waiting(), 0);
+  for (let n = 0; n < 5; n++) {
+    assert.equal(live.trigger(), false);
+    assert.equal(time.waiting(), 1);
+  }
+  state.kind = { link: "online", paused: false };
+  await time.advance(10 * SECOND);
+  assert.deepEqual(state.calls, [10 * SECOND]);
+  assert.equal(time.waiting(), 1);
+});
+
+test("twenty triggers 5 s apart leave one live timer each time, and ten active minutes after them make at most 60 calls", async () => {
+  const { time, state, live } = rig();
+  for (let n = 0; n < 20; n++) {
+    live.touch();
+    await time.advance(5 * SECOND);
+    live.trigger();
+    await time.advance(0);
+    assert.equal(time.waiting(), 1);
+  }
+  const before = state.calls.length;
+  await time.advance(10 * 60 * SECOND, live.touch);
+  assert.ok(state.calls.length - before <= 60, String(state.calls.length - before));
+  assert.equal(state.peak, 1);
+});
+
+test("stop leaves no live timer, and a trigger while the timer waits and the pull is slow starts one pull and no second chain", async () => {
+  const { time, state, live } = rig({ result: () => time.sleep(25 * SECOND).then(() => true) });
+  assert.equal(time.waiting(), 1);
+  live.stop();
+  assert.equal(time.waiting(), 0);
+  live.trigger();
+  await time.advance(0);
+  assert.deepEqual([state.calls.length, time.waiting()], [1, 1]);
+  await time.advance(25 * SECOND);
+  assert.equal(time.waiting(), 1);
+  await time.advance(8 * SECOND);
+  live.trigger();
+  await time.advance(10 * SECOND, live.touch);
+  assert.deepEqual([state.calls.length, state.peak, time.waiting()], [2, 1, 1]);
+});
+
+test("a trigger every 2 s on a failing loop makes about one call a minute once the failures pile up", async () => {
+  const { time, state, live } = rig({ result: () => false });
+  for (let n = 0; n < 300; n++) {
+    await time.advance(2 * SECOND);
+    live.trigger();
+  }
+  assert.ok(state.calls.length <= 30, String(state.calls.length));
+});
+
+const recorder = () =>
+  class extends EventTarget {
+    active: [string, unknown][] = [];
+    override addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+      this.active.push([type, options]);
+      super.addEventListener(type, listener, options);
+    }
+    override removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions) {
+      const capture = (entry: unknown) => (typeof entry === "object" && entry !== null ? Boolean((entry as EventListenerOptions).capture) : Boolean(entry));
+      const at = this.active.findIndex(([name, added]) => name === type && capture(added) === capture(options));
+      if (at >= 0) this.active.splice(at, 1);
+      super.removeEventListener(type, listener, options);
+    }
+  };
+const Win = recorder();
+const Doc = class extends recorder() {
+  visibilityState: DocumentVisibilityState = "visible";
+};
+
+const fire = (target: EventTarget, type: string) => void target.dispatchEvent(new Event(type));
+
+const pageRig = ({ view = {} as Partial<Kind>, hidden = false, offline = false } = {}) => {
+  const time = clock();
+  const win = new Win();
+  const doc = new Doc();
+  const nav = { onLine: !offline };
+  doc.visibilityState = hidden ? "hidden" : "visible";
+  const state = { kind: { link: "online", paused: false, ...view } as Kind, polls: [] as number[], syncs: [] as number[], onSync: () => {} };
+  const store = {
+    poll: async () => (state.polls.push(time.now()), true),
+    sync: async () => (state.syncs.push(time.now()), state.onSync()),
+    getSnapshot: () => state.kind as Snapshot,
+  };
+  const off = wirePage(store, { win, doc, nav, now: time.now, later: time.later });
+  return { time, win, doc, nav, state, off };
+};
+
+test("each of the four wake events pulls a healthy page once, and a hidden page nothing", async () => {
+  for (const [name, source] of [["visibilitychange", "doc"], ["pageshow", "win"], ["focus", "win"], ["online", "win"]] as const) {
+    const page = pageRig();
+    await page.time.advance(3 * SECOND);
+    fire(page[source], name);
+    await page.time.advance(0);
+    assert.deepEqual([name, page.state.polls, page.state.syncs], [name, [3 * SECOND], []]);
+    page.doc.visibilityState = "hidden";
+    fire(page.win, name);
+    fire(page.doc, name);
+    await page.time.advance(0);
+    assert.deepEqual([name, page.state.polls.length, page.state.syncs.length], [name, 1, 0]);
+  }
+});
+
+for (const path of ["visibilitychange", "pageshow", "focus", "online"] as const) {
+  test(`${path} re-arms the dead chain of a read-only page once, and the recovered probe is polled within one interval`, async () => {
+    const page = pageRig({ view: { paused: true }, offline: path === "online" });
+    if (path !== "online") {
+      page.doc.visibilityState = "hidden";
+      fire(page.doc, "visibilitychange");
+      page.doc.visibilityState = "visible";
+    }
+    assert.equal(page.time.waiting(), 0);
+    page.state.onSync = () => void (page.state.kind = { link: "online", paused: false });
+    page.nav.onLine = true;
+    fire(path === "visibilitychange" ? page.doc : page.win, path);
+    assert.deepEqual([page.time.waiting(), page.state.syncs.length], [1, 1]);
+    await page.time.advance(10 * SECOND);
+    assert.deepEqual(page.state.polls, [10 * SECOND]);
+    assert.equal(page.time.waiting(), 1);
+  });
+}
+
+test("a page that cannot poll yet falls back to one probe per wake, and a pollable one never probes", async () => {
+  const page = pageRig({ view: { link: "expired" } });
+  fire(page.win, "focus");
+  fire(page.win, "online");
+  assert.equal(page.state.syncs.length, 2);
+  await page.time.advance(0);
+  assert.deepEqual(page.state.polls, []);
+  const healthy = pageRig();
+  await healthy.time.advance(10 * 60 * SECOND + 3 * SECOND);
+  fire(healthy.win, "focus");
+  assert.deepEqual([healthy.state.polls.length, healthy.state.syncs.length], [25, 0]);
+});
+
+test("the page loop is hidden-aware, offline-aware and idle-aware without any wake event", async () => {
+  const hidden = pageRig();
+  hidden.doc.visibilityState = "hidden";
+  await hidden.time.advance(HOUR);
+  const offline = pageRig();
+  offline.nav.onLine = false;
+  await offline.time.advance(HOUR);
+  assert.deepEqual([hidden.state.polls.length, offline.state.polls.length], [0, 0]);
+  const idle = pageRig();
+  await idle.time.advance(10 * 60 * SECOND);
+  assert.equal(idle.state.polls.length, 24);
+});
+
+for (const type of ["pointerdown", "keydown"]) {
+  test(`${type} counts as input, passively and in the capture phase`, async () => {
+    const page = pageRig();
+    await page.time.advance(15 * 60 * SECOND);
+    const idle = page.state.polls.length;
+    fire(page.win, type);
+    await page.time.advance(130 * SECOND, () => fire(page.win, type));
+    const gaps = page.state.polls.slice(idle + 1).map((at, index) => (at - page.state.polls[idle + index]) / SECOND);
+    assert.deepEqual(gaps, Array(gaps.length).fill(10));
+    assert.ok(gaps.length >= 5);
+    assert.deepEqual(page.win.active.filter(([name]) => name === type), [[type, { passive: true, capture: true }]]);
+  });
+}
+
+test("one wiring registers each listener once, and its cleanup removes them and stops the chain", async () => {
+  const page = pageRig();
+  const names = (target: { active: [string, unknown][] }) => target.active.map(([name]) => name).sort();
+  assert.deepEqual(names(page.win), ["focus", "keydown", "online", "pageshow", "pointerdown"]);
+  assert.deepEqual(names(page.doc), ["visibilitychange"]);
+  page.off();
+  assert.deepEqual([page.win.active, page.doc.active, page.time.waiting()], [[], [], 0]);
+  fire(page.win, "focus");
+  fire(page.doc, "visibilitychange");
+  await page.time.advance(HOUR);
+  assert.deepEqual([page.state.polls, page.state.syncs], [[], []]);
+});
+
+test("hiding the page stops the chain, and a read-only reload that was hidden, shown and healed polls again within one interval", async () => {
+  const server = createServer();
+  const time = clock();
+  const raw = await memoryDisk();
+  const world = { down: false, hint: null as Side | null };
+  const fetcher: Fetch = async (url, init) => {
+    if (world.down) throw new TypeError("fetch failed");
+    return server.as("a")(url, init);
+  };
+  const tab = () =>
+    createSession({
+      disk: raw,
+      hint: { get: () => world.hint, set: (side) => void (world.hint = side) },
+      api: (side) => createApi(fetcher, side),
+      later: time.later,
+    });
+  await tab().open();
+  world.down = true;
+  const session = tab();
+  await session.open();
+  assert.equal(session.getSnapshot().paused, true);
+  const win = new Win();
+  const doc = new Doc();
+  let polls = 0;
+  wirePage({ ...session, poll: () => (polls++, session.poll()) }, { win, doc, nav: { onLine: true }, now: time.now, later: time.later });
+  doc.visibilityState = "hidden";
+  fire(doc, "visibilitychange");
+  await time.advance(3 * SECOND);
+  doc.visibilityState = "visible";
+  fire(doc, "visibilitychange");
+  await time.advance(3 * SECOND);
+  assert.equal(session.getSnapshot().paused, true);
+  world.down = false;
+  await time.advance(30 * SECOND);
+  assert.deepEqual([session.getSnapshot().paused, session.getSnapshot().link], [false, "online"]);
+  const before = polls;
+  const touch = () => fire(win, "pointerdown");
+  await time.advance(70 * SECOND, touch);
+  assert.ok(polls - before >= 6, String(polls - before));
+});
+
+test("the browser store wires the real window, document, navigator, clock and timer into the page loop", () => {
+  const browser = readFileSync(new URL("../src/store/browser.ts", import.meta.url), "utf8");
+  assert.match(browser, /^wirePage\(store, \{ win: window, doc: document, nav: navigator, now: Date\.now, later: timer \}\);$/m);
+});
+
+test("the session poll is false before a store is open, and quiet once like the store's own", async () => {
+  const server = createServer();
+  const session = createSession({ disk: await memoryDisk(), hint: { get: () => null, set: () => {} }, api: (side) => createApi(server.as("a"), side) });
+  assert.equal(await session.poll(), false);
+  await session.open();
+  assert.equal(await session.poll(), true);
+  server.control.down = true;
+  assert.equal(await session.poll(), false);
+  assert.equal(session.getSnapshot().link, "online");
+  await session.poll();
+  assert.equal(session.getSnapshot().link, "offline");
+});
+
+test("a failed pull widens the trigger gap to 4 s, and a page that never saw input starts at the active cadence", async () => {
+  const failing = rig({ result: () => false });
+  await failing.time.advance(10 * SECOND);
+  await failing.time.advance(3999);
+  failing.live.trigger();
+  await failing.time.advance(0);
+  assert.equal(failing.state.calls.length, 1);
+  await failing.time.advance(1);
+  failing.live.trigger();
+  await failing.time.advance(0);
+  assert.equal(failing.state.calls.length, 2);
+  const time = clock();
+  await time.advance(HOUR);
+  const calls: number[] = [];
+  createLive({ sync: async () => (calls.push(time.now()), true), read: () => ({ link: "online", paused: false }), now: time.now, later: time.later, visible: () => true, online: () => true });
+  await time.advance(60 * SECOND);
+  assert.equal(calls.length, 6);
+});
+
+test("a page whose navigator has no onLine value counts as online", async () => {
+  const page = pageRig();
+  (page.nav as { onLine?: boolean }).onLine = undefined;
+  await page.time.advance(3 * SECOND);
+  fire(page.win, "focus");
+  await page.time.advance(0);
+  assert.deepEqual([page.state.polls.length, page.state.syncs.length], [1, 0]);
 });

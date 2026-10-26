@@ -64,8 +64,11 @@ export const createLive = ({
   return {
     touch: () => void (input = now()),
     trigger: () => {
-      if (!eligible()) return false;
-      if (!running && now() - began >= TRIGGER_GAP_MS) void pull();
+      if (!eligible()) {
+        arm();
+        return false;
+      }
+      if (!running && now() - began >= Math.min(TRIGGER_GAP_MS * 2 ** failures, CAP_MS)) void pull();
       return true;
     },
     stop,

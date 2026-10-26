@@ -17,7 +17,7 @@ type Open = { at: "open"; side: Side; down: Down | null; store: Store };
 
 export type Later = (run: () => Promise<unknown>, ms: number) => () => void;
 
-const timer: Later = (run, ms) => {
+export const timer: Later = (run, ms) => {
   const handle = setTimeout(() => void run(), ms);
   return () => clearTimeout(handle);
 };
