@@ -193,6 +193,7 @@
 
 .rt-block h3 {
   margin: 0 0 var(--s1);
+  overflow-wrap: anywhere;
   line-height: inherit;
   font-size: var(--fs-meta);
   font-weight: 700;

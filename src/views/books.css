@@ -125,6 +125,7 @@
 .bk-note {
   display: grid;
   flex: 1 1 100%;
+  overflow-wrap: anywhere;
   gap: 2px;
   margin: 0;
   color: var(--ink-2);
@@ -244,6 +245,7 @@ button.where {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
+  overflow-wrap: anywhere;
 }
 
 .reads[data-reading]::before {
@@ -334,7 +336,9 @@ button.where {
 
 .reader {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s2);
+  overflow-wrap: anywhere;
   margin: 0 0 var(--s4);
 }
 

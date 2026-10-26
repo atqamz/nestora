@@ -142,7 +142,7 @@ fieldset.field {
 
 @media (max-width: 26rem) {
   .choices:has(> label:nth-child(4):last-child) {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8rem, calc(50% - 0.125rem))), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(6.5rem, calc(50% - 0.125rem))), 1fr));
   }
 }
 
@@ -169,6 +169,7 @@ fieldset.field {
   justify-content: center;
   gap: var(--s1);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .choices input {
@@ -270,13 +271,22 @@ fieldset.field {
 }
 
 @media (max-width: 18.5rem) {
+  .choices {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+  }
+
   .row > .check {
     align-self: flex-start;
   }
 
   .row-b {
     flex: 1 1 0;
-    min-width: 8ch;
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .row-b .title {
+    overflow-wrap: break-word;
   }
 }
 
@@ -359,6 +369,7 @@ fieldset.field {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 500;
 }
 
@@ -608,6 +619,7 @@ progress::-moz-progress-bar {
   justify-content: center;
   gap: var(--s2);
   min-width: 0;
+  overflow-wrap: anywhere;
   min-height: var(--target-min);
   padding: var(--s1) var(--s3);
   border: 0;
@@ -804,6 +816,7 @@ progress::-moz-progress-bar {
 
 .contact .button {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .split[data-wide] {
@@ -859,6 +872,7 @@ main:has(> .split[data-wide]) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  overflow-wrap: anywhere;
   gap: var(--s1) var(--s3);
   margin: 0 0 var(--s4);
   color: var(--ink-2);
