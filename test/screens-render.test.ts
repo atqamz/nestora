@@ -126,3 +126,12 @@ test("every phase of Find posters has its own words, and a finished pass counts 
   assert.equal(line("finished", { unsure: 2 }), "Done. 0 updated, 0 had no match. 2 were skipped (not sure).");
   assert.equal(line("finished", { filled: 1 }, 4), "Done. 1 updated, 0 had no match.");
 });
+
+test("Movies and Series are separate list instances, so a search, an open sheet or a Find posters pass never carries over from one tab to the other", async () => {
+  let screens: (props: { kind: string; id?: string }) => { key: string | null; type: { name: string } };
+  await markupOf("views/screens.tsx", (loaded) => ((screens = loaded.Screens), createElement("p")));
+  const movies = screens!({ kind: "movie" });
+  const series = screens!({ kind: "series" });
+  assert.deepEqual([movies.key, series.key, movies.type.name, series.type.name], ["movie", "series", "ScreenList", "ScreenList"]);
+  assert.equal(screens!({ kind: "movie", id: "x" }).key, "x");
+});

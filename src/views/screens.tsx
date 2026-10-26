@@ -107,5 +107,5 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
 }
 
 export function Screens({ kind, id }: { kind: ScreenKind; id?: string }) {
-  return id === undefined ? <ScreenList kind={kind} /> : <ScreenDetail key={id} kind={kind} id={id} />;
+  return id === undefined ? <ScreenList key={kind} kind={kind} /> : <ScreenDetail key={id} kind={kind} id={id} />;
 }
