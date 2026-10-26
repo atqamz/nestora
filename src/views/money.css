@@ -105,6 +105,18 @@
   font-size: var(--fs-meta);
 }
 
+@media (max-width: 18.5rem) {
+  .line {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: var(--s2);
+  }
+
+  .plan {
+    grid-column: 1;
+    text-align: left;
+  }
+}
+
 @container (min-width: 40rem) {
   .sheet-h,
   .line {

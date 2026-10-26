@@ -243,6 +243,23 @@ html:has(dialog[open]) {
   outline: none;
 }
 
+@media (max-width: 18.5rem) {
+  .capture {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--s1);
+    padding: 0 var(--s1) var(--s1);
+  }
+
+  .capture svg {
+    margin-left: var(--s2);
+  }
+
+  .capture button {
+    grid-column: 1 / -1;
+  }
+}
+
 .toast {
   position: fixed;
   right: 0;
