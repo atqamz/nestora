@@ -68,12 +68,6 @@
   color: var(--ink-2);
 }
 
-@media (max-width: 19rem) {
-  .rt-link svg {
-    display: none;
-  }
-}
-
 .rt-text {
   flex: 1 1 0;
   min-width: 0;
@@ -81,6 +75,21 @@
 
 .rt-row .rt-resume {
   margin: var(--s2) var(--s3) var(--s2) auto;
+}
+
+@media (max-width: 19rem) {
+  .rt-link {
+    padding: var(--s2);
+  }
+
+  .rt-link svg {
+    display: none;
+  }
+
+  .rt-row .rt-resume {
+    min-height: 36px;
+    margin: 0 var(--s2) var(--s2) auto;
+  }
 }
 
 .rt-side {

@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { menuTarget } from "../src/domain/menu.ts";
+import { swallowClicks } from "../src/ui/swallow-clicks.ts";
 import { routineMenu } from "../src/ui/routine-menu.ts";
 import { routineFlows } from "../src/ui/routine-flows.ts";
-import { formatDay } from "../src/ui/format.ts";
+import { formatDate, formatDay } from "../src/ui/format.ts";
 import { rowStatus } from "../src/ui/routine-label.ts";
 import { text } from "../src/ui/text.ts";
 import { item } from "./domain-rows.ts";
@@ -24,7 +25,7 @@ const routine = (data: Record<string, unknown> | null, who: "a" | "b" | "both" =
 const step = (parent: ItemRow, title: string, data: Record<string, unknown> | null = null) => item({ kind: "step", status: null, parent_id: parent.id, title, data });
 
 test("a row states one fact: paused beats done, done beats the count, and the count beats the next day", () => {
-  assert.equal(rowStatus(routine({ paused_until: "2026-10-31" }), TODAY, { done: 3, total: 3 }), `Paused until ${formatDay("2026-10-31", TODAY)}`);
+  assert.equal(rowStatus(routine({ paused_until: "2026-10-31" }), TODAY, { done: 3, total: 3 }), `Paused until ${formatDate("2026-10-31")}`);
   assert.equal(rowStatus(routine({}), TODAY, { done: 3, total: 3 }), "Done today");
   assert.equal(rowStatus(routine({}), TODAY, { done: 1, total: 3 }), "1 of 3 today");
   assert.equal(rowStatus(routine({}), TODAY, { done: 0, total: 2 }), "0 of 2 today");
@@ -36,7 +37,7 @@ test("a row with no steps today, or a routine that is not mine, says Today and n
   assert.equal(rowStatus(routine({}), TODAY, { done: 0, total: 0 }), "Today");
   assert.equal(rowStatus(routine({}, "b"), TODAY, null), "Today");
   assert.equal(rowStatus(routine({ days: "SU" }, "b"), TODAY, null), `Next ${formatDay("2026-11-01", TODAY)}`);
-  assert.equal(rowStatus(routine({ paused_until: "2026-11-02" }, "b"), TODAY, null), `Paused until ${formatDay("2026-11-02", TODAY)}`);
+  assert.equal(rowStatus(routine({ paused_until: "2026-11-02" }, "b"), TODAY, null), `Paused until ${formatDate("2026-11-02")}`);
 });
 
 test("the menu keys wrap at both ends, Home and End jump, and any other key is left alone", () => {
@@ -173,7 +174,7 @@ test("a menu item is at least 44 px tall, and Delete sits last, apart, in the la
 test("the row link keeps a 44 px target and its chevron gives way to large text", () => {
   const css = read("views/routines.css");
   assert.match(/\.rt-link \{([^}]*)\}/.exec(css)![1], /min-height:\s*var\(--row-min\)/);
-  assert.match(css, /@media \(max-width: 19rem\) \{\s*\.rt-link svg \{\s*display: none;/);
+  assert.match(/@media \(max-width: 19rem\) \{([\s\S]*?)\n\}/.exec(css)![1], /\.rt-link svg \{\s*display: none;/);
   assert.match(/\.rt-text \{([^}]*)\}/.exec(css)![1], /min-width:\s*0/);
 });
 
@@ -202,4 +203,64 @@ test("the partner resumes, pauses and deletes my routine from the detail flows a
   await b.store.sync();
   await a.store.sync();
   assert.equal(a.store.getSnapshot().rows.items.some((row) => row.id === id || row.id === stepId), false);
+});
+
+test("a menu item keeps its identity when Pause turns into Resume, so a remount never drops its focus", () => {
+  const handlers = { open: () => undefined, resume: () => undefined, remove: () => undefined };
+  const ids = (away: boolean) => routineMenu({ away, ...handlers }).map((entry) => entry.id);
+  assert.deepEqual(ids(false), ["duplicate", "pause", "delete"]);
+  assert.deepEqual(ids(true), ids(false));
+  assert.match(read("ui/menu.tsx"), /key=\{item\.id\}/);
+});
+
+test("the keyboard handler queries the same role the items render with", () => {
+  const menu = read("ui/menu.tsx");
+  const queried = /querySelectorAll<HTMLElement>\('\[role="(\w+)"\]'\)/.exec(menu)?.[1];
+  assert.equal(queried, "menuitem");
+  assert.match(menu, new RegExp(`role="${queried}"`));
+});
+
+test("after an item fires, clicks are swallowed for a moment and then pass again", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const page = new EventTarget();
+    let reached = 0;
+    swallowClicks(page, 400);
+    page.addEventListener("click", () => reached++);
+    const click = () => {
+      const event = new Event("click", { cancelable: true });
+      page.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    assert.equal(click(), true);
+    assert.equal(reached, 0);
+    mock.timers.tick(399);
+    assert.equal(click(), true);
+    mock.timers.tick(1);
+    assert.equal(click(), false);
+    assert.equal(reached, 1);
+    assert.match(read("ui/menu.tsx"), /swallowClicks\(document, 400\);\s*event\.currentTarget\.closest\("dialog"\)\?\.close\(\);/);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a routine that vanishes under the open menu hands focus to the notice heading", () => {
+  assert.match(read("views/routine.tsx"), /function Missing\(\) \{\s*useEffect\(\(\) => document\.querySelector<HTMLElement>\("h1"\)\?\.focus\(\), \[\]\);/);
+});
+
+test("each row links to its own routine, and the tally counts only steps scheduled today", async () => {
+  const mine = routine({}, "a", "Morning care");
+  stage([mine, step(mine, "Cleanse"), step(mine, "Tuesday only", { days: "TU" })]);
+  const [row] = rowsOf(await mount());
+  assert.match(row, new RegExp(`<a class="rt-link" href="#/routines/${mine.id}">`));
+  assert.match(row, /<span>0 of 1 today<\/span>/);
+});
+
+test("a paused row states the date once, without the weekday, and keeps a compact Resume at large text", async () => {
+  assert.equal(rowStatus(routine({ paused_until: "2027-01-31" }), TODAY, null), "Paused until 31 Jan 2027");
+  const css = read("views/routines.css");
+  const large = /@media \(max-width: 19rem\) \{([\s\S]*?)\n\}/.exec(css)![1];
+  assert.match(large, /\.rt-link \{\s*padding: var\(--s2\);/);
+  assert.match(large, /\.rt-row \.rt-resume \{\s*min-height: 36px;\s*margin: 0 var\(--s2\) var\(--s2\) auto;/);
 });

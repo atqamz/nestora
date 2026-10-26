@@ -4,6 +4,7 @@ import { menuTarget } from "../domain/menu.ts";
 import type { MenuItem } from "../domain/menu.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { swallowClicks } from "./swallow-clicks.ts";
 import { text } from "./text.ts";
 
 export function Menu({ name, items }: { name: string; items: readonly MenuItem[] }) {
@@ -26,12 +27,13 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
           <div className="menu" role="menu" aria-label={name} onKeyDown={move}>
             {items.map((item, index) => (
               <button
-                key={item.label}
+                key={item.id}
                 type="button"
                 role="menuitem"
                 className={item.danger ? "danger" : undefined}
                 data-first={index === 0 ? "" : undefined}
                 onClick={(event) => {
+                  swallowClicks(document, 400);
                   event.currentTarget.closest("dialog")?.close();
                   setOpen(false);
                   item.run();

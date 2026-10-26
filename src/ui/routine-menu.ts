@@ -6,7 +6,7 @@ const copy = text.routines;
 type Handlers = { away: boolean; open: (sheet: "copy" | "pause") => void; resume: () => void; remove: () => void };
 
 export const routineMenu = ({ away, open, resume, remove }: Handlers): MenuItem[] => [
-  { label: copy.duplicate, run: () => open("copy") },
-  away ? { label: copy.resume, run: resume } : { label: copy.pause, run: () => open("pause") },
-  { label: text.delete, danger: true, run: remove },
+  { id: "duplicate", label: copy.duplicate, run: () => open("copy") },
+  away ? { id: "pause", label: copy.resume, run: resume } : { id: "pause", label: copy.pause, run: () => open("pause") },
+  { id: "delete", label: text.delete, danger: true, run: remove },
 ];

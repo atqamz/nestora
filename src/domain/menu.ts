@@ -1,4 +1,4 @@
-export type MenuItem = { label: string; danger?: boolean; run: () => void };
+export type MenuItem = { id: string; label: string; danger?: boolean; run: () => void };
 
 export const menuTarget = (key: string, at: number, count: number): number | null => {
   if (count === 0) return null;

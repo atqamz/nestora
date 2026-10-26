@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn, dayLabel, isTimetable, keyFor, occursOn, paused, progress } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
@@ -30,6 +30,7 @@ type Sheet = "edit" | "copy" | "pause" | null;
 type Open = { routine: ItemRow; actions: ItemRow[] };
 
 function Missing() {
+  useEffect(() => document.querySelector<HTMLElement>("h1")?.focus(), []);
   return (
     <>
       <Title>{copy.missing}</Title>
