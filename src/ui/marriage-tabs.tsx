@@ -1,15 +1,6 @@
 import { marriageTabs } from "./nav.ts";
 import type { Screen } from "./routes.ts";
+import { SpaceTabs } from "./space-tabs.tsx";
 import { text } from "./text.ts";
 
-export function MarriageTabs({ screen }: { screen: Screen }) {
-  return (
-    <nav className="space-tabs" aria-label={text.marriage.label}>
-      {marriageTabs.map((tab) => (
-        <a key={tab.section} href={`#/${tab.section}`} aria-current={tab.screens.includes(screen) ? "page" : undefined}>
-          {tab.label}
-        </a>
-      ))}
-    </nav>
-  );
-}
+export const MarriageTabs = ({ screen }: { screen: Screen }) => <SpaceTabs tabs={marriageTabs} label={text.marriage.label} screen={screen} />;

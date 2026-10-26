@@ -16,6 +16,7 @@ import { BookSheet } from "../ui/book-sheet.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
 import { Money } from "../ui/money.tsx";
+import { LibraryTabs } from "../ui/space-tabs.tsx";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 import { BookDetail } from "./book.tsx";
@@ -285,5 +286,10 @@ export function Books({ route, id }: { route: string; id?: string }) {
   if (route === "places") return <Places />;
   if (id === "import") return <ImportBooks />;
   if (id !== undefined) return <BookDetail key={id} id={id} />;
-  return route === "wishlist" ? <Wishlist /> : <Shelf />;
+  return (
+    <>
+      <LibraryTabs screen="books" />
+      {route === "wishlist" ? <Wishlist /> : <Shelf />}
+    </>
+  );
 }

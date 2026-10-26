@@ -20,6 +20,7 @@ import { Journey } from "./views/journey.tsx";
 import { MoneyView } from "./views/money.tsx";
 import { People } from "./views/people.tsx";
 import { Routines } from "./views/routines.tsx";
+import { Screens } from "./views/screens.tsx";
 import { Settings } from "./views/settings.tsx";
 import { Sync } from "./views/sync.tsx";
 import { Tasks } from "./views/tasks.tsx";
@@ -55,6 +56,10 @@ function Page({ section, id, sub }: { section: string; id?: string; sub?: string
       return <People route={section} id={id} />;
     case "books":
       return <Books route={section} id={id} />;
+    case "movies":
+      return <Screens kind="movie" id={id} />;
+    case "series":
+      return <Screens kind="series" id={id} />;
     case "settings":
       return <Settings />;
     case "sync":
