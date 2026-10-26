@@ -153,3 +153,29 @@ test("a poll whose pull succeeds on an unverified store and whose push then fail
   assert.equal(await store.poll(), false);
   assert.equal(store.getSnapshot().pending, 1);
 });
+
+test("a poll whose storage write fails after an earlier poll reached the server is false", async () => {
+  const server = createServer();
+  const real = memoryPersistence();
+  const world = { failing: false };
+  const persistence = {
+    ...real,
+    load: () => real.load(),
+    reset: real.reset,
+    adopt: real.adopt,
+    write: async (write: Parameters<typeof real.write>[0]) => {
+      if (world.failing) throw new Error("QuotaExceededError");
+      return real.write(write);
+    },
+  };
+  const a = client(server, "a");
+  const store = createStore({ persistence, api: createApi(server.as("b"), "b") });
+  await a.store.open();
+  await store.open();
+  assert.equal(await store.poll(), true);
+  idOf(await a.store.create("items", task("from a")));
+  await a.store.sync();
+  world.failing = true;
+  assert.equal(await store.poll(), false);
+  assert.equal(store.getSnapshot().storage, "failed");
+});

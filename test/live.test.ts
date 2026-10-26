@@ -698,6 +698,25 @@ test("a trigger while a pull runs on a page that stopped being eligible arms no 
   assert.deepEqual([state.calls.map((at) => at / SECOND), state.peak], [[10, 45], 1]);
 });
 
+test("a trigger on a page that cannot poll yet leaves the live timer where it is", async () => {
+  const { time, state, live } = rig({ view: { paused: true } });
+  await time.advance(5 * SECOND);
+  assert.equal(live.trigger(), false);
+  await time.advance(4 * SECOND);
+  assert.equal(live.trigger(), false);
+  state.kind = { link: "online", paused: false };
+  await time.advance(SECOND);
+  assert.deepEqual(state.calls, [10 * SECOND]);
+});
+
+test("the trigger gap stops doubling at a minute once the chain has failed six times", async () => {
+  const { time, state, live } = rig({ result: () => time.sleep(30 * SECOND).then(() => false) });
+  while (state.calls.length < 6 || state.busy > 0) await time.advance(SECOND);
+  await time.advance(35 * SECOND);
+  assert.equal(live.trigger(), true);
+  assert.equal(state.calls.length, 7);
+});
+
 const random = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0;
   let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
