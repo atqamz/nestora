@@ -4,11 +4,11 @@ import { usePartner } from "../hooks/use-plan.ts";
 import { text } from "./text.ts";
 
 export function OwnerFilter({ value, onChange, owners }: { value: Owner; onChange: (owner: Owner) => void; owners: readonly (string | null)[] }) {
-  const { me, label } = usePartner();
+  const { me, label, nickname } = usePartner();
   if (me === null) return null;
   const options: [Owner, string][] = [
     ["everyone", text.owner.everyone],
-    ["mine", text.owner.mine],
+    ["mine", nickname(me) ?? text.owner.mine],
     ["theirs", label(me === "a" ? "b" : "a")],
   ];
   return (
