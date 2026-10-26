@@ -1,6 +1,7 @@
 import type { Side } from "../../shared/api.ts";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { DONE_MIN, YEAR_MAX, YEAR_MIN, isDate } from "../../shared/validate.ts";
+import { collectionName, collections } from "./collection.ts";
 import { bySort, compare } from "./order.ts";
 import { fold } from "./search.ts";
 
@@ -20,8 +21,7 @@ export const isScreenKind = (kind: string): kind is ScreenKind => (SCREEN_KINDS 
 
 export const watchOf = (row: ItemRow): Watch => WATCH.find((known) => known === row.status) ?? "want";
 
-export const screenSections = (rows: readonly ItemRow[], kind: ScreenKind) => {
-  const own = rows.filter((row) => row.kind === kind);
+const split = (own: readonly ItemRow[]) => {
   const of = (watch: Watch) => own.filter((row) => watchOf(row) === watch);
   return {
     watching: of("watching").sort(bySort),
@@ -29,6 +29,9 @@ export const screenSections = (rows: readonly ItemRow[], kind: ScreenKind) => {
     watched: of("watched").sort((a, b) => compare(b.done_on ?? "", a.done_on ?? "") || bySort(a, b)),
   };
 };
+
+export const screenSections = (rows: readonly ItemRow[], kind: ScreenKind) =>
+  split(rows.filter((row) => row.kind === kind && collectionName(row) === null));
 
 export const statusPatch = (row: ItemRow, pick: Watch, today: string): Patch<"items"> | null =>
   watchOf(row) === pick ? null : { status: pick, done_on: pick === "watched" ? today : null };
@@ -92,7 +95,7 @@ export const parseYear = (raw: string): { ok: true; value: number | null } | { o
 
 export const searchScreens = (query: string, rows: readonly ItemRow[], kind: ScreenKind): ItemRow[] => {
   const words = fold(query).split(" ").filter(Boolean);
-  const { watching, want, watched } = screenSections(rows, kind);
+  const { watching, want, watched } = split(rows.filter((row) => row.kind === kind));
   return [...watching, ...want, ...watched].filter((row) => {
     const haystack = fold(`${row.title} ${typeof row.data?.original_title === "string" ? row.data.original_title : ""}`).split(" ");
     return words.every((word) => haystack.some((found) => found.startsWith(word)));
@@ -101,8 +104,15 @@ export const searchScreens = (query: string, rows: readonly ItemRow[], kind: Scr
 
 export const screenList = (rows: readonly ItemRow[], kind: ScreenKind, query: string) => {
   const sections = screenSections(rows, kind);
+  const groups = collections(rows, kind);
   const { watching, want, watched } = sections;
-  if (watching.length + want.length + watched.length === 0) return { mode: "empty" } as const;
+  if (watching.length + want.length + watched.length + groups.length === 0) return { mode: "empty" } as const;
   if (query.trim() !== "") return { mode: "found", found: searchScreens(query, rows, kind) } as const;
-  return { mode: "sections", ...sections, allWatched: watching.length === 0 && want.length === 0, openWatched: watched.length <= OPEN_ALL } as const;
+  return {
+    mode: "sections",
+    ...sections,
+    groups,
+    allWatched: watching.length === 0 && want.length === 0 && groups.every(({ next }) => next === null),
+    openWatched: watched.length <= OPEN_ALL,
+  } as const;
 };
