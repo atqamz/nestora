@@ -276,11 +276,11 @@ test("a phone that last synced before the migration pulls the cleaned tombstone,
   assert.equal((await exported(server)).match(/invPoster0001/g)?.length, 3);
 });
 
-const interleaved = (server: WorkerServer, once: () => Promise<void>) => {
+const interleaved = (server: WorkerServer, once: () => Promise<void>, marker = "deleted_at = ?") => {
   const real = server.db.batch.bind(server.db);
   let armed = true;
   server.db.batch = async (statements) => {
-    if (armed && (statements as unknown as { sql: string }[]).some((item) => item.sql.includes("deleted_at = ?"))) {
+    if (armed && (statements as unknown as { sql: string }[]).some((item) => item.sql.includes(marker))) {
       armed = false;
       await once();
     }
@@ -340,4 +340,28 @@ test("the deploy job re-runs the purge after wrangler deploy, with the same cred
   assert.ok(at("npx wrangler deploy") < purge);
   assert.equal(at("npx wrangler deploy") + 1, purge);
   assert.match(steps[purge], /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}\n\s+CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+});
+
+test("a poster write that read the row live and commits after the partner's delete leaves no keys on the tombstone", async () => {
+  const { server, open } = rig();
+  const a = open("a");
+  const b = open("b");
+  await a.store.open();
+  await b.store.open();
+  const id = idOf(await a.store.create("items", { kind: "movie", title: "Pelabuhan Terakhir", status: "watched", data: { year: 1999 } } as never));
+  await settle(a.store, b.store);
+  interleaved(
+    server,
+    async () => {
+      idOf(await a.store.remove("items", id));
+      await a.store.sync();
+    },
+    "json_patch(",
+  );
+  idOf(await b.store.update("items", id, { data: KEYS } as never));
+  await b.store.sync();
+  assert.notEqual(stored(server, id).deleted_at, null);
+  assert.deepEqual(dataOf(server, id), { year: 1999 });
+  await settle(a.store, b.store);
+  assert.deepEqual(dataOf(server, id), { year: 1999 });
 });

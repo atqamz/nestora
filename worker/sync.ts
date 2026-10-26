@@ -112,7 +112,7 @@ const checkRefs = (world: World, name: TableName, before: Raw | undefined, after
 const privacy = (ctx: Context, name: TableName, before: Raw | undefined, after: Raw) =>
   name === "items" ? checkPrivacy(ctx.world.items, ctx.who, before, after) : [];
 
-const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, data: Raw) => {
+const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, data: Raw, live = false) => {
   const assignments = Object.keys(sets).map((column) => `${column} = ?`);
   const values = Object.values(sets);
   if (Object.keys(data).length > 0) {
@@ -121,7 +121,7 @@ const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, d
   }
   assignments.push(`rev = ${NEW_REV}`, "updated_at = ?", "updated_by = ?");
   values.push(ctx.stamp, ctx.who, id);
-  return ctx.db.prepare(`UPDATE ${name} SET ${assignments.join(", ")} WHERE ${tables[name].key} = ?`).bind(...values);
+  return ctx.db.prepare(`UPDATE ${name} SET ${assignments.join(", ")} WHERE ${tables[name].key} = ?${live ? " AND deleted_at IS NULL" : ""}`).bind(...values);
 };
 
 const differences = (name: TableName, stored: Raw, patch: Raw) => {
@@ -169,7 +169,7 @@ const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: R
   const { sets, data } = differences(name, stored, patch);
   if (Object.keys(sets).length === 0 && Object.keys(data).length === 0) return undefined;
   ctx.world[name].set(id, { ...merged, updated_at: ctx.stamp, updated_by: ctx.who });
-  return updateStatement(ctx, name, id, sets, data);
+  return updateStatement(ctx, name, id, sets, data, stored.deleted_at === null);
 };
 
 const remove = (ctx: Context, name: TableName, id: string, stored: Raw): Failure | Statement | undefined => {
