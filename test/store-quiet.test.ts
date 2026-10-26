@@ -8,6 +8,7 @@ import type { Side } from "../shared/api.ts";
 import { createServer } from "./store-server.ts";
 import type { Server } from "./store-server.ts";
 import { client, idOf, task, titles } from "./store-client.ts";
+import type { Fetch } from "../src/store/api.ts";
 
 const spied = () => {
   const real = memoryPersistence();
@@ -69,6 +70,62 @@ test("one partner row replaces only the arrays of the tables it touches", async 
   assert.notEqual(after.rows.items, before.rows.items);
   assert.equal(after.rows.budget_entries, before.rows.budget_entries);
   assert.equal(after.rows.settings, before.rows.settings);
+});
+
+test("a table with several unchanged rows keeps its array when only another table changes", async () => {
+  const { a, b } = await seeded();
+  idOf(await a.store.create("items", task("second")));
+  idOf(await a.store.create("items", task("third")));
+  await a.store.sync();
+  await b.sync();
+  const before = b.getSnapshot();
+  assert.equal(before.rows.items.length, 3);
+  idOf(await a.store.create("budget_entries", { entry_type: "planned", title: "Cake", group_key: "reception", amount: 5 }));
+  await a.store.sync();
+  await b.sync();
+  const after = b.getSnapshot();
+  assert.notEqual(after.rows.budget_entries, before.rows.budget_entries);
+  assert.equal(after.rows.items, before.rows.items);
+});
+
+test("a quiet pull keeps a pending local patch on screen and replaces nothing", async () => {
+  const { server } = await seeded();
+  const held = { pull: null as Promise<void> | null, push: null as Promise<void> | null };
+  const reached = { pull: () => {}, push: () => {} };
+  const gated: Fetch = async (url, init) => {
+    const gate = init.method === "POST" ? held.push : held.pull;
+    if (gate) {
+      (init.method === "POST" ? reached.push : reached.pull)();
+      await gate;
+    }
+    return server.as("b")(url, init);
+  };
+  const b = createStore({ persistence: memoryPersistence(), api: createApi(gated, "b") });
+  await b.open();
+  const id = b.getSnapshot().rows.items[0].id;
+  let release = () => {};
+  let releasePush = () => {};
+  held.pull = new Promise<void>((resolve) => (release = resolve));
+  held.push = new Promise<void>((resolve) => (releasePush = resolve));
+  const arrived = new Promise<void>((resolve) => (reached.pull = resolve));
+  const calls = counted(b);
+  const pulling = b.sync();
+  await arrived;
+  idOf(await b.update("items", id, { title: "typed locally" }));
+  const typed = b.getSnapshot();
+  assert.equal(calls.n, 1);
+  assert.deepEqual([typed.pending, titles(typed.rows.items)], [1, ["typed locally"]]);
+  const pushed = new Promise<void>((resolve) => (reached.push = resolve));
+  held.pull = null;
+  release();
+  await pushed;
+  assert.equal(calls.n, 1);
+  assert.equal(b.getSnapshot(), typed);
+  releasePush();
+  await pulling;
+  assert.equal(b.getSnapshot().pending, 0);
+  assert.deepEqual(titles(b.getSnapshot().rows.items), ["typed locally"]);
+  assert.equal((server.rows("items")[0] as { title: string }).title, "typed locally");
 });
 
 test("a changed or removed row always replaces its table array", async () => {
