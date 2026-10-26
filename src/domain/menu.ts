@@ -1,4 +1,4 @@
-export type MenuItem = { id: string; label: string; danger?: boolean; run: () => void };
+export type MenuItem = { id: string; label: string; icon: "copy" | "pause" | "play" | "trash"; danger?: boolean; run: () => void };
 
 export const menuTarget = (key: string, at: number, count: number): number | null => {
   if (count === 0) return null;
@@ -8,3 +8,8 @@ export const menuTarget = (key: string, at: number, count: number): number | nul
   if (key === "ArrowUp") return at <= 0 ? count - 1 : at - 1;
   return null;
 };
+
+export const menuAnchor = (button: { bottom: number; right: number }, viewportWidth: number) => ({
+  "--menu-top": `${button.bottom}px`,
+  "--menu-right": `${viewportWidth - button.right}px`,
+});

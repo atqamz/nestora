@@ -140,8 +140,9 @@ a {
 
 .sync svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
 }
 
 .sync[data-state="pending"] a::before,
@@ -208,10 +209,6 @@ a {
   color: var(--ink);
 }
 
-.tabs a[aria-current="page"] svg {
-  stroke-width: 2.4;
-}
-
 .tabs a[aria-current="page"] span {
   position: relative;
 }
@@ -240,10 +237,11 @@ a {
   box-shadow: 0 6px 16px -6px color-mix(in oklch, var(--shade) 50%, transparent);
 }
 
-.tab-add svg {
-  width: 1.625rem;
-  height: 1.625rem;
-  stroke-width: 2.4;
+.tabs svg,
+.rail svg {
+  width: var(--icon-l);
+  height: var(--icon-l);
+  stroke-width: var(--stroke-l);
 }
 
 .rail {

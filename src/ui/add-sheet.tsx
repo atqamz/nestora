@@ -313,7 +313,7 @@ function AddForm({ seed }: { seed: string }) {
         {kind === "book" && <BookFields form={book} />}
         {kind === "book" && (
           <a className="button secondary imp-link" href="#/books/import">
-            <Icon name="download" />
+            <Icon name="upload" />
             {text.books.import.open}
           </a>
         )}

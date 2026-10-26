@@ -86,7 +86,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       <div role="group" aria-label={text.screen.sheet.kind} className="kinds">
         {START.map((pick) => (
           <button key={pick} type="button" aria-pressed={status === pick} onClick={() => setStatus(pick)}>
-            <Icon name={pick === "want" ? "play" : "check"} />
+            <Icon name={pick === "want" ? "bookmark" : "check"} />
             {text.screen.pick[pick]}
           </button>
         ))}

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { KeyboardEvent } from "react";
-import { menuTarget } from "../domain/menu.ts";
+import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
+import { menuAnchor, menuTarget } from "../domain/menu.ts";
 import type { MenuItem } from "../domain/menu.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
@@ -9,6 +9,11 @@ import { text } from "./text.ts";
 
 export function Menu({ name, items }: { name: string; items: readonly MenuItem[] }) {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<CSSProperties>();
+  const show = (event: MouseEvent<HTMLButtonElement>) => {
+    setAnchor(menuAnchor(event.currentTarget.getBoundingClientRect(), document.documentElement.clientWidth) as CSSProperties);
+    setOpen(true);
+  };
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     const entries = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
     const to = menuTarget(event.key, entries.indexOf(document.activeElement as HTMLElement), entries.length);
@@ -18,12 +23,12 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
   };
   return (
     <>
-      <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={open} aria-label={name} onClick={() => setOpen(true)}>
+      <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={open} aria-label={name} onClick={show}>
         <Icon name="more" />
         {text.menu.more}
       </button>
       {open && (
-        <Modal title={text.menu.more} onClose={() => setOpen(false)}>
+        <Modal title={text.menu.more} onClose={() => setOpen(false)} dismissible className="menu-sheet" style={anchor}>
           <div className="menu" role="menu" aria-label={name} onKeyDown={move}>
             {items.map((item, index) => (
               <button
@@ -39,6 +44,7 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
                   item.run();
                 }}
               >
+                <Icon name={item.icon} />
                 {item.label}
               </button>
             ))}
