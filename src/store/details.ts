@@ -1,6 +1,8 @@
 import type { ItemRow } from "../../shared/tables.ts";
+import { isScreenKind, yearOf } from "../domain/screen.ts";
+import { matches, posterPatch, purgePatch, validId } from "../domain/tmdb.ts";
 import { createLookup, fillBook, fillTitle } from "./lookup.ts";
-import type { Fetcher, Lookup } from "./lookup.ts";
+import type { Fetcher, Filled, Lookup } from "./lookup.ts";
 import type { Written } from "./store.ts";
 
 export const GAP_MS = 1000;
@@ -38,7 +40,34 @@ export const detailsLookup = createLookup({ fetcher: paced((url, init) => fetch(
 
 export const needsDetails = (book: ItemRow) => book.data?.ol == null && book.data?.gb == null;
 
-export const findDetails = async ({
+export type Attempted<P> = Filled<P> | { kind: "unsure" };
+
+export type Attempt<P = Record<string, string>> = (lookup: Lookup, row: ItemRow, current: () => ItemRow) => Promise<Attempted<P>>;
+
+export const bookAttempt: Attempt = (lookup, book, current) => {
+  const code = typeof book.data?.isbn === "string" ? book.data.isbn : null;
+  return code === null ? fillTitle(lookup, current) : fillBook(lookup, code, current);
+};
+
+export const fillScreen = async (lookup: Lookup, read: () => ItemRow, today: string): Promise<Attempted<Record<string, unknown>>> => {
+  const row = read();
+  if (!isScreenKind(row.kind)) return { kind: "nothing" };
+  const id = validId(row.data?.tmdb);
+  if (id !== null) {
+    const out = await lookup.screenById(row.kind, id);
+    if (out.kind !== "ok") return out;
+    if (validId(read().data?.tmdb) !== id) return { kind: "nothing" };
+    return out.value === null ? { kind: "patch", patch: purgePatch().data, counts: "empty" } : { kind: "patch", patch: posterPatch(read(), out.value, today) };
+  }
+  const out = await lookup.screen({ kind: row.kind, title: row.title, year: yearOf(row) });
+  if (out.kind !== "ok") return out;
+  if (validId(read().data?.tmdb) !== null) return { kind: "nothing" };
+  if (out.value.length === 0) return { kind: "empty" };
+  const [hit, ...more] = matches(read(), out.value);
+  return hit !== undefined && more.length === 0 ? { kind: "patch", patch: posterPatch(read(), hit, today) } : { kind: "unsure" };
+};
+
+export const findDetails = async <P = Record<string, string>>({
   ids,
   lookup,
   read,
@@ -46,14 +75,16 @@ export const findDetails = async ({
   signal,
   onStep,
   wait = sleep,
+  attempt: run = bookAttempt as unknown as Attempt<P>,
 }: {
   ids: readonly string[];
   lookup: Lookup;
   read: (id: string) => ItemRow | undefined;
-  save: (id: string, patch: Record<string, string>) => Promise<Written>;
+  save: (id: string, patch: P) => Promise<Written>;
   signal: AbortSignal;
   onStep: (id: string, tally: Tally) => void;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+  attempt?: Attempt<P>;
 }): Promise<Finish> => {
   const tally: Tally = { filled: 0, empty: 0, failed: 0, unsure: 0 };
   let busy = 0;
@@ -64,9 +95,8 @@ export const findDetails = async ({
       const book = read(id);
       if (signal.aborted) return "stopped";
       if (book === undefined) continue;
-      const code = typeof book.data?.isbn === "string" ? book.data.isbn : null;
       const current = () => read(id) ?? book;
-      const attempt = () => (code === null ? fillTitle(lookup, current) : fillBook(lookup, code, current));
+      const attempt = () => run(lookup, book, current);
       let out = await attempt();
       while (!signal.aborted && (out.kind === "slow" || (out.kind === "failed" && out.retry !== undefined))) {
         const pause = Math.max(Math.min(BACKOFF_MS * 2 ** busy, BACKOFF_CAP_MS), out.retry ?? 0);
@@ -78,7 +108,7 @@ export const findDetails = async ({
       busy = 0;
       if (signal.aborted || out.kind === "stale") return "stopped";
       if (out.kind === "offline") return "offline";
-      if (out.kind === "patch") tally[(await save(id, out.patch)).ok ? "filled" : "failed"]++;
+      if (out.kind === "patch") tally[(await save(id, out.patch)).ok ? (out.counts ?? "filled") : "failed"]++;
       else tally[out.kind === "unsure" ? "unsure" : out.kind === "failed" ? "failed" : "empty"]++;
       onStep(id, { ...tally });
     }

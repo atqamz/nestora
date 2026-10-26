@@ -5,6 +5,7 @@ import type { ScreenKind } from "../domain/screen.ts";
 import { usesTmdb } from "../domain/tmdb.ts";
 import { useTable } from "../hooks/use-store.ts";
 import { Icon } from "../ui/icons.tsx";
+import { ScreenPosters } from "../ui/screen-posters.tsx";
 import { ScreenRow } from "../ui/screen-row.tsx";
 import { ScreenSheet } from "../ui/screen-sheet.tsx";
 import { LibraryTabs } from "../ui/space-tabs.tsx";
@@ -19,6 +20,7 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
   const [adding, setAdding] = useState(false);
   const words = kind === "movie" ? text.movies : text.series;
   const shown = useMemo(() => screenList(items, kind, query), [items, kind, query]);
+  const own = useMemo(() => items.filter((row) => row.kind === kind), [items, kind]);
   const list = (rows: readonly ItemRow[]) => (
     <ul className="rows">
       {rows.map((row) => (
@@ -37,6 +39,7 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
           {words.add}
         </button>
       </div>
+      <ScreenPosters kind={kind} rows={own} />
       {shown.mode !== "empty" && (
         <form role="search" className="capture" onSubmit={(event) => event.preventDefault()}>
           <label className="visually-hidden" htmlFor={`find-${kind}`}>

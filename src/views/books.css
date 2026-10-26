@@ -11,6 +11,17 @@
   max-width: 100%;
 }
 
+.posters {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+  margin: 0 0 var(--s5);
+}
+
+.posters > * {
+  margin: 0;
+}
+
 .bk-tools svg,
 .bk-add svg,
 .bk-new svg,

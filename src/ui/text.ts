@@ -531,6 +531,13 @@ export const text = {
     },
     tmdb: "Open on TMDB",
   },
+    posters: {
+      find: "Find posters",
+      need: (n: number) => (n === 1 ? "1 poster needs a refresh" : `${n} posters need a refresh`),
+      busy: (noun: string) => `The ${noun} lookup is busy right now. Resume in a few minutes.`,
+      finished: (updated: number, left: number, unsure: number) =>
+        `Done. ${updated} updated, ${left} had no match.${unsure === 0 ? "" : ` ${unsure === 1 ? "1 was" : `${unsure} were`} skipped (not sure).`}`,
+    },
   tmdb: {
     logo: "TMDB",
     credit: "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",

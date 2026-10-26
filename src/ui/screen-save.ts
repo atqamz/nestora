@@ -2,7 +2,7 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { sortBefore } from "../domain/order.ts";
 import { parseYear, restoreStatus, statusPatch } from "../domain/screen.ts";
 import type { ScreenKind, Watch } from "../domain/screen.ts";
-import { tmdbData } from "../domain/tmdb.ts";
+import { expiredSteps, tmdbData } from "../domain/tmdb.ts";
 import type { Picked } from "../domain/tmdb.ts";
 import type { Store, Written } from "../store/store.ts";
 import { failureOf } from "./failure.ts";
@@ -31,6 +31,11 @@ export const saveScreen = async (items: readonly ItemRow[], create: Store["creat
     sort: sortBefore(items.filter((row) => row.kind === input.kind && row.status === input.status)),
     data: { ...(year.value === null ? {} : { year: year.value }), ...tmdbData(input.picked ?? null, today) },
   });
+};
+
+export const sweepExpired = (items: readonly ItemRow[], today: string, many: Store["many"]) => {
+  const steps = expiredSteps(items, today);
+  if (steps.length > 0) void many(steps);
 };
 
 const undoing = (work: () => Promise<Written>) => ({

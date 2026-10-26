@@ -1,9 +1,10 @@
 import type { ItemRow } from "../../shared/tables.ts";
 import { isPoster, YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
+import { daysBetween } from "./dates.ts";
 import { TITLE_MAX, tidy } from "./lookup.ts";
 import { dict } from "./openlibrary.ts";
 import { fold } from "./search.ts";
-import { isScreenKind } from "./screen.ts";
+import { isScreenKind, yearOf } from "./screen.ts";
 import type { ScreenKind } from "./screen.ts";
 
 export const SCREEN_URL = "/api/lookup/screen";
@@ -94,3 +95,53 @@ export const heldPick = (picked: Picked | null, title: string) => (picked !== nu
 
 export const tmdbData = (picked: Picked | null, today: string) =>
   picked === null ? {} : { ...(picked.original === null ? {} : { original_title: picked.original }), ...(picked.cover === null ? {} : { cover: picked.cover }), tmdb: picked.tmdb, tmdb_at: today };
+
+export const REFRESH_DAYS = 120;
+
+export const PURGE_DAYS = 170;
+
+const PURGE = { cover: null, tmdb: null, tmdb_at: null } as const;
+
+export const posterAge = (row: ItemRow, today: string) => {
+  const stamp = row.data?.tmdb_at;
+  const age = typeof stamp === "string" ? daysBetween(stamp, today) : NaN;
+  return Number.isFinite(age) ? age : null;
+};
+
+export const expired = (row: ItemRow, today: string) => {
+  if (!isScreenKind(row.kind) || (row.data?.cover == null && row.data?.tmdb == null)) return false;
+  const age = posterAge(row, today);
+  return age === null || age >= PURGE_DAYS;
+};
+
+export const needsPoster = (row: ItemRow, today: string) => {
+  if (!isScreenKind(row.kind)) return false;
+  const age = posterAge(row, today);
+  return validId(row.data?.tmdb) === null || age === null || age >= REFRESH_DAYS;
+};
+
+export const purgePatch = () => ({ data: { ...PURGE } });
+
+export const expiredSteps = (rows: readonly ItemRow[], today: string) =>
+  rows.filter((row) => expired(row, today)).map((row) => ({ op: "update" as const, table: "items" as const, id: row.id, change: purgePatch() }));
+
+const sameTitle = (row: ItemRow, hit: ScreenHit) => {
+  const title = fold(row.title);
+  return title !== "" && [hit.title, hit.original].some((name) => name !== null && fold(name) === title);
+};
+
+export const matches = (row: ItemRow, hits: readonly ScreenHit[]) => {
+  const year = yearOf(row);
+  return hits.filter((hit) => sameTitle(row, hit) && (year === null || hit.year === year));
+};
+
+export const posterPatch = (row: ItemRow, hit: ScreenHit, today: string) => {
+  const data = row.data ?? {};
+  return {
+    tmdb: hit.tmdb,
+    tmdb_at: today,
+    ...(hit.cover !== null && (data.tmdb == null ? data.cover == null : hit.cover !== data.cover) ? { cover: hit.cover } : {}),
+    ...(hit.original !== null && data.original_title == null ? { original_title: hit.original } : {}),
+    ...(hit.year !== null && data.year == null ? { year: hit.year } : {}),
+  };
+};
