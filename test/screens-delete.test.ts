@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { Side } from "../shared/api.ts";
 import { createApi } from "../src/store/api.ts";
@@ -207,6 +207,8 @@ const BEFORE = ["0001_init.sql", "0002_feed.sql"];
 
 const PURGE = "0003_purge_deleted_posters.sql";
 
+const PURGE_AGAIN = "0004_purge_deleted_posters_again.sql";
+
 const old = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON");
@@ -219,7 +221,9 @@ const old = () => {
   return { sqlite, put };
 };
 
-const read = (sqlite: DatabaseSync, id: string) => sqlite.prepare("SELECT data, rev, deleted_at FROM items WHERE id = ?").get(id) as { data: string | null; rev: number; deleted_at: string | null };
+const SEEDED = "2026-10-26T00:00:00Z";
+
+const read = (sqlite: DatabaseSync, id: string) => sqlite.prepare("SELECT data, rev, deleted_at, updated_at FROM items WHERE id = ?").get(id) as { data: string | null; rev: number; deleted_at: string | null; updated_at: string };
 
 const revOf = (sqlite: DatabaseSync) => (sqlite.prepare("SELECT rev FROM sync_state").get() as { rev: number }).rev;
 
@@ -239,6 +243,9 @@ test("the numbered migration strips the three keys from tombstones that exist, b
   assert.deepEqual(JSON.parse(read(sqlite, "gone-series").data!), {});
   assert.deepEqual(JSON.parse(read(sqlite, "gone-stamp").data!), { year: 2001 });
   for (const id of ["gone-movie", "gone-series", "gone-stamp"]) assert.deepEqual([read(sqlite, id).rev, read(sqlite, id).deleted_at], [41, "2026-10-27T00:00:00Z"], id);
+  for (const id of ["gone-movie", "gone-series", "gone-stamp"]) assert.match(read(sqlite, id).updated_at, /^20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, id);
+  for (const id of ["gone-movie", "gone-series", "gone-stamp"]) assert.notEqual(read(sqlite, id).updated_at, SEEDED, id);
+  for (const id of ["gone-bare", "gone-null", "live-movie", "gone-book", "gone-task"]) assert.equal(read(sqlite, id).updated_at, SEEDED, id);
   for (const id of ["gone-bare", "gone-null", "live-movie", "gone-book", "gone-task"]) assert.equal(read(sqlite, id).rev, 7, id);
   assert.deepEqual(JSON.parse(read(sqlite, "gone-bare").data!), { year: 2017 });
   assert.equal(read(sqlite, "gone-null").data, null);
@@ -308,7 +315,7 @@ test("a poster write that lands between the Worker's read and its batch does not
   assert.deepEqual(dataOf(server, id), { year: 1999 });
 });
 
-test("a delete made by the old Worker between the migration and the deploy is purged by the step after the deploy, which bumps the revision once and then never", () => {
+test("a delete made by the old Worker between 0003 and the new Worker is purged by 0004 on a later deploy, which bumps the revision once and then never", () => {
   const { sqlite, put } = old();
   sqlite.exec(migrations([PURGE])[0]);
   put("late-movie", "movie", true, { ...KEPT, ...KEYS });
@@ -316,7 +323,7 @@ test("a delete made by the old Worker between the migration and the deploy is pu
   put("late-book", "book", true, { cover: POSTER });
   put("live-movie", "movie", false, { ...KEPT, ...KEYS });
   const before = revOf(sqlite);
-  const sql = migrations([PURGE])[0];
+  const sql = migrations([PURGE_AGAIN])[0];
   sqlite.exec(sql);
   assert.equal(revOf(sqlite), before + 1);
   assert.deepEqual(JSON.parse(read(sqlite, "late-movie").data!), KEPT);
@@ -325,6 +332,8 @@ test("a delete made by the old Worker between the migration and the deploy is pu
   assert.equal(read(sqlite, "late-book").rev, 7);
   assert.deepEqual(JSON.parse(read(sqlite, "late-book").data!), { cover: POSTER });
   assert.deepEqual(JSON.parse(read(sqlite, "live-movie").data!), { ...KEPT, ...KEYS });
+  for (const id of ["late-movie", "late-series"]) assert.notEqual(read(sqlite, id).updated_at, SEEDED, id);
+  for (const id of ["late-book", "live-movie"]) assert.equal(read(sqlite, id).updated_at, SEEDED, id);
   const stamped = sqlite.prepare("SELECT id, rev, updated_at FROM items ORDER BY id").all();
   sqlite.exec(sql);
   sqlite.exec(sql);
@@ -332,14 +341,12 @@ test("a delete made by the old Worker between the migration and the deploy is pu
   assert.deepEqual(sqlite.prepare("SELECT id, rev, updated_at FROM items ORDER BY id").all(), stamped);
 });
 
-test("the deploy job re-runs the purge after wrangler deploy, with the same credentials and the file of the migration", () => {
-  const steps = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").split("\n      - ");
-  const at = (needle: string) => steps.findIndex((step) => step.includes(needle));
-  const purge = at(`wrangler d1 execute wp --remote --file migrations/${PURGE}`);
-  assert.ok(at("wrangler d1 migrations apply wp --remote") < at("npx wrangler deploy"));
-  assert.ok(at("npx wrangler deploy") < purge);
-  assert.equal(at("npx wrangler deploy") + 1, purge);
-  assert.match(steps[purge], /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}\n\s+CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+test("the migrations are numbered without a gap, 0004 is the statements of 0003, and the Worker config reads them from the one folder", () => {
+  const names = readdirSync(new URL("../migrations/", import.meta.url)).sort();
+  assert.deepEqual(names.map((name) => name.slice(0, 4)), ["0001", "0002", "0003", "0004"]);
+  assert.deepEqual(names.slice(2), [PURGE, PURGE_AGAIN]);
+  assert.equal(migrations([PURGE_AGAIN])[0], migrations([PURGE])[0]);
+  assert.equal((readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8").match(/"migrations_dir": "migrations"/g) ?? []).length, 2);
 });
 
 test("a poster write that read the row live and commits after the partner's delete leaves no keys on the tombstone", async () => {

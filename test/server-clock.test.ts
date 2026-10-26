@@ -17,6 +17,12 @@ test("a Date that the device agrees with within a day is taken at once", () => {
   assert.deepEqual(learned(unknown, DEVICE - DAY, DEVICE, never), accepted(DEVICE - DAY));
 });
 
+test("a Date a day and a millisecond off the device, or a day and a half, is held on its first answer, not taken", () => {
+  assert.deepEqual(learned(unknown, DEVICE + DAY + 1, DEVICE, never), { skew: null, last: null, held: DAY + 1 });
+  assert.deepEqual(learned(unknown, DEVICE - DAY - 1, DEVICE, never), { skew: null, last: null, held: -DAY - 1 });
+  assert.deepEqual(learned(unknown, DEVICE + 1.5 * DAY, DEVICE, never), { skew: null, last: null, held: 1.5 * DAY });
+});
+
 test("a missing Date changes nothing", () => {
   assert.equal(learned(unknown, null, DEVICE, never), unknown);
   const good = accepted(DEVICE);
