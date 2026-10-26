@@ -6,6 +6,7 @@ import { blankDraft, copyDraft } from "../domain/routine-draft.ts";
 import { actionsOf, listing, routinesOf } from "../domain/routines.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { usePartner } from "../hooks/use-plan.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
 import { PauseSheet, RoutineSheet } from "../ui/routine-sheet.tsx";
@@ -73,6 +74,7 @@ function RoutineList() {
   const rows = useRoutines();
   const flows = useRoutineFlows(rows);
   const { items, me, day } = rows;
+  const { nickname } = usePartner();
   const [sheet, setSheet] = useState<Sheet>(null);
   const routines = useMemo(() => routinesOf(items), [items]);
   const sections = useMemo(() => (me === null ? [] : listing(routines, me)), [routines, me]);
@@ -94,7 +96,7 @@ function RoutineList() {
       {routines.length === 0 && <p className="empty">{copy.empty}</p>}
       {sections.map(({ owner, moments }) => (
         <section key={owner} aria-labelledby={`rt-${owner}`}>
-          <h2 id={`rt-${owner}`}>{copy.owner[owner]}</h2>
+          <h2 id={`rt-${owner}`}>{owner === "both" ? copy.owner.both : copy.owner[owner](nickname(owner === "mine" ? me : me === "a" ? "b" : "a"))}</h2>
           {moments.map(({ key, routines: group }) => (
             <div key={key ?? ""} className="rt-group">
               <h3>{momentLabel(key)}</h3>

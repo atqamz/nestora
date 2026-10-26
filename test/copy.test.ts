@@ -11,15 +11,15 @@ const strings = (value: unknown): string[] =>
   typeof value === "string"
     ? [value]
     : typeof value === "function"
-      ? [value(1), value("x")].flatMap(strings)
+      ? [1, "x", null].flatMap((arg) => { try { return strings(value(arg)); } catch { return []; } })
       : typeof value === "object" && value !== null
         ? Object.values(value).flatMap(strings)
         : [];
 
-test("no UI string says Partner", () => {
+test("no UI string talks about the partner as Theirs, Them or Their", () => {
   const all = strings(text);
   assert.ok(all.length > 100);
-  assert.deepEqual(all.filter((line) => /partner/i.test(line)), []);
+  assert.deepEqual(all.filter((line) => /\btheirs?\b|^yours$|\bthem today\b|^them$/i.test(line)), []);
 });
 
 test("no UI string uses the old product name", () => {
@@ -36,10 +36,10 @@ test("no source file spells out Partner A or Partner B", () => {
 });
 
 test("the two nickname fields and the ownership blank are named without placeholders", () => {
-  assert.deepEqual([text.settings.yourNickname, text.settings.theirNickname, text.nobody, text.both], ["Your nickname", "Their nickname", "Nobody yet", "Both"]);
+  assert.deepEqual([text.settings.yourNickname, text.settings.theirNickname, text.nobody, text.both], ["Your nickname", "Partner's nickname", "Nobody yet", "Both"]);
 });
 
-test("every ownership label, nicknames or fallbacks, is visible and never says Partner, A or B", () => {
+test("every ownership label is visible and is a nickname, You, Both, Nobody yet or exactly Partner, never A or B", () => {
   const seen = new Set<string>();
   for (const me of ["a", "b", null] as const) {
     for (const a of ["Ana", null]) {
@@ -48,7 +48,7 @@ test("every ownership label, nicknames or fallbacks, is visible and never says P
           const label = sideName(side, me, { a, b }, text);
           seen.add(label);
           assert.match(label, /\S/);
-          assert.doesNotMatch(label, /partner/i);
+          assert.ok(label === a || label === b || [text.you, text.them, text.both, text.nobody].includes(label), label);
           assert.doesNotMatch(label, /^[AB]$/);
         }
       }
@@ -95,7 +95,7 @@ test("the repeated call and WhatsApp actions name the row they belong to", () =>
   assert.equal(text.whatsappNamed("Hall"), "WhatsApp Hall");
 });
 
-test("every known setting has a plain name, mine or theirs, that never shows the key or says Partner", () => {
+test("every known setting has a plain name, mine or theirs, that never shows the key or says Partner A or B", () => {
   const keys = Object.keys(tables.settings.values);
   assert.ok(keys.length >= 11);
   for (const me of ["a", "b", null] as const) {
@@ -103,23 +103,31 @@ test("every known setting has a plain name, mine or theirs, that never shows the
       const name = settingName(key, me);
       assert.match(name, /\S/, key);
       assert.notEqual(name, key);
-      assert.doesNotMatch(name, /partner|_/i, key);
+      assert.doesNotMatch(name, /partner [ab]|_/i, key);
     }
   }
   assert.equal(settingName("partner_a_photo", "a"), "Your profile photo");
-  assert.equal(settingName("partner_a_photo", "b"), "Their profile photo");
+  assert.equal(settingName("partner_a_photo", "b"), "Partner's profile photo");
   assert.equal(settingName("partner_b_photo", "b"), "Your profile photo");
-  assert.equal(settingName("partner_b_label", "a"), "Their nickname");
+  assert.equal(settingName("partner_b_label", "a"), "Partner's nickname");
   assert.equal(settingName("not_a_setting", "a"), "not_a_setting");
 });
 
 test("a refusal reason names the setting by its plain name", () => {
   for (const key of Object.keys(tables.settings.values)) {
     const reason = `value: must be something for key ${key}`;
-    for (const me of ["a", "b", null] as const) assert.doesNotMatch(reasonText(reason, me), /partner|_/i, key);
+    for (const me of ["a", "b", null] as const) assert.doesNotMatch(reasonText(reason, me), /partner [ab]|_/i, key);
   }
   const [refusal] = validatePatch("settings", "partner_b_photo", { value: "http://lh3.googleusercontent.com/a" });
-  assert.match(reasonText(refusal, "a"), /for their profile photo$/);
+  assert.match(reasonText(refusal, "a"), /for partner's profile photo$/);
   const [stages] = validatePatch("settings", "stages", { value: "[]" });
   assert.equal(reasonText(stages, "a"), stages.replace("for key stages", "for route stages"));
+});
+
+test("the Home partner block and the Routines list read the partner's name at render time", () => {
+  const read = (file: string) => readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+  const home = read("views/them.tsx");
+  assert.match(home, /const name = label\(me === "a" \? "b" : "a"\);/);
+  assert.match(home, /copy\.them\.title\(name\)[\s\S]*copy\.them\.empty\(name\)[\s\S]*copy\.them\.week\(name\)/);
+  assert.match(read("views/routines.tsx"), /copy\.owner\[owner\]\(nickname\(owner === "mine" \? me : me === "a" \? "b" : "a"\)\)/);
 });

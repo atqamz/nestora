@@ -33,5 +33,6 @@ export const usePartner = () => {
   const { me, link } = useSnapshot();
   const label = (side: string | null) => sideName(side, me, { a: partnerA, b: partnerB }, text);
   const photo = (side: Side | null) => photoFor(side, { a: photoA, b: photoB }, link);
-  return { me, label, photo };
+  const nickname = (side: Side | null) => (side === "a" ? partnerA : side === "b" ? partnerB : null)?.trim() || null;
+  return { me, label, nickname, photo };
 };
