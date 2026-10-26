@@ -310,3 +310,12 @@ test("a title too short to search is no match, and asks nothing", async () => {
   await short.run();
   assert.deepEqual([short.clock.calls.length, short.steps[0][1].empty], [0, 1]);
 });
+
+test("fillScreen answers nothing for a book and empty for a title with no hits, by name", async () => {
+  const lookup = createLookup({ fetcher: async () => new Response(JSON.stringify({ hits: [] }), { headers: JSON_TYPE }), wait: 0 });
+  const book = item({ kind: "book", status: "shelf", title: "Book", data: null });
+  assert.deepEqual(await fillScreen(lookup, () => book, TODAY), { kind: "nothing" });
+  const row = typed("Pelabuhan Terakhir", { year: 2017 });
+  assert.deepEqual(await fillScreen(lookup, () => row, TODAY), { kind: "empty" });
+  assert.deepEqual(await fillScreen(lookup, () => typed("Pelabuhan Terakhir"), TODAY), { kind: "empty" });
+});
