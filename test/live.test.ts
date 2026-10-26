@@ -711,7 +711,8 @@ test("a trigger on a page that cannot poll yet leaves the live timer where it is
 
 test("the trigger gap stops doubling at a minute once the chain has failed six times", async () => {
   const { time, state, live } = rig({ result: () => time.sleep(30 * SECOND).then(() => false) });
-  while (state.calls.length < 6 || state.busy > 0) await time.advance(SECOND);
+  for (let n = 0; n < 1000 && (state.calls.length < 6 || state.busy > 0); n++) await time.advance(SECOND);
+  assert.equal(state.calls.length, 6);
   await time.advance(35 * SECOND);
   assert.equal(live.trigger(), true);
   assert.equal(state.calls.length, 7);
