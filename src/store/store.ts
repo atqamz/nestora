@@ -5,7 +5,7 @@ import { tableNames, tables } from "../../shared/tables.ts";
 import type { Patch, Row, TableName } from "../../shared/tables.ts";
 import { validateChange, validateMutation } from "../../shared/validate.ts";
 import type { Api } from "./api.ts";
-import { absorb, changedFields, live, newer, overlay, takeBatch, toMaps, wire } from "./outbox.ts";
+import { absorb, changedFields, live, newer, overlay, stable, takeBatch, toMaps, wire } from "./outbox.ts";
 import type { Pending, Persistence, Rows, Write } from "./persistence.ts";
 
 export type Link = "online" | "offline" | "expired" | "mismatch";
@@ -73,7 +73,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     snapshot = {
       ready: loaded && (me !== null || attempted),
       me,
-      rows: link === "mismatch" ? nothing : live(view),
+      rows: link === "mismatch" ? nothing : stable(snapshot.rows, live(view)),
       pending: sendable.length,
       rejected: link === "mismatch" ? [] : outbox.filter((entry) => entry.rejected),
       link,
@@ -85,6 +85,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   };
 
   const failed = (kind: Exclude<Link, "online">) => {
+    if (link === kind) return;
     link = kind;
     emit();
   };
@@ -165,13 +166,15 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       if ((await reconcile(res.body)) === "reset") continue;
       const rows = newer(base, res.body.changes);
       const next = Math.max(rev, res.body.rev);
-      await persist({ rows, meta: { rev: next, me: res.body.me } });
+      const unchanged = tableNames.every((table) => (rows[table] ?? []).length === 0) && me === res.body.me;
+      if (!unchanged || next !== rev || storage === "failed") await persist({ rows, meta: { rev: next, me: res.body.me } });
       absorb(base, rows);
       rev = next;
       me = res.body.me;
       verified = true;
+      const quiet = unchanged && link === "online";
       link = "online";
-      emit();
+      if (!quiet) emit();
       if (!photoChecked) {
         photoChecked = true;
         void publishPhoto().catch(() => undefined);
