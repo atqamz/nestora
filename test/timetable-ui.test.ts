@@ -19,7 +19,7 @@ test("them today takes its rows from the filtered hook and the one pure function
   assert.match(them, /const \{ day, elapsed \} = useRoutineClock\(\);/);
   assert.match(them, /marks\(them\.slots, elapsed\)/);
   assert.doesNotMatch(them, /useSnapshot\(|useTable\(|rows\.items|fetch *\(|indexedDB|XMLHttpRequest|localStorage|sessionStorage|sendBeacon|new Date|Date\.now|setInterval/);
-  assert.match(them, /if \(them\.routines\.length === 0\) return null;/);
+  assert.match(them, /if \(me === null || them\.routines\.length === 0\) return null;/);
   assert.match(read("views/home.tsx"), /<Today \/>\s*<Them \/>/);
 });
 
@@ -65,7 +65,7 @@ test("a slot says now and next in words, and a finished one is said to be finish
   assert.match(view, /\{mark\?\.tag && <span className="rt-tag">\{copy\.them\[mark\.tag\]\}<\/span>\}/);
   assert.match(view, /\{mark\?\.state === "done" && <span className="visually-hidden">\{copy\.them\.done\}<\/span>\}/);
   assert.match(view, /data-state=\{mark\?\.state\} data-tag=\{mark\?\.tag \?\? undefined\}/);
-  assert.deepEqual([copy.them.now, copy.them.next, copy.them.done, copy.them.title], ["Now", "Next", "Finished", "Them today"]);
+  assert.deepEqual([copy.them.now, copy.them.next, copy.them.done, copy.them.title("Sam")], ["Now", "Next", "Finished", "Sam today"]);
   assert.match(rule('.rt-slot[data-state="done"] .rt-slot-b'), /text-decoration:\s*line-through/);
   assert.match(rule('.rt-slot[data-tag]'), /box-shadow:\s*inset var\(--route-w\) 0 0 var\(--signal\)/);
 });
