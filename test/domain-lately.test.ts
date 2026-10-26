@@ -210,3 +210,17 @@ test("routines and every kind of action are left out, and the other kinds are un
   const ticked = item({ kind: "step", title: "item 1", status: null, updated_by: "a", updated_at: "2026-10-05T10:00:00Z", data: { done_a: "2026-10-05" }, ...edited });
   assert.deepEqual(lately([ticked], []), []);
 });
+
+test("a movie or series is listed when added and never when changed, so a rating or a status move stays off the timeline", () => {
+  const rows = ["movie", "series"].flatMap((kind) => [
+    item({ kind, title: `${kind} added`, status: "want", updated_by: "a", updated_at: "2026-10-05T04:00:00Z", created_at: "2026-10-05T04:00:00Z" }),
+    item({ kind, title: `${kind} rated`, status: "watched", updated_by: "b", updated_at: "2026-10-05T06:00:00Z", ...edited }),
+  ]);
+  assert.deepEqual(
+    lately(rows, []).map((activity) => [activity.title, activity.verb]),
+    [
+      ["movie added", "added"],
+      ["series added", "added"],
+    ],
+  );
+});
