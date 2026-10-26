@@ -12,7 +12,7 @@ export function Them() {
   const { label } = usePartner();
   const { day, elapsed } = useRoutineClock();
   const them = useMemo(() => themToday(items, me, day), [items, me, day]);
-  if (me === null || them.routines.length === 0) return null;
+  if (them.routines.length === 0) return null;
   const name = label(me === "a" ? "b" : "a");
   const single = them.routines.length === 1;
   return (

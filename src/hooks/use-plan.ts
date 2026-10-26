@@ -2,7 +2,7 @@ import type { Side } from "../../shared/api.ts";
 import { useEffect, useMemo, useState } from "react";
 import { todayIn } from "../domain/dates.ts";
 import { photoFor } from "../domain/photo.ts";
-import { sideName } from "../domain/names.ts";
+import { nicknameOf, sideName } from "../domain/names.ts";
 import { readSettings } from "../domain/settings.ts";
 import { text } from "../ui/text.ts";
 import { useSnapshot, useTable } from "./use-store.ts";
@@ -33,6 +33,6 @@ export const usePartner = () => {
   const { me, link } = useSnapshot();
   const label = (side: string | null) => sideName(side, me, { a: partnerA, b: partnerB }, text);
   const photo = (side: Side | null) => photoFor(side, { a: photoA, b: photoB }, link);
-  const nickname = (side: Side | null) => (side === "a" ? partnerA : side === "b" ? partnerB : null)?.trim() || null;
+  const nickname = (side: Side | null) => nicknameOf(side, { a: partnerA, b: partnerB });
   return { me, label, nickname, photo };
 };

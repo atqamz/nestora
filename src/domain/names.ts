@@ -20,3 +20,6 @@ export const heading = (nickname: string | null, fallback: string) => {
   const name = nickname?.trim();
   return name ? possessive(name) : fallback;
 };
+
+export const nicknameOf = (side: Side | null, nicknames: { a: string | null; b: string | null }) =>
+  (side === "a" || side === "b" ? nicknames[side] : null)?.trim() || null;

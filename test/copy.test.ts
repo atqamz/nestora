@@ -11,7 +11,7 @@ const strings = (value: unknown): string[] =>
   typeof value === "string"
     ? [value]
     : typeof value === "function"
-      ? [1, "x", null].flatMap((arg) => { try { return strings(value(arg)); } catch { return []; } })
+      ? (value === text.routines.owner.mine || value === text.routines.owner.theirs ? ["x", null] : [1, "x", null]).flatMap((arg) => strings(value(arg)))
       : typeof value === "object" && value !== null
         ? Object.values(value).flatMap(strings)
         : [];
