@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { STALE_MS, depth, empty, enter, leave, parse, privateRoute, replay, returning, scrub } from "../src/domain/place.ts";
+import { STALE_MS, depth, empty, enter, hiddenRoute, leave, parse, replay, returning, scrub } from "../src/domain/place.ts";
 import type { Memory } from "../src/domain/place.ts";
 
 const home = { key: "k1", route: "/" };
@@ -136,19 +136,63 @@ test("a stored place older than the stale limit is dropped on parse, and one at 
   assert.deepEqual(Object.keys(memory.routes), ["/edge"]);
 });
 
-test("a routine route is private when the row is flagged, and unknown while the rows have not loaded", () => {
-  const items = [
-    { id: "r1", kind: "routine", data: { private: true } },
-    { id: "r2", kind: "routine", data: null },
+const ID = "aaaaaaaa-0000-4000-8000-000000000001";
+const SHARED = "bbbbbbbb-0000-4000-8000-000000000002";
+const rows = [
+  { id: ID, kind: "routine", who: "a", data: { private: true } },
+  { id: SHARED, kind: "routine", who: "shared", data: null },
+  { id: "cccccccc-0000-4000-8000-000000000003", kind: "step", parent_id: SHARED, data: {} },
+];
+
+test("a routine route is written only when its row is loaded, a routine and not private", () => {
+  for (const tail of ["", "/start", "/", "/start/", "?x=1", "#top", "/start?x=1#top", "/anything/else"]) {
+    assert.equal(hiddenRoute(`/routines/${SHARED}${tail}`, true, rows), false, tail);
+    assert.equal(hiddenRoute(`/routines/${ID}${tail}`, true, rows), true, tail);
+  }
+});
+
+test("a routine route is hidden when the row is unknown, the rows are not ready, the row is gone or the id is not a routine", () => {
+  assert.equal(hiddenRoute(`/routines/${SHARED}`, false, rows), true);
+  assert.equal(hiddenRoute(`/routines/${SHARED}`, true, []), true);
+  assert.equal(hiddenRoute(`/routines/${SHARED}/start`, true, []), true);
+  assert.equal(hiddenRoute("/routines/dddddddd-0000-4000-8000-000000000004", true, rows), true);
+  assert.equal(hiddenRoute("/routines/cccccccc-0000-4000-8000-000000000003", true, rows), true);
+  assert.equal(hiddenRoute(`/routines/${SHARED}`, true, rows.filter((row) => row.id !== SHARED)), true);
+});
+
+test("case, percent-encoding and extra slashes do not get past the rule", () => {
+  const upper = ID.toUpperCase();
+  const encoded = [...ID].map((char) => `%${char.charCodeAt(0).toString(16)}`).join("");
+  for (const route of [`/routines/${upper}`, `/ROUTINES/${ID}`, `/Routines/${upper}/start`, `/routines/${encoded}`, `/%72outines/${ID}`, `/routines%2F${ID}`, `/routines/${ID}%3Fx=1`, `/routines/${ID}%23top`, `//routines//${ID}//`, `/%2572outines/${ID}`, `/routines/${encodeURIComponent(encoded)}`]) {
+    assert.equal(hiddenRoute(route, true, rows), true, route);
+  }
+  assert.equal(hiddenRoute(`/routines/${SHARED.toUpperCase()}`, true, rows), false);
+  assert.equal(hiddenRoute(`/routines/${SHARED.replace("-", "%2D")}`, true, rows), false);
+});
+
+test("a route that cannot be decoded to the end, or keeps decoding, is hidden", () => {
+  assert.equal(hiddenRoute("/books/%E0%A4%A", true, rows), true);
+  assert.equal(hiddenRoute("/routines/%", true, rows), true);
+  assert.equal(hiddenRoute(`/routines/${ID}%25252525`, true, rows), true);
+  assert.equal(hiddenRoute("/books/100%25", true, rows), true);
+  assert.equal(hiddenRoute("/%2572outines/x%25zz", true, rows), true);
+  assert.equal(hiddenRoute("/books/a%2520b", true, rows), false);
+});
+
+test("a row id that differs from the route only in case is judged together with the other row of that id", () => {
+  const twins = [
+    { id: "Ab", kind: "routine", data: null },
+    { id: "aB", kind: "routine", data: { private: true } },
   ];
-  assert.equal(privateRoute("/routines/r1", true, items), true);
-  assert.equal(privateRoute("/routines/r1/start", true, items), true);
-  assert.equal(privateRoute("/routines/r2", true, items), false);
-  assert.equal(privateRoute("/routines/r9", true, items), false);
-  assert.equal(privateRoute("/routines/r2", false, []), true);
-  assert.equal(privateRoute("/routines", false, []), false);
-  assert.equal(privateRoute("/", false, []), false);
-  assert.equal(privateRoute("/books/r1", true, items), false);
+  assert.equal(hiddenRoute("/routines/ab", true, twins), true);
+  assert.equal(hiddenRoute("/routines/ab", true, twins.slice(0, 1)), false);
+});
+
+test("a route that is not under routines is never hidden by the rule", () => {
+  for (const route of ["/", "/routines", "/routines/", "/books/r1", `/books/${ID}`, "/tasks", "/routinesx/r1", "/x/routines/r1"]) {
+    assert.equal(hiddenRoute(route, false, []), false, route);
+    assert.equal(hiddenRoute(route, true, rows), false, route);
+  }
 });
 
 test("scrubbing drops the entries and routes of hidden routes and forgets a hidden route an entry came from", () => {

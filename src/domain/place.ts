@@ -27,14 +27,27 @@ export const enter = (memory: Memory, here: Here, from: string | null, now: numb
   entries: put(memory.entries, here.key, { y: 0, open: [], at: now, route: here.route, from }),
 });
 
-const routineOf = (route: string) => {
-  const [section, id] = route.split("/").filter(Boolean);
-  return section === "routines" && id !== undefined ? id : null;
+const decoded = (route: string) => {
+  try {
+    let text = route;
+    for (let pass = 0; pass < 4; pass++) {
+      const next = decodeURIComponent(text);
+      if (next === text) return text;
+      text = next;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 };
 
-export const privateRoute = (route: string, ready: boolean, items: readonly { id: string }[]) => {
-  const id = routineOf(route);
-  return id !== null && (!ready || flagged(items.find((row) => row.id === id)));
+export const hiddenRoute = (route: string, ready: boolean, items: readonly (Record<string, unknown> & { id: string })[]) => {
+  const text = decoded(route);
+  if (text === null) return true;
+  const [section, id] = text.split(/[?#]/)[0].toLowerCase().split("/").filter(Boolean);
+  if (section !== "routines" || id === undefined) return false;
+  const rows = items.filter((row) => row.id.toLowerCase() === id);
+  return !(ready && rows.length > 0 && rows.every((row) => row.kind === "routine" && !flagged(row)));
 };
 
 export const depth = (route: string) => route.split("/").filter(Boolean).length;

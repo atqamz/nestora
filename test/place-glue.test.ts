@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { hiddenRoute } from "../src/domain/place.ts";
 import { placeStore } from "../src/store/places.ts";
 import type { Places } from "../src/store/places.ts";
 import type { Held } from "../src/store/timers.ts";
@@ -26,13 +27,13 @@ class FakeElement {
     return { top: this.top, bottom: this.top + this.height, height: this.height };
   }
   closest(selector: string) {
-    return selector === "a" ? this : this.closedIn;
+    return selector === "a" ? this : selector === "details:not([open])" ? this.closedIn : null;
   }
   querySelector(selector: string) {
     return selector === "summary" ? this.summary : null;
   }
-  matches() {
-    return this.tab;
+  matches(selector: string) {
+    return this.tab && selector === ".tabs a, .rail a, .brand, .pair";
   }
   focus(options?: unknown) {
     this.options = options;
@@ -127,8 +128,8 @@ const places = (side: "a" | "b" | null = world.side) => placeStore(held(), () =>
 let loads = 0;
 const load = async () => {
   world.listeners.clear();
-  const module = (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: Places, hidden: (route: string) => boolean) => void; landPlace: (how: "first" | "move" | "beside") => void };
-  return { landPlace: module.landPlace, startPlace: (kept: Places, hidden: (route: string) => boolean = () => false) => module.startPlace(kept, hidden) };
+  const module = (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: Places, hidden: (route: string) => boolean, ready: () => boolean) => void; landPlace: (how: "first" | "move" | "beside") => void };
+  return { landPlace: module.landPlace, startPlace: (kept: Places, hidden: (route: string) => boolean = () => false, ready: () => boolean = () => true) => module.startPlace(kept, hidden, ready) };
 };
 
 const reset = (hash: string) => {
@@ -499,7 +500,7 @@ test("a broken session storage never throws", async () => {
 
 test("main hands every route change to the place module and keeps the split-view branches", () => {
   const main = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-  assert.match(main, /startPlace\(places, \(route\) => \{/);
+  assert.match(main, /startPlace\(\s*places,\s*\(route\) => \{\s*const \{ ready, rows \} = store\.getSnapshot\(\);\s*return hiddenRoute\(route, ready, rows\.items\);\s*\},\s*\(\) => store\.getSnapshot\(\)\.ready,\s*\);/);
   assert.match(main, /useLayoutEffect\(\(\) => \{\s*const now = document\.querySelector\("\.split"\);/);
   assert.match(main, /const how = first\.current \? "first" : selecting \|\| closing \? "beside" : "move";/);
   assert.match(main, /first\.current = false;\s*landPlace\(how\);\s*if \(closing\) \(row \?\? document\.querySelector<HTMLElement>\("h1"\)\)\?\.focus\(\{ preventScroll: !row \}\)/);
@@ -1187,4 +1188,180 @@ test("an entry that came from nowhere, or from a tab link, is stored with a null
       ["/books", null],
     ],
   );
+});
+
+const PRIVATE = "aaaaaaaa-0000-4000-8000-000000000001";
+const SHARED = "bbbbbbbb-0000-4000-8000-000000000002";
+type Row = { id: string; kind: string; who: string; data: Record<string, unknown> | null };
+const mine: Row = { id: PRIVATE, kind: "routine", who: "a", data: { private: true } };
+const shared: Row = { id: SHARED, kind: "routine", who: "shared", data: null };
+const snap = { ready: true, items: [mine, shared] as Row[] };
+const rule = (route: string) => hiddenRoute(route, snap.ready, snap.items);
+const dump = () => JSON.stringify([...world.store]);
+const gone = /aaaaaaaa/i;
+
+const rig = async (hash: string, ready = true, items: Row[] = [mine, shared], side: "a" | "b" | null = "a") => {
+  reset(hash);
+  Object.assign(snap, { ready, items });
+  const kept = places(side);
+  const place = await load();
+  place.startPlace(kept, rule, () => snap.ready);
+  return { kept, place };
+};
+
+const visit = (place: Awaited<ReturnType<typeof load>>, hash: string, y = 0) => {
+  page([]);
+  world.y = y;
+  push(hash);
+  place.landPlace("move");
+};
+
+test("Partner B on Partner A's private address never writes the id, and Back still works inside the page", async () => {
+  const { kept, place } = await rig("#/routines");
+  visit(place, `#/routines/${PRIVATE}`, 100);
+  visit(place, `#/routines/${PRIVATE}/start`, 200);
+  fire("pagehide");
+  assert.doesNotMatch(dump(), gone);
+  snap.items = [];
+  kept.purge("b");
+  back();
+  back();
+  forward();
+  visit(place, `#/routines/${PRIVATE}`, 0);
+  world.y = 420;
+  push("#/tasks");
+  fire("pagehide");
+  assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
+  assert.doesNotMatch(dump(), gone);
+  back();
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.y, 420);
+});
+
+test("a mismatch tab with empty rows writes no routine id and scrubs one an older build stored", async () => {
+  const old = JSON.stringify({
+    entries: { k1: { y: 5, open: [], at: Date.now(), route: `/routines/${PRIVATE}`, from: null }, k2: { y: 6, open: [], at: Date.now(), route: "/routines", from: `/routines/${PRIVATE}` } },
+    routes: { [`/routines/${PRIVATE}`]: { y: 5, open: [], at: Date.now() } },
+  });
+  reset("#/routines");
+  world.store.set("wp.place.a", old);
+  Object.assign(snap, { ready: true, items: [] });
+  const place = await load();
+  place.startPlace(places("a"), rule, () => snap.ready);
+  visit(place, `#/routines/${PRIVATE}`, 50);
+  visit(place, `#/routines/${PRIVATE}/start`, 60);
+  visit(place, "#/routines", 70);
+  fire("pagehide");
+  assert.doesNotMatch(dump(), gone);
+  assert.match(dump(), /\\"route\\":\\"\/routines\\"/);
+});
+
+test("deleting an own private routine does not write its id on the next navigation", async () => {
+  const { place } = await rig("#/routines");
+  visit(place, `#/routines/${PRIVATE}`, 100);
+  assert.doesNotMatch(dump(), gone);
+  snap.items = [shared];
+  visit(place, "#/routines", 10);
+  assert.doesNotMatch(dump(), gone);
+  fire("pagehide");
+  assert.doesNotMatch(dump(), gone);
+});
+
+test("a suffix, query, fragment, upper-case or percent-encoded spelling of a private id is not written for the owner", async () => {
+  const { place } = await rig("#/routines");
+  for (const tail of [`/routines/${PRIVATE}?x=1`, `/routines/${PRIVATE.toUpperCase()}`, `/routines/${PRIVATE}/start/`, `/routines/${PRIVATE}#top`, `/Routines/${PRIVATE}`, `/routines/${PRIVATE.replace("-", "%2D")}`]) {
+    visit(place, `#${tail}`, 30);
+    assert.doesNotMatch(dump(), gone, tail);
+  }
+  fire("pagehide");
+  assert.doesNotMatch(dump(), gone);
+});
+
+test("while the rows have not loaded a save keeps what was stored and writes nothing, then writes when they are ready", async () => {
+  const first = await rig("#/routines");
+  visit(first.place, `#/routines/${SHARED}`, 0);
+  visit(first.place, `#/routines/${SHARED}/start`, 400);
+  visit(first.place, "#/routines", 90);
+  fire("pagehide");
+  const before = world.store.get("wp.place.a")!;
+  assert.match(before, new RegExp(SHARED));
+  const second = await load();
+  Object.assign(snap, { ready: false, items: [] });
+  second.startPlace(places("a"), rule, () => snap.ready);
+  assert.equal(world.store.get("wp.place.a"), before);
+  visit(second, "#/books", 5);
+  fire("pagehide");
+  assert.equal(world.store.get("wp.place.a"), before);
+  Object.assign(snap, { ready: true, items: [mine, shared] });
+  visit(second, "#/tasks", 6);
+  const after = JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, { route: string }>; routes: Record<string, { y: number }> };
+  assert.equal(after.routes[`/routines/${SHARED}`].y, 400);
+  assert.ok(Object.values(after.entries).some((entry) => entry.route === `/routines/${SHARED}/start`));
+  assert.ok(Object.values(after.entries).some((entry) => entry.route === "/tasks"));
+});
+
+test("a routine that becomes private after it was visited is scrubbed from the storage at the next write and still serves Back in the page", async () => {
+  const { place } = await rig("#/routines");
+  visit(place, `#/routines/${SHARED}`, 0);
+  visit(place, "#/routines", 300);
+  assert.match(dump(), new RegExp(SHARED));
+  snap.items = [mine, { ...shared, who: "a", data: { private: true } }];
+  visit(place, "#/books", 20);
+  assert.doesNotMatch(dump(), new RegExp(SHARED));
+  back();
+  back();
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.y, 300);
+});
+
+test("a shared routine is stored and restored after a reload", async () => {
+  const first = await rig("#/routines");
+  visit(first.place, `#/routines/${SHARED}`, 0);
+  world.y = 640;
+  fire("pagehide");
+  assert.match(dump(), new RegExp(SHARED));
+  const second = await load();
+  second.startPlace(places("a"), rule, () => snap.ready);
+  world.y = 0;
+  page([]);
+  second.landPlace("first");
+  assert.equal(world.y, 640);
+});
+
+test("an entry whose origin was private is stored with a null origin and one whose origin is shared keeps it", async () => {
+  const { place } = await rig("#/routines");
+  page([`#/routines/${PRIVATE}`, `#/routines/${SHARED}`]);
+  visit(place, `#/routines/${PRIVATE}`, 10);
+  visit(place, "#/routines", 0);
+  visit(place, `#/routines/${SHARED}`, 10);
+  visit(place, "#/routines", 0);
+  fire("pagehide");
+  const stored = JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, { from: string | null; route: string }> };
+  const lists = Object.values(stored.entries).filter((entry) => entry.route === "/routines");
+  assert.deepEqual(lists.map((entry) => entry.from), [null, null, `/routines/${SHARED}`]);
+});
+
+test("after a sign-in switch the tab keeps remembering places on every later navigation", async () => {
+  const { kept, place } = await rig("#/books");
+  kept.purge("b");
+  visit(place, "#/tasks", 120);
+  visit(place, "#/money", 50);
+  visit(place, "#/people", 70);
+  back();
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.y, 70);
+  back();
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.y, 50);
+});
+
+test("an empty hash is stored as the home route", async () => {
+  const { place } = await rig("");
+  visit(place, "#/books", 0);
+  const stored = JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, { route: string }> };
+  assert.equal(Object.values(stored.entries)[0].route, "/");
 });
