@@ -6,8 +6,8 @@ import { createAuthenticator } from "../worker/auth.ts";
 import { createWorker } from "../worker/index.ts";
 import type { Bindings } from "../worker/index.ts";
 import type { Store } from "../worker/lookup.ts";
-import { CALL_MS, MAX_BYTES, SCREEN_CACHE_SECONDS } from "../worker/screen.ts";
-import { OPEN_LIBRARY_AGENT, RETRY_SECONDS } from "../worker/lookup.ts";
+import { CALL_MS, MAX_BYTES, RESULTS_READ, SCREEN_CACHE_SECONDS } from "../worker/screen.ts";
+import { AGENT, RETRY_SECONDS } from "../worker/lookup.ts";
 import { parseScreenHits } from "../src/domain/tmdb.ts";
 import type { ScreenHit } from "../src/domain/tmdb.ts";
 import { isCover } from "../shared/validate.ts";
@@ -157,7 +157,7 @@ test("the request carries the token in the Authorization header only, an identif
   await t.get(MOVIE);
   const [{ init, url }] = t.calls;
   assert.deepEqual(init?.headers, { accept: "application/json", "user-agent": "Nestora/1.0 (+https://nestora.atqamz.com)", authorization: `Bearer ${TOKEN}` });
-  assert.equal(OPEN_LIBRARY_AGENT, "Nestora/1.0 (+https://nestora.atqamz.com)");
+  assert.equal(AGENT, "Nestora/1.0 (+https://nestora.atqamz.com)");
   assert.equal(init?.redirect, "manual");
   assert.equal(init?.credentials, undefined);
   assert.equal(init?.method, undefined);
@@ -182,7 +182,7 @@ test("the hits carry six fields: a localised title, the original only when it di
   ]);
   for (const hit of hits) assert.deepEqual(Object.keys(hit), ["kind", "tmdb", "title", "original", "year", "cover"]);
   for (const hit of hits) assert.ok(hit.cover === null || isCover(hit.cover));
-  assert.deepEqual(parseScreenHits({ hits }), hits);
+  assert.deepEqual(parseScreenHits({ hits }, "movie"), hits);
 });
 
 test("a series hit reads name, original_name and first_air_date, and ignores the movie fields", async () => {
@@ -592,7 +592,7 @@ test("hostile payloads come out as bounded, plain, well-formed hits and never as
   const res = await t.get(MOVIE);
   assert.equal(res.status, 200);
   const hits = await hitsOf(res);
-  assert.deepEqual(hits.map((hit) => hit.tmdb), [12, 13, 14, 15, 16, 17, 18, 19]);
+  assert.deepEqual(hits.map((hit) => hit.tmdb), [12, 13, 14, 15, 16, 17, 18]);
   const byId = new Map(hits.map((hit) => [hit.tmdb, hit]));
   assert.deepEqual(byId.get(12), { kind: "movie", tmdb: 12, title: "<script>alert(1)</script>Judul", original: "<img src=x onerror=alert(1)>", year: null, cover: null });
   assert.equal(byId.get(13)!.title.length, 200);
@@ -605,7 +605,7 @@ test("hostile payloads come out as bounded, plain, well-formed hits and never as
   assert.equal(byId.get(16)!.year, null);
   const more = await hitsOf(await setup(() => reply({ results: results.slice(18) })).get(MOVIE));
   assert.deepEqual(more.map((hit) => [hit.tmdb, hit.year, hit.cover]), [[17, 2017, null], [18, null, null], [19, null, "https://image.tmdb.org/t/p/w342/Ab_-9.jpg"], [20, null, null]]);
-  assert.deepEqual(parseScreenHits({ hits }), hits);
+  assert.deepEqual(parseScreenHits({ hits }, "movie"), hits);
 });
 
 test("only the TMDB poster path shape becomes a cover, on the fixed host and size, and anything else leaves the hit with no cover", async () => {
@@ -859,4 +859,29 @@ test("the token is read from the environment in one place, and the header is the
   assert.equal(source.match(/\$\{token\}/g)?.length, 1);
   assert.doesNotMatch(source, /api_key/);
   assert.match(source, /authorization: `Bearer \$\{token\}`/);
+});
+
+test("only the first twenty results are read, so a huge body cannot cost the CPU of reading it all", async () => {
+  assert.equal(RESULTS_READ, 20);
+  const filler = (from: number, count: number) => Array.from({ length: count }, (_, n) => ({ id: from + n, title: "" }));
+  const late = { id: 77, title: "Too Late" };
+  const last = { id: 78, title: "Last Read" };
+  const body = (results: unknown[]) => reply({ results });
+  const t = setup(() => body([...filler(1, 19), last, late, ...filler(100, 10_500)]));
+  assert.deepEqual((await hitsOf(await t.get(MOVIE))).map((hit) => hit.tmdb), [78]);
+  const beyond = setup(() => body([...filler(1, 20), late, ...filler(100, 10_500)]));
+  const answer = await beyond.get(MOVIE);
+  assert.equal(answer.status, 200);
+  assert.deepEqual(await hitsOf(answer), []);
+});
+
+test("a stored entry is served only for its own kind and each id once, so a poisoned entry cannot mix kinds or repeat a hit", async () => {
+  const key = "https://lookup.invalid/screen/v1?kind=movie&title=pelabuhan+terakhir";
+  const good = { kind: "movie", tmdb: 5, title: "Good", original: null, year: 2001, cover: null };
+  const stored = [good, { ...good, tmdb: 6, kind: "series", title: "Wrong Kind" }, { ...good, title: "Same Id Again" }, { ...good, tmdb: 7, title: "Other" }];
+  const t = setup(movies);
+  await t.cache.store.put(new Request(key), Response.json({ hits: stored, at: Date.now() }));
+  const hits = await hitsOf(await t.get(MOVIE));
+  assert.deepEqual(hits.map((hit) => [hit.tmdb, hit.title]), [[5, "Good"], [7, "Other"]]);
+  assert.equal(t.calls.length, 0);
 });

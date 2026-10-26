@@ -72,15 +72,15 @@ test("a title with &, #, %26 or a newline stays one parameter value in the route
   }
 });
 
-const good = { kind: "movie", tmdb: 910001, title: "Pelabuhan Terakhir", original: null, year: 2017, cover: "https://image.tmdb.org/t/p/w342/abc.jpg" };
+const good = { kind: "movie" as const, tmdb: 910001, title: "Pelabuhan Terakhir", original: null, year: 2017, cover: "https://image.tmdb.org/t/p/w342/abc.jpg" };
 
-const parsed = (extra: object) => parseScreenHits({ hits: [{ ...good, ...extra }] });
+const parsed = (extra: object, kind: "movie" | "series" = "movie") => parseScreenHits({ hits: [{ ...good, ...extra }] }, kind);
 
 test("a well-formed hit is kept as six fields, and anything else on it is dropped", () => {
-  assert.deepEqual(parseScreenHits({ hits: [good] }), [good]);
+  assert.deepEqual(parseScreenHits({ hits: [good] }, "movie"), [good]);
   assert.deepEqual(parsed({ overview: "INVENTED", genre_ids: [1], vote_average: 9 }), [good]);
   assert.deepEqual(Object.keys(parsed({ overview: "x" })[0]), ["kind", "tmdb", "title", "original", "year", "cover"]);
-  assert.deepEqual(parsed({ kind: "series", original: "Original", year: null, cover: null }), [{ ...good, kind: "series", original: "Original", year: null, cover: null }]);
+  assert.deepEqual(parsed({ kind: "series", original: "Original", year: null, cover: null }, "series"), [{ ...good, kind: "series", original: "Original", year: null, cover: null }]);
 });
 
 test("a hit is refused for each bad field: kind, id, title, original, year and cover", () => {
@@ -124,14 +124,14 @@ test("a hit is refused for each bad field: kind, id, title, original, year and c
 
 test("titles are trimmed, and a body of any other shape is no hit", () => {
   assert.equal(parsed({ title: "  Padded  " })[0].title, "Padded");
-  for (const body of [null, undefined, 5, "x", [], {}, { hits: null }, { hits: "x" }, { hits: {} }, { hits: [null, "x", 5, []] }]) assert.deepEqual(parseScreenHits(body), [], JSON.stringify(body));
+  for (const body of [null, undefined, 5, "x", [], {}, { hits: null }, { hits: "x" }, { hits: {} }, { hits: [null, "x", 5, []] }]) assert.deepEqual(parseScreenHits(body, "movie"), [], JSON.stringify(body));
 });
 
 test("at most eight hits are kept, the first eight, and a bad one in front does not count", () => {
   const many = Array.from({ length: 12 }, (_, n) => ({ ...good, tmdb: 100 + n }));
   assert.equal(SCREEN_HITS_MAX, 8);
-  assert.deepEqual(parseScreenHits({ hits: many }).map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
-  assert.deepEqual(parseScreenHits({ hits: [{ ...good, tmdb: 0 }, ...many] }).map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(parseScreenHits({ hits: many }, "movie").map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(parseScreenHits({ hits: [{ ...good, tmdb: 0 }, ...many] }, "movie").map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
 });
 
 test("validId and validYear take only the numbers they should", () => {
@@ -148,4 +148,15 @@ test("the query type keeps the two forms apart", () => {
   const id: ScreenQuery = { kind: "series", by: "id", id: 3 };
   assert.equal(screenLookupUrl(title), "/api/lookup/screen?kind=movie&title=up");
   assert.equal(screenLookupUrl(id), "/api/lookup/screen?kind=series&id=3");
+});
+
+test("a hit of another kind than the one asked for is dropped, and a repeated id keeps the first", () => {
+  const mixed = { hits: [{ ...good, tmdb: 1 }, { ...good, tmdb: 2, kind: "series" }, { ...good, tmdb: 1, title: "Again" }, { ...good, tmdb: 3 }] };
+  assert.deepEqual(parseScreenHits(mixed, "movie").map((hit) => [hit.tmdb, hit.title]), [[1, good.title], [3, good.title]]);
+  assert.deepEqual(parseScreenHits(mixed, "series").map((hit) => hit.tmdb), [2]);
+});
+
+test("eight distinct hits are kept however many repeats and bad rows come first", () => {
+  const rows = [...Array.from({ length: 50 }, () => ({ ...good, tmdb: 1 })), ...Array.from({ length: 12 }, (_, n) => ({ ...good, tmdb: 10 + n }))];
+  assert.deepEqual(parseScreenHits({ hits: rows }, "movie").map((hit) => hit.tmdb), [1, 10, 11, 12, 13, 14, 15, 16]);
 });

@@ -20,7 +20,7 @@ const OPEN_LIBRARY_MS = 4000;
 
 const MAX_BYTES = 1_000_000;
 
-export const OPEN_LIBRARY_AGENT = "Nestora/1.0 (+https://nestora.atqamz.com)";
+export const AGENT = "Nestora/1.0 (+https://nestora.atqamz.com)";
 
 type Limit = { status: 429 | 503; retry: number };
 
@@ -105,7 +105,7 @@ export const lookupBooks = async (url: URL, env: LookupEnv, { fetcher, store }: 
   const secret = env.GOOGLE_BOOKS_KEY?.trim() ?? "";
   const google = secret === "" ? null : await ask(fetcher, googleUrl(query), { "x-goog-api-key": secret }, googleHits, GOOGLE_MS);
   if (google?.kind === "ok" && google.hits.length > 0) return (await remember(cache, key, google.hits, CACHE_SECONDS), json({ hits: google.hits }));
-  const open = await ask(fetcher, openLibrary(query), { "user-agent": OPEN_LIBRARY_AGENT }, parseSearch, OPEN_LIBRARY_MS);
+  const open = await ask(fetcher, openLibrary(query), { "user-agent": AGENT }, parseSearch, OPEN_LIBRARY_MS);
   const definite = google === null || google.kind === "ok";
   if (open.kind === "ok" && (definite || open.hits.length > 0)) {
     if (google?.kind === "ok") await remember(cache, key, open.hits, CACHE_SECONDS);

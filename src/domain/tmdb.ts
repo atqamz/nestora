@@ -59,7 +59,16 @@ const hitOf = (raw: unknown): ScreenHit | null => {
   return { kind, tmdb: tmdb as number, title: name, original: original as string | null, year: year as number | null, cover: cover as string | null };
 };
 
-export const parseScreenHits = (body: unknown): ScreenHit[] => {
+export const parseScreenHits = (body: unknown, kind: ScreenKind): ScreenHit[] => {
   const { hits } = dict(body);
-  return Array.isArray(hits) ? hits.flatMap((hit) => hitOf(hit) ?? []).slice(0, SCREEN_HITS_MAX) : [];
+  const seen = new Set<number>();
+  const kept: ScreenHit[] = [];
+  for (const raw of Array.isArray(hits) ? hits : []) {
+    const hit = hitOf(raw);
+    if (hit === null || hit.kind !== kind || seen.has(hit.tmdb)) continue;
+    seen.add(hit.tmdb);
+    kept.push(hit);
+    if (kept.length === SCREEN_HITS_MAX) break;
+  }
+  return kept;
 };

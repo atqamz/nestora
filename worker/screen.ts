@@ -6,7 +6,7 @@ import { fold } from "../src/domain/search.ts";
 import type { ScreenKind } from "../src/domain/screen.ts";
 import { SCREEN_HITS_MAX, parseScreenHits, screenCacheKey, screenQueryOf, validId, validYear } from "../src/domain/tmdb.ts";
 import type { ScreenHit, ScreenQuery } from "../src/domain/tmdb.ts";
-import { OPEN_LIBRARY_AGENT, RETRY_SECONDS, body, recall, refuse, remember, waitOf } from "./lookup.ts";
+import { AGENT, RETRY_SECONDS, body, recall, refuse, remember, waitOf } from "./lookup.ts";
 import type { Io, Store } from "./lookup.ts";
 import { json } from "./sync.ts";
 
@@ -17,6 +17,8 @@ export const SCREEN_CACHE_SECONDS = 86_400;
 export const CALL_MS = 3000;
 
 export const MAX_BYTES = 256 * 1024;
+
+export const RESULTS_READ = 20;
 
 const API = "https://api.themoviedb.org/3";
 
@@ -60,7 +62,7 @@ const hitOf = (kind: ScreenKind, raw: unknown): ScreenHit | null => {
 const searched = (kind: ScreenKind) => (data: unknown) => {
   const { results } = dict(data);
   if (!Array.isArray(results)) throw new Error("results missing");
-  const hits = results.flatMap((result) => hitOf(kind, result) ?? []);
+  const hits = results.slice(0, RESULTS_READ).flatMap((result) => hitOf(kind, result) ?? []);
   return hits.filter((hit, at) => hits.findIndex((other) => other.tmdb === hit.tmdb) === at).slice(0, SCREEN_HITS_MAX);
 };
 
@@ -74,7 +76,7 @@ const detailed = (kind: ScreenKind, id: number) => (data: unknown) => {
 const ask = async (fetcher: typeof fetch, url: string, token: string, parse: (data: unknown) => ScreenHit[], byId: boolean): Promise<Answer> => {
   try {
     const signal = AbortSignal.timeout(CALL_MS);
-    const headers = { accept: "application/json", "user-agent": OPEN_LIBRARY_AGENT, authorization: `Bearer ${token}` };
+    const headers = { accept: "application/json", "user-agent": AGENT, authorization: `Bearer ${token}` };
     const res = await fetcher(url, { headers, redirect: "manual", signal });
     if (res.status === 429) return { kind: "bad", limit: { status: 429, retry: waitOf(res.headers.get("retry-after")) } };
     if (res.status >= 500) return { kind: "bad", limit: { status: 503, retry: RETRY_SECONDS } };
@@ -97,7 +99,7 @@ export const lookupScreen = async (url: URL, env: ScreenEnv, { fetcher, store }:
   } catch {}
   const key = new Request(screenCacheKey(query));
   const cached = await recall<ScreenHit>(cache, key, SCREEN_CACHE_SECONDS);
-  if (cached !== null) return json({ hits: parseScreenHits({ hits: cached }) });
+  if (cached !== null) return json({ hits: parseScreenHits({ hits: cached }, query.kind) });
   const parse = query.by === "id" ? detailed(query.kind, query.id) : searched(query.kind);
   const pass = (language: string) => ask(fetcher, upstreamUrl(query, language), token, parse, query.by === "id");
   let answer = await pass("id-ID");

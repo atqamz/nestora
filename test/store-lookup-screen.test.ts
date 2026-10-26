@@ -198,3 +198,27 @@ test("a screen lookup never asks a book source, and a book lookup is unchanged b
   assert.equal(t.calls.length, 1);
   assert.match(t.calls[0].url, /^\/api\/lookup\/screen\?/);
 });
+
+test("the client keeps only hits of the kind it asked for, and each id once", async () => {
+  const t = net(() => found(hit, { ...hit, tmdb: 2, kind: "series", title: "Wrong Kind" }, { ...hit, title: "Same Id Again" }, { ...hit, tmdb: 3, title: "Other" }));
+  const out = await lookup(t.fetcher).screen(input);
+  assert.deepEqual(out.kind === "ok" ? out.value.map((each) => [each.tmdb, each.title]) : out, [[910001, "Pelabuhan Terakhir"], [3, "Other"]]);
+});
+
+test("a title answer is remembered for the hour, an id answer with a hit too, but an empty id answer is asked again because the Worker does not keep it either", async () => {
+  const titles = net(() => found());
+  const first = lookup(titles.fetcher);
+  assert.deepEqual(await first.screen(input), { kind: "ok", value: [] });
+  assert.deepEqual(await first.screen(input), { kind: "ok", value: [] });
+  assert.equal(titles.calls.length, 1);
+  const known = net(() => found(hit));
+  const second = lookup(known.fetcher);
+  await second.screenById("movie", hit.tmdb);
+  await second.screenById("movie", hit.tmdb);
+  assert.equal(known.calls.length, 1);
+  const gone = net(() => found());
+  const third = lookup(gone.fetcher);
+  assert.deepEqual(await third.screenById("movie", 5), { kind: "ok", value: null });
+  assert.deepEqual(await third.screenById("movie", 5), { kind: "ok", value: null });
+  assert.equal(gone.calls.length, 2);
+});
