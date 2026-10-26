@@ -586,12 +586,13 @@ test("hostile payloads come out as bounded, plain, well-formed hits and never as
     { id: 17, title: "Date only year", release_date: "2017" },
     { id: 18, title: "Odd date", release_date: "2017-1-1" },
     { id: 19, title: "Fine", poster_path: "/Ab_-9.jpg" },
+    { id: 20, title: "Leading junk", release_date: "v2017-01-01" },
   ];
   const t = setup(() => reply({ results }));
   const res = await t.get(MOVIE);
   assert.equal(res.status, 200);
   const hits = await hitsOf(res);
-  assert.deepEqual(hits.map((hit) => hit.tmdb), [12, 13, 14, 15, 16, 17, 18, 19].slice(0, 8));
+  assert.deepEqual(hits.map((hit) => hit.tmdb), [12, 13, 14, 15, 16, 17, 18, 19]);
   const byId = new Map(hits.map((hit) => [hit.tmdb, hit]));
   assert.deepEqual(byId.get(12), { kind: "movie", tmdb: 12, title: "<script>alert(1)</script>Judul", original: "<img src=x onerror=alert(1)>", year: null, cover: null });
   assert.equal(byId.get(13)!.title.length, 200);
@@ -603,7 +604,7 @@ test("hostile payloads come out as bounded, plain, well-formed hits and never as
   assert.equal(byId.get(15)!.year, null);
   assert.equal(byId.get(16)!.year, null);
   const more = await hitsOf(await setup(() => reply({ results: results.slice(18) })).get(MOVIE));
-  assert.deepEqual(more.map((hit) => [hit.tmdb, hit.year, hit.cover]), [[17, 2017, null], [18, null, null], [19, null, "https://image.tmdb.org/t/p/w342/Ab_-9.jpg"]]);
+  assert.deepEqual(more.map((hit) => [hit.tmdb, hit.year, hit.cover]), [[17, 2017, null], [18, null, null], [19, null, "https://image.tmdb.org/t/p/w342/Ab_-9.jpg"], [20, null, null]]);
   assert.deepEqual(parseScreenHits({ hits }), hits);
 });
 
