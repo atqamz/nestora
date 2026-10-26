@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { BudgetEntryRow, ItemRow } from "../../shared/tables.ts";
-import { EVENT_ORDER } from "../domain/budget.ts";
+import { eventKeys } from "../domain/budget.ts";
 import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
@@ -30,14 +30,16 @@ export const backHref = (name: ViewName, row: Row) =>
       ? "#/wishlist"
       : `#/${views[name].route}`;
 
-type Props = { name: ViewName; row: Row; gone?: boolean; only?: readonly string[]; onRemove?: () => Promise<Written> };
+type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written> };
 
-export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
+export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
   const form = useRef<HTMLFormElement>(null);
   const undo = useRef<HTMLButtonElement>(null);
   const removed = useRef(false);
+  const revived = useRef(false);
+  const notice = useId();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string[]>([]);
   const { busy, once } = useBusy();
@@ -56,7 +58,7 @@ export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
     const rest = (only ?? view.fields).map((field): Control => {
       const options = fieldOptions(name, field);
       const grouped = field === "group_key";
-      const events = grouped && name === "planned" ? [...new Set([...EVENT_ORDER, ...used])] : null;
+      const events = grouped && name === "planned" ? eventKeys(used, initial.group_key) : null;
       const owner = field === "who";
       return {
         name: field,
@@ -125,9 +127,17 @@ export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
 
   const restore = () =>
     once(async () => {
-      const result = await actions.update(view.table, row.id, { deleted_at: null } as never);
+      revived.current = true;
+      const result = await (onRestore ? onRestore() : actions.update(view.table, row.id, { deleted_at: null } as never));
+      if (!result.ok) revived.current = false;
       setFailure(failureOf(result));
     });
+
+  useEffect(() => {
+    if (gone || busy || !revived.current) return;
+    revived.current = false;
+    form.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
+  }, [gone, busy]);
 
   useEffect(() => {
     if (!gone || busy || !removed.current) return;
@@ -148,11 +158,9 @@ export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
       {controls.map((control) => (
         <Field key={control.name} control={control} error={errors[control.name]} />
       ))}
-      {gone && (
-        <p className="hint" role="status">
-          {text.goneOpen}
-        </p>
-      )}
+      <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
+        {gone ? text.goneOpen : ""}
+      </p>
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
@@ -160,7 +168,7 @@ export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
       )}
       <div className="form-actions">
         {gone && (
-          <button ref={undo} type="button" disabled={busy} onClick={restore}>
+          <button ref={undo} type="button" aria-describedby={notice} disabled={busy} onClick={restore}>
             {text.undo}
           </button>
         )}
@@ -170,7 +178,7 @@ export function ItemForm({ name, row, gone = false, only, onRemove }: Props) {
         <a className="button secondary" href={backHref(name, row)}>
           {text.cancel}
         </a>
-        <button type="button" className="danger" disabled={busy} onClick={remove}>
+        <button type="button" className="danger" disabled={busy || gone} onClick={remove}>
           {text.delete}
         </button>
       </div>

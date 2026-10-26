@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { EVENT_ORDER } from "../domain/budget.ts";
+import { EVENT_ORDER, eventKeys } from "../domain/budget.ts";
 import { draftFor, parseAmount } from "../domain/draft.ts";
 import type { Field as Parsed, Kind } from "../domain/draft.ts";
 import { sortBefore } from "../domain/order.ts";
@@ -133,7 +133,7 @@ function AddForm({ seed }: { seed: string }) {
       return { ...base, type: "text", options: names.map((value) => ({ value, label: value })), blank: text.sheet.none.group };
     }
     if (kind === "planned") {
-      const keys = [...new Set([...EVENT_ORDER, ...used("budget_entries", "planned")])];
+      const keys = eventKeys(used("budget_entries", "planned"), values.group === "" ? null : values.group);
       return { ...base, type: "text", required: true, options: keys.map((value) => ({ value, label: text.event[value as keyof typeof text.event] ?? value })) };
     }
     return { ...base, type: "text", words: true, suggestions: used("items", kind) };

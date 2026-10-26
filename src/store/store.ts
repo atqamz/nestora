@@ -359,6 +359,19 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     return mutations.length === 0 ? { ok: true, id: "" } : append(mutations);
   };
 
+  const removedAt = (row: Dict) =>
+    outbox.findLast((entry) => entry.table === "items" && entry.row_id === row.id && entry.op === "delete" && !entry.rejected)?.seq ?? (row.rev as number);
+
+  const restore = async (rowId: string): Promise<Written> => {
+    if (refused()) return paused;
+    const parent = view.items.get(rowId);
+    if (!parent) return notFound;
+    if (parent.deleted_at === null) return { ok: true, id: rowId };
+    const parentAt = removedAt(parent);
+    const together = [...view.items.values()].filter((row) => row.parent_id === rowId && removedAt(row) >= parentAt);
+    return many([parent, ...together].map((row) => ({ op: "update", table: "items", id: row.id as string, change: { deleted_at: null } })));
+  };
+
   const setSetting = (key: string, value: string) =>
     view.settings.has(key) ? update("settings", key, { value }) : create("settings", { key, value });
 
@@ -396,6 +409,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     update,
     remove,
     many,
+    restore,
     setSetting,
     discard,
     dismissNotice,

@@ -33,7 +33,7 @@ test("every routine screen takes its rows from useRoutines and its writes from t
 
 test("the routine writes go through the store, so the paused refusal and the outbox apply", () => {
   const flows = read("ui/routine-flows.ts");
-  assert.match(flows, /actions: Pick<Store, "update" \| "many">/);
+  assert.match(flows, /actions: Pick<Store, "update" \| "many" \| "restore">/);
   assert.match(flows, /paused/);
   assert.match(read("hooks/use-routines.ts"), /routineFlows\(\{\s*items,\s*actions,/);
 });
