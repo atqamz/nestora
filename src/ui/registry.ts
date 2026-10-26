@@ -90,7 +90,7 @@ export const views = {
     table: "budget_entries",
     variant: "planned",
     route: "money",
-    fields: ["group_key", "amount", "note"],
+    fields: ["group_key", "amount"],
     summary: [],
   },
   payment: {
