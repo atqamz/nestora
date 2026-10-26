@@ -78,6 +78,38 @@ test("the year bounds are one pair of constants that the add sheet, the edit for
 
 test("movie and series share one field set, so the registry cannot drift between them", () => {
   assert.deepEqual(tables.items.variants.movie, tables.items.variants.series);
-  assert.deepEqual(Object.keys(tables.items.variants.movie.data), ["original_title", "year", "rating_a", "rating_b"]);
-  assert.ok(!("cover" in tables.items.variants.movie.data) && !("tmdb" in tables.items.variants.movie.data));
+  assert.deepEqual(Object.keys(tables.items.variants.movie.data), ["original_title", "year", "rating_a", "rating_b", "cover", "tmdb", "tmdb_at"]);
+  assert.deepEqual([tables.items.variants.movie.data.cover, tables.items.variants.movie.data.tmdb, tables.items.variants.movie.data.tmdb_at], ["cover", "tmdb", "date"]);
 });
+
+const POSTER = "https://image.tmdb.org/t/p/w342/abcDEF123_-xyz.jpg";
+
+for (const kind of kinds) {
+  test(`a ${kind} holds a TMDB poster, id and day together, and a patch may clear all three`, () => {
+    const data = { cover: POSTER, tmdb: 910001, tmdb_at: "2026-10-26" };
+    assert.deepEqual(validateCreate("items", screen(kind, { data })), []);
+    const stored = { ...screen(kind, { data }), rev: 1, deleted_at: null, updated_by: "a" };
+    assert.deepEqual(validateChange("items", stored, { data: { cover: null, tmdb: null, tmdb_at: null } }), []);
+    assert.deepEqual(validateChange("items", stored, { data: { tmdb: 910002, tmdb_at: "2026-10-27" } }), []);
+  });
+
+  test(`a ${kind} refuses a cover that is not on a known cover host, in the TMDB shape or not`, () => {
+    for (const cover of ["https://evil.example/a.jpg", "https://image.tmdb.org.evil.example/t/p/w342/a.jpg", "http://image.tmdb.org/t/p/w342/a.jpg", "https://image.tmdb.org/t/p/original/a.jpg", "https://image.tmdb.org/t/p/w342/a.jpg?x=1", "javascript:alert(1)", 5, ""]) {
+      assert.match(validateCreate("items", screen(kind, { data: { cover } })).join("\n"), /data\.cover: must be an https URL on/, String(cover));
+    }
+  });
+
+  test(`a ${kind} refuses a tmdb id that is not a positive safe integer`, () => {
+    for (const tmdb of [0, -1, 1.5, "5", "", true, 2 ** 53, Number.NaN, Infinity]) {
+      assert.match(validateCreate("items", screen(kind, { data: { tmdb } })).join("\n"), /data\.tmdb: must be a positive integer/, String(tmdb));
+    }
+    assert.match(validateCreate("items", screen(kind, { data: { tmdb: null } })).join("\n"), /data\.tmdb: must not be null/);
+    for (const tmdb of [1, 910001, Number.MAX_SAFE_INTEGER]) assert.deepEqual(validateCreate("items", screen(kind, { data: { tmdb } })), [], String(tmdb));
+  });
+
+  test(`a ${kind} refuses a tmdb_at that is not a real day`, () => {
+    for (const tmdb_at of ["2026-13-01", "2026-02-30", "26-10-26", "2026-10-26T00:00:00Z", 20261026, ""]) {
+      assert.match(validateCreate("items", screen(kind, { data: { tmdb_at } })).join("\n"), /data\.tmdb_at: must be a date/, String(tmdb_at));
+    }
+  });
+}

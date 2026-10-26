@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { screenList } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
+import { usesTmdb } from "../domain/tmdb.ts";
 import { useTable } from "../hooks/use-store.ts";
 import { Icon } from "../ui/icons.tsx";
 import { ScreenRow } from "../ui/screen-row.tsx";
 import { ScreenSheet } from "../ui/screen-sheet.tsx";
 import { LibraryTabs } from "../ui/space-tabs.tsx";
 import { text } from "../ui/text.ts";
+import { TmdbCredit } from "../ui/tmdb-credit.tsx";
 import { Title } from "../ui/title.tsx";
 import { ScreenDetail } from "./screen.tsx";
 
@@ -95,6 +97,7 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
           )}
         </>
       )}
+      {usesTmdb(items, kind) && <TmdbCredit />}
       {adding && <ScreenSheet kind={kind} onClose={() => setAdding(false)} />}
     </>
   );

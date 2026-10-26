@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { START } from "../domain/screen.ts";
+import { START, parseYear } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
+import { adopt, heldPick } from "../domain/tmdb.ts";
+import type { Picked, ScreenHit } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useScreenSearch } from "../hooks/use-lookup.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { ownerOptions } from "./book-sheet.tsx";
@@ -11,6 +14,7 @@ import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
 import { overlay } from "./overlay.ts";
+import { ScreenLookup } from "./screen-lookup.tsx";
 import { saveScreen, screenProblems } from "./screen-save.ts";
 import type { ScreenInput } from "./screen-save.ts";
 import { text } from "./text.ts";
@@ -24,17 +28,32 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const [year, setYear] = useState("");
   const [status, setStatus] = useState<ScreenInput["status"]>("want");
   const [who, setWho] = useState<ScreenInput["who"]>("both");
+  const [picked, setPicked] = useState<Picked | null>(null);
   const [attempt, setAttempt] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const words = kind === "movie" ? text.movies : text.series;
   const problems = screenProblems(title, year);
+  const settled = heldPick(picked, title);
+  const typedYear = parseYear(year);
+  const search = useScreenSearch({ kind, title, year: typedYear.ok ? typedYear.value : null }, settled === null);
+
+  useEffect(() => {
+    if (picked !== null && settled === null) setPicked(null);
+  }, [picked, settled]);
+
+  const pick = (hit: ScreenHit) => {
+    const next = adopt({ year }, hit);
+    setTitle(next.title);
+    setYear(next.year);
+    setPicked(next.picked);
+  };
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAttempt(true);
     if (problems.title !== undefined || problems.year !== undefined) return;
     return once(async () => {
-      const result = await saveScreen(items, actions.create, { kind, title, year, status, who }, stamp());
+      const result = await saveScreen(items, actions.create, { kind, title, year, status, who, picked: settled }, stamp());
       setFailure(failureOf(result));
       if (!result.ok) return;
       overlay.announce(text.screen.added(title.trim()));
@@ -49,7 +68,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       onSubmit={save}
       foot={
         <button type="submit" disabled={busy}>
-          {text.screen.sheet.save}
+          {search.hits.length > 0 ? text.screen.sheet.asTyped : text.screen.sheet.save}
         </button>
       }
     >
@@ -67,6 +86,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
           error={attempt ? problems.title : undefined}
         />
         <Field control={{ name: "year", label: text.screen.sheet.year, type: "year", value: year, onChange: setYear }} error={attempt ? problems.year : undefined} />
+        <ScreenLookup kind={kind} search={search} onPick={pick} />
         <Field
           control={{
             name: "who",

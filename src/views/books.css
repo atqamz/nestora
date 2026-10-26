@@ -529,6 +529,24 @@ button.where {
   overflow-wrap: anywhere;
 }
 
+.tmdb-logo {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.tmdb-logo img {
+  flex: none;
+  display: block;
+  height: 0.75rem;
+  aspect-ratio: 273.42 / 35.52;
+}
+
+.tmdb span {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
 .powered {
   flex: none;
   max-width: 100%;

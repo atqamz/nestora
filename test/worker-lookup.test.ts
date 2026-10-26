@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createAuthenticator } from "../worker/auth.ts";
 import { createWorker } from "../worker/index.ts";
 import type { Bindings } from "../worker/index.ts";
-import { CACHE_SECONDS, OPEN_LIBRARY_AGENT, RETRY_SECONDS } from "../worker/lookup.ts";
+import { AGENT, CACHE_SECONDS, RETRY_SECONDS } from "../worker/lookup.ts";
 import type { Store } from "../worker/lookup.ts";
 import { googleUrl } from "../src/domain/googlebooks.ts";
 import { isbnUrl, searchUrl } from "../src/domain/openlibrary.ts";
@@ -99,8 +99,8 @@ test("the upstream requests carry no credentials, follow no redirect and ask for
   }
   assert.deepEqual(google.headers, { accept: "application/json", "x-goog-api-key": KEY });
   assert.deepEqual(open.headers, { accept: "application/json", "user-agent": "Nestora/1.0 (+https://nestora.atqamz.com)" });
-  assert.equal(OPEN_LIBRARY_AGENT, "Nestora/1.0 (+https://nestora.atqamz.com)");
-  assert.doesNotMatch(OPEN_LIBRARY_AGENT, /@/);
+  assert.equal(AGENT, "Nestora/1.0 (+https://nestora.atqamz.com)");
+  assert.doesNotMatch(AGENT, /@/);
   assert.ok(!t.calls[0].url.includes(KEY) && !t.calls[1].url.includes(KEY));
 });
 
