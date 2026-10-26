@@ -42,7 +42,8 @@ test("tab labels keep the 0.78125rem token and hide visually, never from the acc
   assert.match(label, /clip:\s*rect\(0 0 0 0\)/);
   assert.match(label, /position:\s*absolute/);
   assert.doesNotMatch(hidden, /\.tabs a[^{]*span[^{]*\{[^}]*display:\s*none/);
-  assert.match(hidden, /\.tabs a\[aria-current="page"\]::after/);
+  assert.match(rule(hidden, '.tabs a[aria-current="page"]::after'), /content:\s*""/);
+  assert.match(rule(hidden, '.tabs a[aria-current="page"] span::after'), /content:\s*none/);
   assert.match(read("ui/shell.tsx"), /<a key=\{entry\.section\}[^>]*>\s*<Icon name=\{entry\.icon\} \/>\s*<span>\{entry\.label\}<\/span>/);
 });
 
@@ -96,10 +97,16 @@ test("book and screen rows put the cover above the title when the title would ge
 test("settings rows, budget lines and the journey give their text the room at large text", () => {
   assert.match(rule(read("views/settings.css"), ".setl > li"), /flex-wrap:\s*wrap/);
   assert.match(rule(read("views/settings.css"), ".setl .v"), /flex:\s*1 1 8rem/);
+  assert.match(rule(read("views/settings.css"), ".setl > li > button"), /margin-left:\s*auto/);
   const money = media(read("views/money.css"), narrow);
-  assert.match(rule(money, ".line"), /grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(rule(money, ".plan"), /grid-column:\s*1/);
-  assert.match(media(read("views/journey.css"), narrow), /\.spine \{\s*padding-right:\s*var\(--s2\)/);
+  assert.match(rule(money, ".line"), /grid-template-columns:\s*minmax\(0, 1fr\);/);
+  assert.match(rule(money, ".line"), /padding-inline:\s*var\(--s2\)/);
+  assert.match(rule(money, ".plan"), /grid-column:\s*1;/);
+  const journey = media(read("views/journey.css"), narrow);
+  assert.match(rule(journey, ".hero"), /--gutter:\s*var\(--s2\)/);
+  assert.match(rule(journey, ".journey-tabs"), /margin-inline:\s*var\(--s2\)/);
+  assert.match(rule(journey, ".spine"), /padding-right:\s*var\(--s2\)/);
+  assert.match(rule(journey, ".loose"), /padding-left:\s*var\(--s2\)/);
 });
 
 test("every large-text rule shares one threshold, so the layouts switch together", () => {
