@@ -1,10 +1,12 @@
-import { StrictMode, useEffect, useRef } from "react";
+import { StrictMode, useEffect, useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { takeDenied } from "./domain/access.ts";
 import { screenFor } from "./domain/status.ts";
 import { openStore, useSnapshot } from "./hooks/use-store.ts";
 import { useRoute } from "./router.ts";
+import { tabStorage } from "./store/browser.ts";
 import { ErrorBoundary } from "./ui/error-boundary.tsx";
+import { landPlace, startPlace } from "./ui/place.ts";
 import { Recovery } from "./ui/recovery-screen.tsx";
 import { screenOf } from "./ui/routes.ts";
 import { Shell } from "./ui/shell.tsx";
@@ -77,18 +79,16 @@ function App() {
   const first = useRef(true);
   const last = useRef<{ section: string; id?: string; split: Element | null }>({ section, split: null });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const now = document.querySelector(".split");
     const beside = now !== null && now === last.current.split && now.hasAttribute("data-wide") && section === last.current.section;
     const selecting = beside && id !== undefined;
     const closing = beside && id === undefined && last.current.id !== undefined;
     const row = closing ? now?.querySelector<HTMLElement>(`a[href$="/${CSS.escape(last.current.id!)}"]`) : null;
-    if (first.current) first.current = false;
-    else if (closing) (row ?? document.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: !row });
-    else if (!selecting) {
-      document.querySelector<HTMLElement>("h1")?.focus();
-      scrollTo(0, 0);
-    }
+    const how = first.current ? "first" : selecting || closing ? "beside" : "move";
+    first.current = false;
+    landPlace(how);
+    if (closing) (row ?? document.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: !row });
   }, [route]);
 
   useEffect(() => {
@@ -112,6 +112,7 @@ function App() {
 }
 
 applyTheme(readTheme());
+startPlace(tabStorage);
 
 const root = createRoot(document.getElementById("root")!);
 

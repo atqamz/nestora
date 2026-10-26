@@ -5,15 +5,15 @@ import { createFeed } from "./feed.ts";
 import { createSession, sideHint } from "./partition.ts";
 import { timerStore } from "./timers.ts";
 
-export const timers = timerStore(
-  (() => {
-    try {
-      return sessionStorage;
-    } catch {
-      return null;
-    }
-  })(),
-);
+export const tabStorage = (() => {
+  try {
+    return sessionStorage;
+  } catch {
+    return null;
+  }
+})();
+
+export const timers = timerStore(tabStorage);
 
 export const feedOf = (side: Side) => createFeed((url, init) => fetch(url, init), side);
 
