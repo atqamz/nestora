@@ -13,7 +13,7 @@ const install = () => {
   if (installed) return;
   installed = true;
   registerHooks({
-    resolve: (specifier, context, next) => (/(^|\/)use-store\.ts$/.test(specifier) ? { url: stub, shortCircuit: true } : next(specifier, context)),
+    resolve: (specifier, context, next) => (/(^|\/)(use-store|browser)\.ts$/.test(specifier) ? { url: stub, shortCircuit: true } : next(specifier, context)),
     load: (url, context, next) =>
       url.endsWith(".tsx")
         ? { format: "module", shortCircuit: true, source: transformSync(readFileSync(fileURLToPath(url), "utf8"), { loader: "tsx", jsx: "automatic", format: "esm", sourcefile: url }).code }

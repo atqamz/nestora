@@ -73,7 +73,7 @@ test("the form searches while no match is picked for the title, from two letters
 });
 
 test("a typed year is not overwritten by a hit, and an empty one is filled", () => {
-  assert.match(sheet, /const next = adopt\(\{ year \}, hit\);\s*setTitle\(next\.title\);\s*setYear\(next\.year\);\s*setPicked\(next\.picked\);/);
+  assert.match(sheet, /const next = adopt\(\{ year \}, hit\);\s*setTitle\(next\.title\);\s*setYear\(next\.year\);\s*setFilled\(next\.filled\);\s*setPicked\(next\.picked\);/);
   assert.equal(adopt({ year: "1999" }, hit).year, "1999");
   assert.equal(adopt({ year: "" }, hit).year, "2017");
 });
@@ -118,7 +118,7 @@ test("a typed year stays on the row when the hit has another one, and a watched 
 
 test("the sheet hands the save only a pick that still belongs to the title, and drops one the title has left", () => {
   assert.match(sheet, /picked: settled/);
-  assert.match(sheet, /if \(picked !== null && settled === null\) setPicked\(null\);/);
+  assert.match(sheet, /const gone = letGo\(picked, title, year, filled\);\s*if \(gone === null\) return;\s*setPicked\(null\);\s*setYear\(gone\.year\);\s*setFilled\(null\);/);
 });
 
 const stub = (out: Outcome<ScreenHit[]>) => {
@@ -165,12 +165,27 @@ test("a search that is not ready is idle and asks nothing, and an answer that ar
   assert.equal(late.cancelled(), 1);
 });
 
-test("a pick made from the keyboard puts focus back on the title, because the button it came from leaves the page", () => {
-  assert.match(view, /event\.detail === 0 \? event\.currentTarget\.closest\("dialog"\)\?\.querySelector<HTMLInputElement>\('input\[name="title"\]'\) : null;\s*onPick\(hit\);\s*title\?\.focus\(\);/);
+const chosen = async () => {
+  let loaded: Record<string, any> = {};
+  await markupOf("ui/screen-lookup.tsx", (module) => ((loaded = module), createElement("p")));
+  return loaded.choose as (event: { currentTarget: unknown }, hit: ScreenHit, onPick: (hit: ScreenHit) => void) => void;
+};
+
+test("a pick from the keyboard or a pointer puts focus on the title after the pick is applied, because the button it came from leaves the page", async () => {
+  const choose = await chosen();
+  const log: string[] = [];
+  const field = { focus: () => log.push("focus") };
+  const target = { closest: (selector: string) => (selector === "dialog" ? { querySelector: (inner: string) => (inner === 'input[name="title"]' ? field : null) } : null) };
+  choose({ currentTarget: target }, hit, () => log.push("pick"));
+  assert.deepEqual(log, ["pick", "focus"]);
+  const outside = { closest: () => null };
+  choose({ currentTarget: outside }, hit, () => log.push("again"));
+  assert.deepEqual(log, ["pick", "focus", "again"]);
+  assert.doesNotMatch(view, /event\.detail/);
 });
 
-const lookupOf = async (search: Search<ScreenHit>, kind: "movie" | "series" = "movie") =>
-  (await markupOf("ui/screen-lookup.tsx", ({ ScreenLookup }) => createElement(ScreenLookup, { kind, search, onPick: () => undefined }))).replace(/<link rel="preload"[^>]*\/>/g, "");
+const lookupOf = async (search: Search<ScreenHit>, kind: "movie" | "series" = "movie", have: ReadonlySet<number> = new Set()) =>
+  (await markupOf("ui/screen-lookup.tsx", ({ ScreenLookup }) => createElement(ScreenLookup, { kind, search, have, onPick: () => undefined }))).replace(/<link rel="preload"[^>]*\/>/g, "");
 
 test("the rendered list is a labelled list of real buttons with the credit right under it, and the polite note says how many", async () => {
   const html = await lookupOf({ state: "found", hits: [hit, { ...hit, tmdb: 2, original: null, year: null, cover: null }] });
@@ -212,9 +227,18 @@ test("the rendered add sheet starts with To watch pressed, an empty lookup regio
   assert.doesNotMatch(html, /Add as typed|<ul class="hits"|tmdb/);
 });
 
-test("the hook asks from two typed letters only, the detail's TMDB link shows only for a row with an id, and the poster is named in the detail", () => {
+test("the hook asks from two typed letters only, and the poster is named in the detail", () => {
   assert.match(read("hooks/use-lookup.ts"), /const ready = enabled && title\.trim\(\)\.length >= MIN_SCREEN_LETTERS;/);
-  assert.match(read("views/screen.tsx"), /\{tmdb !== null && \(\s*<p>\s*<a className="button secondary" href=\{tmdbPage\(kind, tmdb\)\}/);
   assert.match(read("views/screen.tsx"), /<Cover book=\{row\} alt=\{text\.screen\.posterOf\(row\.title\)\} \/>/);
   assert.equal(text.screen.posterOf("Spirited Away"), "Poster of Spirited Away");
+});
+
+test("a match whose id is already on the list says so inside its own button, and the others say nothing", async () => {
+  const other = { ...hit, tmdb: 2, original: null, year: null, cover: null };
+  const html = await lookupOf({ state: "found", hits: [hit, other] }, "movie", new Set([910001]));
+  const [first, second] = html.split("</li>");
+  assert.match(first, /<span class="bk-by">Last Harbour · 2017<\/span><span class="bk-by">Already on your list<\/span><\/span><\/button>/);
+  assert.doesNotMatch(second, /Already/);
+  assert.doesNotMatch(await lookupOf({ state: "found", hits: [hit] }), /Already/);
+  assert.equal(text.screen.lookup.have, "Already on your list");
 });

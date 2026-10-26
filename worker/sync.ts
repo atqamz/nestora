@@ -1,4 +1,4 @@
-import { MAX_BODY_BYTES, MAX_MUTATIONS, applyPatch, toInstant } from "../shared/api.ts";
+import { MAX_BODY_BYTES, MAX_MUTATIONS, POSTER_KEYS, POSTER_PURGE, applyPatch, dropsPoster, toInstant, withoutPoster } from "../shared/api.ts";
 import type { Changes, Mutation, Rejection, Side, SyncResponse, SyncResult } from "../shared/api.ts";
 import { ACTION_KINDS } from "../shared/routines.ts";
 import { tableNames, tables } from "../shared/tables.ts";
@@ -112,7 +112,7 @@ const checkRefs = (world: World, name: TableName, before: Raw | undefined, after
 const privacy = (ctx: Context, name: TableName, before: Raw | undefined, after: Raw) =>
   name === "items" ? checkPrivacy(ctx.world.items, ctx.who, before, after) : [];
 
-const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, data: Raw) => {
+const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, data: Raw, live = false) => {
   const assignments = Object.keys(sets).map((column) => `${column} = ?`);
   const values = Object.values(sets);
   if (Object.keys(data).length > 0) {
@@ -121,7 +121,7 @@ const updateStatement = (ctx: Context, name: TableName, id: string, sets: Raw, d
   }
   assignments.push(`rev = ${NEW_REV}`, "updated_at = ?", "updated_by = ?");
   values.push(ctx.stamp, ctx.who, id);
-  return ctx.db.prepare(`UPDATE ${name} SET ${assignments.join(", ")} WHERE ${tables[name].key} = ?`).bind(...values);
+  return ctx.db.prepare(`UPDATE ${name} SET ${assignments.join(", ")} WHERE ${tables[name].key} = ?${live ? " AND deleted_at IS NULL" : ""}`).bind(...values);
 };
 
 const differences = (name: TableName, stored: Raw, patch: Raw) => {
@@ -152,7 +152,14 @@ const insert = (ctx: Context, name: TableName, mutation: Mutation): Failure | St
 };
 
 const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: Raw): Failure | Statement | undefined => {
-  const revives = Object.keys(patch).filter((key) => key !== "updated_at").join() === "deleted_at" && patch.deleted_at === null;
+  const revives =
+    patch.deleted_at === null &&
+    Object.entries(patch).every(
+      ([key, value]) =>
+        key === "deleted_at" ||
+        key === "updated_at" ||
+        (key === "data" && dropsPoster(name, stored) && typeof value === "object" && value !== null && Object.keys(value).every((held) => POSTER_KEYS.some((poster) => poster === held))),
+    );
   if (stored.deleted_at !== null && !revives) return undefined;
   const errors = validateChange(name, stored, patch, new Date(Date.parse(ctx.stamp) + DAY).toISOString().slice(0, 10));
   if (errors.length > 0) return { status: 400, errors };
@@ -162,13 +169,13 @@ const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: R
   const { sets, data } = differences(name, stored, patch);
   if (Object.keys(sets).length === 0 && Object.keys(data).length === 0) return undefined;
   ctx.world[name].set(id, { ...merged, updated_at: ctx.stamp, updated_by: ctx.who });
-  return updateStatement(ctx, name, id, sets, data);
+  return updateStatement(ctx, name, id, sets, data, stored.deleted_at === null);
 };
 
 const remove = (ctx: Context, name: TableName, id: string, stored: Raw): Failure | Statement | undefined => {
   if (stored.deleted_at !== null) return undefined;
-  ctx.world[name].set(id, { ...stored, deleted_at: ctx.stamp, updated_at: ctx.stamp, updated_by: ctx.who });
-  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, {});
+  ctx.world[name].set(id, { ...withoutPoster(name, stored), deleted_at: ctx.stamp, updated_at: ctx.stamp, updated_by: ctx.who });
+  return updateStatement(ctx, name, id, { deleted_at: ctx.stamp }, dropsPoster(name, stored) ? POSTER_PURGE : {});
 };
 
 const step = (ctx: Context, mutation: Mutation): Failure | Statement | undefined => {

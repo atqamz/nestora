@@ -887,3 +887,26 @@ main:has(> .split[data-wide]) {
     max-height: calc(100dvh - var(--s9));
   }
 }
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s2) 0 var(--s4);
+}
+
+.menu button {
+  justify-content: flex-start;
+  min-height: 3.25rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.menu button.danger {
+  margin: var(--s2) 0 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 0.75rem 0.75rem;
+  color: var(--late);
+}

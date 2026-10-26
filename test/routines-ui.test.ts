@@ -137,7 +137,7 @@ test("the routine styles use the existing tokens only, with no colour of their o
 
 test("the Today block and the routine screens show nothing of the partner beyond the shared routines", () => {
   const list = read("views/routines.tsx");
-  assert.match(list, /const today = own && occursOn\(routine, day\)/);
+  assert.match(list, /const own = routine\.who === me \|\| routine\.who === "both";\s*const tally = own\s*\? progress\([^;]*\)\s*: null;/);
   assert.match(read("domain/routines.ts"), /\.filter\(\(\{ routine \}\) => mine\(routine, me\)\)/);
 });
 

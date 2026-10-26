@@ -6,12 +6,17 @@ import { createDb } from "./sync-db.ts";
 
 export const createWorkerServer = () => {
   const { db, sqlite, calls } = createDb();
+  const control = { date: (() => new Date().toUTCString()) as (() => string) | null };
   const DESIGN: Bindings["DESIGN"] = { get: async () => null };
   const as =
     (who: Side): Fetch =>
-    (url, init) =>
-      worker.fetch(new Request(new URL(url, "https://wp.example.test"), init), { DB: db, DESIGN, AUTH_MODE: "dev", DEV_WHO: who });
-  return { as, db, sqlite, calls };
+    async (url, init) => {
+      const res = await worker.fetch(new Request(new URL(url, "https://wp.example.test"), init), { DB: db, DESIGN, AUTH_MODE: "dev", DEV_WHO: who });
+      const dated = new Response(res.body, res);
+      if (control.date !== null) dated.headers.set("date", control.date());
+      return dated;
+    };
+  return { as, control, db, sqlite, calls };
 };
 
 export type WorkerServer = ReturnType<typeof createWorkerServer>;
