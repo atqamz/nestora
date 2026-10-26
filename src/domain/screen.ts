@@ -1,6 +1,6 @@
 import type { Side } from "../../shared/api.ts";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
-import { YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
+import { DONE_MIN, YEAR_MAX, YEAR_MIN, isDate } from "../../shared/validate.ts";
 import { bySort, compare } from "./order.ts";
 import { fold } from "./search.ts";
 
@@ -34,6 +34,15 @@ export const statusPatch = (row: ItemRow, pick: Watch, today: string): Patch<"it
   watchOf(row) === pick ? null : { status: pick, done_on: pick === "watched" ? today : null };
 
 export const restoreStatus = (row: ItemRow): Patch<"items"> => ({ status: watchOf(row), done_on: row.done_on });
+
+export const watchedDate = (raw: string, today: string): { ok: true; value: string } | { ok: false; reason: "invalid" | "future" } =>
+  !isDate(raw) || raw < DONE_MIN ? { ok: false, reason: "invalid" } : raw > today ? { ok: false, reason: "future" } : { ok: true, value: raw };
+
+export const datePatch = (row: ItemRow, day: string): Patch<"items"> | null => (row.done_on === day ? null : { done_on: day });
+
+export const settleDraft = (draft: string | null, day: string): string | null => (draft === day ? null : draft);
+
+export const restoreDate = (row: ItemRow): Patch<"items"> => ({ done_on: row.done_on });
 
 export const ratingOf = (row: ItemRow, side: Side): number | null => {
   const stars = Number(row.data?.[`rating_${side}`]);
