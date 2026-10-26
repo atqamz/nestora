@@ -24,3 +24,9 @@ export const whenLine = (routine: ItemRow, today: string) => {
   const next = nextOccurrence(routine, today);
   return next === null ? copy.noNext : copy.nextOn(formatDay(next, today));
 };
+
+export const rowStatus = (routine: ItemRow, today: string, tally: { done: number; total: number } | null) => {
+  const when = whenLine(routine, today);
+  if (tally === null || tally.total === 0 || !occursOn(routine, today)) return when;
+  return tally.done >= tally.total ? copy.doneToday : copy.progressToday(tally.done, tally.total);
+};

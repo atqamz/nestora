@@ -30,6 +30,8 @@ const paths = {
     </>
   ),
   back: <path d="m15 6-6 6 6 6" />,
+  forward: <path d="m9 6 6 6-6 6" />,
+  more: <path d="M5 12h.01M12 12h.01M19 12h.01" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   late: (
     <>

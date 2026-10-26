@@ -12,6 +12,8 @@ import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { Who } from "../ui/avatar.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
+import { Menu } from "../ui/menu.tsx";
+import { routineMenu } from "../ui/routine-menu.ts";
 import { RoutineAction } from "../ui/routine-action.tsx";
 import type { Flows } from "../ui/routine-flows.ts";
 import { RoutineWeek } from "../ui/routine-week.tsx";
@@ -87,18 +89,15 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
           <Icon name="edit" />
           {copy.edit}
         </button>
-        <button type="button" className="secondary" onClick={() => setSheet("copy")}>
-          {copy.duplicate}
-        </button>
-        {away ? (
-          <button type="button" className="secondary" disabled={busy} onClick={() => once(async () => setFailure(failureOf(await flows.resume(routine))))}>
-            {copy.resume}
-          </button>
-        ) : (
-          <button type="button" className="secondary" onClick={() => setSheet("pause")}>
-            {copy.pause}
-          </button>
-        )}
+        <Menu
+          name={copy.moreNamed(routine.title)}
+          items={routineMenu({
+            away,
+            open: setSheet,
+            resume: () => void once(async () => setFailure(failureOf(await flows.resume(routine)))),
+            remove: () => void once(async () => setFailure(failureOf(await flows.remove(routine)))),
+          })}
+        />
       </div>
       {failure.length > 0 && (
         <p className="error" role="alert">
