@@ -576,6 +576,54 @@ button.where {
   object-fit: cover;
 }
 
+.co-h {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s7) 0 var(--s3);
+}
+
+.co-h h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bk[data-member] .bk-link {
+  position: relative;
+}
+
+.co-no {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  min-width: 1.5em;
+  padding: 0 0.25em;
+  border-radius: 0 0 0.5rem 0;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.bk[data-member] {
+  border-inline-start: 3px solid transparent;
+}
+
+.bk[data-next] {
+  border-inline-start-color: var(--accent);
+}
+
+.co-next {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .watched-on {
   display: flex;
   flex-wrap: wrap;
