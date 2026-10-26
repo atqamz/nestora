@@ -62,7 +62,7 @@ test("the header wraps and its gutters shrink once text is large relative to the
 });
 
 test("a heading drops its stretch and one size step when 'Payments' would not fit a line", () => {
-  const rules = media(style, "(max-width: 12rem)");
+  const rules = media(style, "(max-width: 13rem)");
   assert.match(rule(rules, "h1"), /font-stretch:\s*100%/);
   assert.match(rule(rules, "h1"), /font-size:\s*1\.5rem/);
 });
@@ -111,7 +111,7 @@ test("settings rows, budget lines and the journey give their text the room at la
 
 test("every large-text rule shares one threshold, so the layouts switch together", () => {
   const thresholds = new Set(
-    ["style.css", "ui/ui.css", "ui/sheet.css", "views/money.css", "views/journey.css"].flatMap((file) => [...read(file).matchAll(/@media \(max-width: ([\d.]+)rem\)/g)].map(([, value]) => value)).filter((value) => value !== "26" && value !== "12"),
+    ["style.css", "ui/ui.css", "ui/sheet.css", "views/money.css", "views/journey.css"].flatMap((file) => [...read(file).matchAll(/@media \(max-width: ([\d.]+)rem\)/g)].map(([, value]) => value)).filter((value) => value !== "26" && value !== "13"),
   );
   assert.deepEqual([...thresholds], ["18.5"]);
 });
