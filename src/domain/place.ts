@@ -18,13 +18,13 @@ const put = <T>(map: Record<string, T>, key: string, value: T): Record<string, T
 };
 
 export const leave = (memory: Memory, here: Here, place: Place, now: number): Memory => ({
-  entries: put(memory.entries, here.key, { ...place, at: now, route: here.route, from: memory.entries[here.key]?.from ?? null }),
-  routes: put(memory.routes, here.route, { ...place, at: now }),
+  entries: put(memory.entries, here.key, { y: place.y, open: place.open, at: now, route: here.route, from: memory.entries[here.key]?.from ?? null }),
+  routes: put(memory.routes, here.route, { y: place.y, open: place.open, at: now }),
 });
 
 export const enter = (memory: Memory, here: Here, from: string | null, now: number): Memory => ({
-  ...memory,
   entries: put(memory.entries, here.key, { y: 0, open: [], at: now, route: here.route, from }),
+  routes: memory.routes,
 });
 
 const decoded = (route: string) => {
@@ -52,14 +52,33 @@ export const hiddenRoute = (route: string, ready: boolean, items: readonly (Reco
 
 export const depth = (route: string) => route.split("/").filter(Boolean).length;
 
-export const scrub = (memory: Memory, hidden: (route: string) => boolean): Memory => ({
-  entries: Object.fromEntries(
-    Object.entries(memory.entries)
-      .filter(([, entry]) => !hidden(entry.route))
-      .map(([key, entry]) => [key, entry.from !== null && hidden(entry.from) ? { ...entry, from: null } : entry]),
-  ),
-  routes: Object.fromEntries(Object.entries(memory.routes).filter(([route]) => !hidden(route))),
-});
+export const hiddenText = (text: string, ready: boolean, items: readonly (Record<string, unknown> & { id: string })[]) => {
+  const plain = decoded(text)?.toLowerCase();
+  return plain === undefined || hiddenRoute(text, ready, items) || items.some((row) => flagged(row) && plain.includes(row.id.toLowerCase()));
+};
+
+const strings = (value: unknown): string[] =>
+  typeof value === "string" ? [value] : typeof value === "object" && value !== null ? Object.entries(value).flatMap(([key, item]) => [key, ...strings(item)]) : [];
+
+export const scrub = (memory: Memory, hidden: (text: string) => boolean): Memory => {
+  const verdicts = new Map<string, boolean>();
+  const bad = (text: string) => {
+    const known = verdicts.get(text);
+    if (known !== undefined) return known;
+    const verdict = hidden(text);
+    verdicts.set(text, verdict);
+    return verdict;
+  };
+  const leaks = (value: unknown) => strings(value).some(bad);
+  return {
+    entries: Object.fromEntries(
+      rebuilt(memory.entries, entryOf)
+        .map(([key, entry]): [string, Entry] => [key, entry.from !== null && bad(entry.from) ? { ...entry, from: null } : entry])
+        .filter((pair) => !leaks(pair)),
+    ),
+    routes: Object.fromEntries(rebuilt(memory.routes, placeOf).filter((pair) => !leaks(pair))),
+  };
+};
 
 export const replay = (memory: Memory, key: string | null, route: string): Place | null => {
   const entry = key === null ? undefined : memory.entries[key];
@@ -84,13 +103,25 @@ const isPlace = (value: unknown): value is Stamped =>
 const isEntry = (value: unknown): value is Entry =>
   isPlace(value) && "route" in value && typeof value.route === "string" && "from" in value && (value.from === null || typeof value.from === "string");
 
-const only = <T extends Stamped>(value: unknown, valid: (item: unknown) => item is T, now: number): Record<string, T> =>
-  typeof value === "object" && value !== null ? Object.fromEntries(Object.entries(value).filter((pair): pair is [string, T] => valid(pair[1]) && now - pair[1].at <= STALE_MS).slice(-KEPT)) : {};
+const placeOf = (value: unknown): Stamped | null => (isPlace(value) ? { y: value.y, open: value.open, at: value.at } : null);
+
+const entryOf = (value: unknown): Entry | null => (isEntry(value) ? { y: value.y, open: value.open, at: value.at, route: value.route, from: value.from } : null);
+
+const rebuilt = <T>(map: unknown, build: (value: unknown) => T | null): [string, T][] =>
+  typeof map === "object" && map !== null
+    ? Object.entries(map).flatMap(([key, value]): [string, T][] => {
+        const built = build(value);
+        return built === null ? [] : [[key, built]];
+      })
+    : [];
+
+const only = <T extends Stamped>(map: unknown, build: (value: unknown) => T | null, now: number): Record<string, T> =>
+  Object.fromEntries(rebuilt(map, build).filter(([, one]) => now - one.at <= STALE_MS).slice(-KEPT));
 
 export const parse = (raw: string | null, now: number): Memory => {
   try {
     const found: unknown = raw === null ? null : JSON.parse(raw);
-    return typeof found === "object" && found !== null && "entries" in found && "routes" in found ? { entries: only(found.entries, isEntry, now), routes: only(found.routes, isPlace, now) } : empty();
+    return typeof found === "object" && found !== null && "entries" in found && "routes" in found ? { entries: only(found.entries, entryOf, now), routes: only(found.routes, placeOf, now) } : empty();
   } catch {
     return empty();
   }

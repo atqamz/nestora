@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { STALE_MS, depth, empty, enter, hiddenRoute, leave, parse, replay, returning, scrub } from "../src/domain/place.ts";
+import { STALE_MS, depth, empty, enter, hiddenRoute, hiddenText, leave, parse, replay, returning, scrub } from "../src/domain/place.ts";
 import type { Memory } from "../src/domain/place.ts";
 
 const home = { key: "k1", route: "/" };
@@ -93,6 +93,12 @@ test("a stored memory survives a round trip", () => {
   assert.deepEqual(parse(JSON.stringify(memory), NOW), memory);
 });
 
+test("a stored memory whose entries are null still keeps its routes", () => {
+  const raw = { entries: null, routes: { "/": { y: 1, open: [], at: NOW } } };
+  assert.deepEqual(parse(JSON.stringify(raw), NOW), { entries: {}, routes: raw.routes });
+  assert.deepEqual(scrub({ entries: null, routes: raw.routes } as unknown as Memory, () => false), { entries: {}, routes: raw.routes });
+});
+
 test("a missing, broken or foreign stored memory reads as empty", () => {
   assert.deepEqual(parse(null, NOW), empty());
   assert.deepEqual(parse("{", NOW), empty());
@@ -100,6 +106,8 @@ test("a missing, broken or foreign stored memory reads as empty", () => {
   assert.deepEqual(parse('"x"', NOW), empty());
   assert.deepEqual(parse("null", NOW), empty());
   assert.deepEqual(parse('{"entries":1,"routes":2}', NOW), empty());
+  assert.deepEqual(parse(JSON.stringify({ routes: { "/": { y: 1, open: [], at: NOW } } }), NOW), empty());
+  assert.deepEqual(parse(JSON.stringify({ entries: { k1: { y: 1, open: [], at: NOW, route: "/", from: null } } }), NOW), empty());
 });
 
 test("stored places that are not places are dropped", () => {
@@ -212,4 +220,87 @@ test("scrubbing drops the entries and routes of hidden routes and forgets a hidd
 
 test("depth counts the segments of a route", () => {
   assert.deepEqual(["/", "/routines", "/routines/r1", "/routines/r1/start", "//a//"].map(depth), [0, 1, 2, 3, 1]);
+});
+
+const PRIVATE = "aaaaaaaa-0000-4000-8000-000000000001";
+const SHARED_ID = "bbbbbbbb-0000-4000-8000-000000000002";
+const shared = { id: SHARED_ID, kind: "routine", who: "both", data: null };
+const mine = { id: PRIVATE, kind: "routine", who: "a", data: { private: true } };
+const leaked = (value: unknown) => JSON.stringify(value).toLowerCase().includes(PRIVATE);
+const poisoned = () =>
+  ({
+    entries: {
+      from: { y: 1, open: [], at: NOW, route: "/books", from: `/routines/${PRIVATE}` },
+      route: { y: 2, open: [], at: NOW, route: `/routines/${PRIVATE}`, from: null },
+      nested: { y: 3, open: [], at: NOW, route: "/tasks", from: null, extra: { deep: [{ note: `see ${PRIVATE}` }] } },
+      unknown: { y: 4, open: [], at: NOW, route: "/people", from: null, [PRIVATE]: 1 },
+      [`key-${PRIVATE}`]: { y: 5, open: [], at: NOW, route: "/money", from: null },
+      typed: { y: 6, open: [], at: NOW, route: `/tasks/${PRIVATE.toUpperCase()}`, from: null },
+    },
+    routes: {
+      "/books": { y: 7, open: [], at: NOW, route: "/books", from: `/routines/${PRIVATE}` },
+      "/people": { y: 8, open: [], at: NOW, deep: { a: [PRIVATE] } },
+      [`/routines/${PRIVATE}`]: { y: 9, open: [], at: NOW },
+      "/money": { y: 10, open: [], at: NOW },
+    },
+    leak: { id: PRIVATE },
+  }) as unknown as Memory;
+const guard = (text: string) => hiddenText(text, true, [mine]);
+
+test("leaving stores exactly the fields of a place, whatever object the place was read from", () => {
+  const entry = { y: 40, open: [true], at: NOW - 5, route: "/routines", from: `/routines/${PRIVATE}`, note: PRIVATE };
+  const memory = leave(enter(empty(), { key: "k1", route: "/routines" }, null, NOW), { key: "k1", route: "/routines" }, entry, NOW);
+  assert.deepEqual(Object.keys(memory.routes["/routines"]).sort(), ["at", "open", "y"]);
+  assert.deepEqual(Object.keys(memory.entries.k1).sort(), ["at", "from", "open", "route", "y"]);
+  assert.equal(memory.entries.k1.from, null);
+  assert.equal(leaked(memory), false);
+  assert.equal(leave(empty(), { key: "k9", route: "/" }, place(1), NOW).entries.k9.from, null);
+});
+
+test("entering keeps no top-level field a memory was given besides entries and routes", () => {
+  const memory = enter({ ...empty(), leak: PRIVATE } as unknown as Memory, home, null, NOW);
+  assert.deepEqual(Object.keys(memory).sort(), ["entries", "routes"]);
+});
+
+test("a stored memory is read back with only the fields of a place on its routes and of an entry on its entries", () => {
+  const raw = {
+    entries: { k1: { y: 1, open: [true], at: NOW, route: "/", from: null, more: 1 } },
+    routes: { "/": { y: 1, open: [true], at: NOW, route: "/", from: `/routines/${PRIVATE}`, more: 1 } },
+    other: PRIVATE,
+  };
+  assert.deepEqual(parse(JSON.stringify(raw), NOW), { entries: { k1: { y: 1, open: [true], at: NOW, route: "/", from: null } }, routes: { "/": { y: 1, open: [true], at: NOW } } });
+});
+
+test("scrubbing drops every piece of a poisoned memory that holds a hidden id, in any field, key or nesting, and rebuilds the rest", () => {
+  const clean = scrub(poisoned(), guard);
+  assert.equal(leaked(clean), false);
+  assert.deepEqual(Object.keys(clean.entries), ["from", "nested", "unknown"]);
+  assert.equal(clean.entries.from.from, null);
+  assert.deepEqual(clean.entries.nested, { y: 3, open: [], at: NOW, route: "/tasks", from: null });
+  assert.deepEqual(clean.entries.unknown, { y: 4, open: [], at: NOW, route: "/people", from: null });
+  assert.deepEqual(clean.routes, { "/books": { y: 7, open: [], at: NOW }, "/people": { y: 8, open: [], at: NOW }, "/money": { y: 10, open: [], at: NOW } });
+  assert.deepEqual(Object.keys(clean).sort(), ["entries", "routes"]);
+});
+
+test("scrubbing decides every string it finds with the rule it was given, not by its position", () => {
+  const seen: string[] = [];
+  scrub(visited(), (text) => (seen.push(text), false));
+  for (const text of ["k1", "/", "/routines/r1", "route", "from", "y", "open", "at"]) assert.ok(seen.includes(text), text);
+  assert.equal(new Set(seen).size, seen.length);
+  const flat = scrub(poisoned(), (text) => text === "nested" || text === "/people" || text === "/tasks");
+  assert.deepEqual(Object.keys(flat.entries), ["from", "route", `key-${PRIVATE}`, "typed"]);
+  assert.deepEqual(Object.keys(flat.routes), ["/books", `/routines/${PRIVATE}`, "/money"]);
+});
+
+test("a hidden text is a route the rule hides, a text that cannot be decoded or one that holds the id of a private routine in any spelling", () => {
+  assert.equal(guard("/books"), false);
+  assert.equal(guard(`/routines/${PRIVATE}`), true);
+  assert.equal(guard(`/tasks/${PRIVATE.toUpperCase()}`), true);
+  assert.equal(guard(`/tasks/${PRIVATE.replace("-", "%2D")}`), true);
+  assert.equal(guard(`x ${encodeURIComponent(encodeURIComponent(PRIVATE))}`), true);
+  assert.equal(guard("/books/100%"), true);
+  assert.equal(hiddenText(`/tasks/${SHARED_ID}`, true, [mine, shared]), false);
+  assert.equal(hiddenText(`/tasks/${PRIVATE}`, true, [{ ...mine, id: PRIVATE.toUpperCase() }]), true);
+  assert.equal(hiddenText("/books/x", true, []), false);
+  assert.equal(hiddenText("/routines/x", true, []), true);
 });

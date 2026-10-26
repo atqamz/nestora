@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { empty, parse } from "../domain/place.ts";
+import { empty, parse, scrub } from "../domain/place.ts";
 import type { Memory } from "../domain/place.ts";
 import type { Held } from "./timers.ts";
 
@@ -20,9 +20,9 @@ export const placeStore = (storage: Held | null, first: () => Side | null, now: 
 
   const load = () => guard(empty(), (held) => (side === null ? empty() : parse(held.getItem(keyOf(side)), now())));
 
-  const save = (memory: Memory) =>
+  const save = (memory: Memory, hidden: (text: string) => boolean) =>
     guard(undefined, (held) => {
-      if (side !== null) held.setItem(keyOf(side), JSON.stringify(memory));
+      if (side !== null) held.setItem(keyOf(side), JSON.stringify(scrub(memory, hidden)));
     });
 
   const purge = (me: Side) => {

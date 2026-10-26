@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { hiddenRoute } from "../src/domain/place.ts";
+import { hiddenRoute, hiddenText } from "../src/domain/place.ts";
 import { placeStore } from "../src/store/places.ts";
 import type { Places } from "../src/store/places.ts";
 import type { Held } from "../src/store/timers.ts";
@@ -500,7 +500,7 @@ test("a broken session storage never throws", async () => {
 
 test("main hands every route change to the place module and keeps the split-view branches", () => {
   const main = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-  assert.match(main, /startPlace\(\s*places,\s*\(route\) => \{\s*const \{ ready, rows \} = store\.getSnapshot\(\);\s*return hiddenRoute\(route, ready, rows\.items\);\s*\},\s*\(\) => store\.getSnapshot\(\)\.ready,\s*\);/);
+  assert.match(main, /startPlace\(\s*places,\s*\(text\) => \{\s*const \{ ready, rows \} = store\.getSnapshot\(\);\s*return hiddenText\(text, ready, rows\.items\);\s*\},\s*\(\) => store\.getSnapshot\(\)\.ready,\s*\);/);
   assert.match(main, /useLayoutEffect\(\(\) => \{\s*const now = document\.querySelector\("\.split"\);/);
   assert.match(main, /const how = first\.current \? "first" : selecting \|\| closing \? "beside" : "move";/);
   assert.match(main, /first\.current = false;\s*landPlace\(how\);\s*if \(closing\) \(row \?\? document\.querySelector<HTMLElement>\("h1"\)\)\?\.focus\(\{ preventScroll: !row \}\)/);
@@ -1364,4 +1364,132 @@ test("an empty hash is stored as the home route", async () => {
   visit(place, "#/books", 0);
   const stored = JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, { route: string }> };
   assert.equal(Object.values(stored.entries)[0].route, "/");
+});
+
+const hits = (text: string, id: string) => {
+  let plain = text;
+  for (let pass = 0; pass < 6; pass++) {
+    try {
+      plain = decodeURIComponent(plain);
+    } catch {
+      break;
+    }
+  }
+  return plain.toLowerCase().split(id.toLowerCase()).length - 1;
+};
+
+const stored = () => JSON.parse(world.store.get("wp.place.a")!) as { entries: Record<string, Record<string, unknown>>; routes: Record<string, Record<string, unknown>> };
+
+test("a list restore still waiting when the next navigation comes never writes the private routine it was opened from", async () => {
+  const { place } = await rig("#/routines");
+  visit(place, `#/routines/${PRIVATE}`, 0);
+  visit(place, "#/routines", 0);
+  visit(place, `#/routines/${SHARED}`, 400);
+  page([], [], 0);
+  back();
+  place.landPlace("move");
+  assert.ok(world.frames.length > 0);
+  push("#/books");
+  assert.equal(hits(dump(), PRIVATE), 0);
+  fire("pagehide");
+  assert.equal(hits(dump(), PRIVATE), 0);
+  assert.doesNotMatch(dump(), gone);
+  assert.deepEqual(Object.keys(stored().routes["/routines"]).sort(), ["at", "open", "y"]);
+  assert.equal(stored().routes["/routines"].y, 400);
+});
+
+test("the same wait in a tab whose partner changed, with no heading to wait for, never writes the private routine", async () => {
+  const { place } = await rig("#/routines");
+  visit(place, `#/routines/${PRIVATE}`, 0);
+  visit(place, "#/routines", 0);
+  snap.items = [];
+  world.heading = null;
+  push("#/tasks");
+  place.landPlace("move");
+  back();
+  place.landPlace("move");
+  back();
+  place.landPlace("move");
+  push("#/books");
+  fire("pagehide");
+  assert.equal(hits(dump(), PRIVATE), 0);
+  assert.deepEqual(Object.keys(stored().routes["/routines"]).sort(), ["at", "open", "y"]);
+});
+
+test("a stored memory with extra fields on its routes is rewritten without them at the next write", async () => {
+  const old = JSON.stringify({ entries: {}, routes: { "/people": { y: 4, open: [], at: Date.now(), route: "/people", from: `/routines/${PRIVATE}`, note: PRIVATE } } });
+  reset("#/routines");
+  world.store.set("wp.place.a", old);
+  Object.assign(snap, { ready: true, items: [mine, shared] });
+  const place = await load();
+  place.startPlace(places("a"), rule, () => snap.ready);
+  visit(place, "#/books", 5);
+  assert.equal(hits(dump(), PRIVATE), 0);
+  assert.deepEqual(stored().routes["/people"], { y: 4, open: [], at: stored().routes["/people"].at });
+});
+
+const mulberry = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+test("no persisted write ever holds a hidden routine id, over random navigation with unfinished restores and identity flips", async () => {
+  const states = { private: [mine, shared], open: [{ ...mine, data: null }, shared], deleted: [shared], empty: [] as Row[] };
+  const hashes = ["#/", "#/routines", "#/books", "#/tasks", "#/books/x", `#/routines/${SHARED}`, `#/routines/${SHARED}/start`, `#/routines/${PRIVATE}`, `#/routines/${PRIVATE}/start`, `#/routines/${PRIVATE.toUpperCase()}`, `#/routines/${PRIVATE}?x=1`];
+  for (let seed = 1; seed <= 2000; seed++) {
+    const random = mulberry(seed);
+    const pick = <T>(items: readonly T[]) => items[Math.floor(random() * items.length)];
+    reset("#/routines");
+    let state: keyof typeof states = "private";
+    let me: "a" | "b" = "a";
+    const log: string[] = [];
+    const leaks: string[] = [];
+    const check = (key: string, value: string) => {
+      const forbidden = [...(state === "open" ? [] : [PRIVATE]), ...(state === "empty" ? [SHARED] : [])];
+      for (const id of forbidden) if (hits(value, id) > 0) leaks.push(`seed ${seed} ${key} ${state}: ${log.join(" ")}`);
+    };
+    const checked: Held = { ...held(), setItem: (key, value) => (world.store.set(key, value), check(key, value)) };
+    Object.assign(snap, { ready: true, items: states[state] });
+    const kept = placeStore(checked, () => me);
+    const place = await load();
+    place.startPlace(kept, rule, () => snap.ready);
+    for (let step = 0; step < 40; step++) {
+      const move = pick(["push", "push", "push", "back", "back", "forward", "replace", "settle", "short", "late", "rows", "rows", "flip", "pagehide"]);
+      log.push(move);
+      if (move === "push") {
+        const hash = pick(hashes);
+        log.push(hash);
+        page([], [], random() < 0.4 ? 0 : 3000);
+        world.y = Math.floor(random() * 900);
+        push(hash);
+        place.landPlace("move");
+      } else if (move === "back" && world.at > 0) {
+        back();
+        place.landPlace("move");
+      } else if (move === "forward" && world.at < world.entries.length - 1) {
+        forward();
+        place.landPlace("move");
+      } else if (move === "replace") {
+        replace(pick(hashes));
+        place.landPlace("move");
+      } else if (move === "settle") settle(Math.floor(random() * 5));
+      else if (move === "short") Object.assign(world, { max: 0 });
+      else if (move === "late") world.heading = random() < 0.5 ? null : new FakeElement();
+      else if (move === "rows") {
+        state = pick(me === "a" ? (["private", "open", "deleted", "empty"] as const) : (["empty", "deleted"] as const));
+        snap.items = states[state];
+        log.push(state);
+      } else if (move === "flip") {
+        me = me === "a" ? "b" : "a";
+        state = me === "a" ? "private" : "empty";
+        snap.items = states[state];
+        log.push(me);
+        kept.purge(me);
+      } else if (move === "pagehide") fire("pagehide");
+    }
+    fire("pagehide");
+    assert.deepEqual(leaks, []);
+  }
 });

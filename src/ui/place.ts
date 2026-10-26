@@ -1,4 +1,4 @@
-import { depth, empty, enter, leave, replay, returning, scrub } from "../domain/place.ts";
+import { depth, empty, enter, leave, replay, returning } from "../domain/place.ts";
 import type { Here, Memory, Place } from "../domain/place.ts";
 import type { Side } from "../../shared/api.ts";
 import type { Places } from "../store/places.ts";
@@ -20,8 +20,8 @@ let settling: AbortController | null = null;
 let landed = "";
 let places: Places | null = null;
 let owner: Side | null = null;
-let hidden: (route: string) => boolean = () => true;
-let ready: () => boolean = () => false;
+let hidden: (text: string) => boolean;
+let ready: () => boolean;
 
 const route = () => location.hash.slice(1) || "/";
 const stamp = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -52,7 +52,7 @@ const own = () => {
 
 const save = () => {
   own();
-  if (ready()) places?.save(scrub(memory, hidden));
+  if (ready()) places?.save(memory, hidden);
 };
 
 const arrive = (to: string, from: Here | null) => {
@@ -78,7 +78,7 @@ const leaving = () => {
   memory = leave(memory, here, pending ? landing!.place : read(), Date.now());
 };
 
-export const startPlace = (kept: Places, hide: (route: string) => boolean, rowsReady: () => boolean) => {
+export const startPlace = (kept: Places, hide: (text: string) => boolean, rowsReady: () => boolean) => {
   history.scrollRestoration = "manual";
   places = kept;
   hidden = hide;

@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { takeDenied } from "./domain/access.ts";
-import { hiddenRoute } from "./domain/place.ts";
+import { hiddenText } from "./domain/place.ts";
 import { screenFor } from "./domain/status.ts";
 import { openStore, useSnapshot } from "./hooks/use-store.ts";
 import { useRoute } from "./router.ts";
@@ -115,9 +115,9 @@ function App() {
 applyTheme(readTheme());
 startPlace(
   places,
-  (route) => {
+  (text) => {
     const { ready, rows } = store.getSnapshot();
-    return hiddenRoute(route, ready, rows.items);
+    return hiddenText(text, ready, rows.items);
   },
   () => store.getSnapshot().ready,
 );

@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { STALE_MS, empty, enter, leave } from "../src/domain/place.ts";
+import { STALE_MS, empty, enter, hiddenText, leave } from "../src/domain/place.ts";
 import { placeStore } from "../src/store/places.ts";
+import type { Memory } from "../src/domain/place.ts";
 import type { Held } from "../src/store/timers.ts";
 
 const NOW = 1_700_000_000_000;
@@ -22,12 +23,14 @@ const fake = (): Held & { all: () => string[]; raw: Map<string, string> } => {
   };
 };
 
+const shown = () => false;
+
 const visit = (route: string, at = NOW) => leave(enter(empty(), { key: "k1", route }, null, at), { key: "k1", route }, { y: 300, open: [] }, at);
 
 test("the memory is stored under the side that is known, and the other side reads nothing of it", () => {
   const storage = fake();
   const first = placeStore(storage, () => "a", () => NOW);
-  first.save(visit("/routines/r6"));
+  first.save(visit("/routines/r6"), shown);
   assert.deepEqual(storage.all(), ["wp.place.a"]);
   assert.deepEqual(first.load(), visit("/routines/r6"));
   assert.deepEqual(placeStore(storage, () => "b", () => NOW).load(), empty());
@@ -36,11 +39,11 @@ test("the memory is stored under the side that is known, and the other side read
 test("confirming the other side deletes the first side's memory, and what is written after goes under the new side", () => {
   const storage = fake();
   const tab = placeStore(storage, () => "a", () => NOW);
-  tab.save(visit("/routines/r6/start"));
+  tab.save(visit("/routines/r6/start"), shown);
   tab.purge("b");
   assert.deepEqual(storage.all(), []);
   assert.equal(tab.side(), "b");
-  tab.save(visit("/tasks"));
+  tab.save(visit("/tasks"), shown);
   assert.deepEqual(storage.all(), ["wp.place.b"]);
   assert.doesNotMatch(storage.raw.get("wp.place.b")!, /r6/);
 });
@@ -62,10 +65,10 @@ test("with no side known nothing is written and nothing is read", () => {
   storage.setItem("wp.place", JSON.stringify(visit("/")));
   const unknown = placeStore(storage, () => null, () => NOW);
   assert.deepEqual(unknown.load(), empty());
-  unknown.save(visit("/routines/r6"));
+  unknown.save(visit("/routines/r6"), shown);
   assert.doesNotMatch(JSON.stringify([...storage.raw]), /r6/);
   unknown.purge("a");
-  unknown.save(visit("/routines/r6"));
+  unknown.save(visit("/routines/r6"), shown);
   assert.match(storage.raw.get("wp.place.a")!, /r6/);
 });
 
@@ -75,7 +78,7 @@ test("entries past the stale limit are dropped when read and when a side is conf
   const tab = placeStore(storage, () => "a", () => now);
   const old = visit("/old", NOW);
   const fresh = visit("/fresh", NOW + STALE_MS);
-  tab.save({ entries: { ...old.entries, k2: fresh.entries.k1 }, routes: { ...old.routes, ...fresh.routes } });
+  tab.save({ entries: { ...old.entries, k2: fresh.entries.k1 }, routes: { ...old.routes, ...fresh.routes } }, shown);
   now = NOW + STALE_MS + 1;
   assert.deepEqual(Object.values(tab.load().entries).map((entry) => entry.route), ["/fresh"]);
   tab.purge("a");
@@ -115,7 +118,7 @@ test("a storage that is missing or throws never makes a call throw", () => {
   const broken: Held = { length: 1, key: blocked, getItem: blocked, setItem: blocked, removeItem: blocked };
   for (const tab of [placeStore(null, () => "a"), placeStore(broken, () => "a")]) {
     assert.deepEqual(tab.load(), empty());
-    assert.equal(tab.save(visit("/")), undefined);
+    assert.equal(tab.save(visit("/"), shown), undefined);
     assert.equal(tab.purge("b"), undefined);
     assert.equal(tab.side(), "b");
   }
@@ -134,4 +137,28 @@ test("the place memory is named by side in one file, purged by the session's one
   assert.match(readme, /`history\.state`/);
   assert.match(readme, /places\.purge/);
   assert.doesNotMatch(readme, /the one routine id in a store/);
+});
+
+test("saving drops what holds a hidden id before it reaches the storage, wherever it sits", () => {
+  const id = "aaaaaaaa-0000-4000-8000-000000000001";
+  const storage = fake();
+  const tab = placeStore(storage, () => "a", () => NOW);
+  const entry = { y: 1, open: [], at: NOW, route: "/books", from: null };
+  const memory = {
+    entries: {
+      ok: entry,
+      from: { ...entry, from: `/routines/${id}` },
+      route: { ...entry, route: `/routines/${id.toUpperCase()}` },
+      nested: { ...entry, extra: { deep: [{ note: id }] } },
+      unknown: { ...entry, [id]: 1 },
+      [`key-${id}`]: entry,
+    },
+    routes: { "/books": { y: 1, open: [], at: NOW, from: `/routines/${id}` }, [`/routines/${id}`]: { y: 1, open: [], at: NOW }, "/tasks": { y: 1, open: [], at: NOW, deep: [id] } },
+    leak: id,
+  } as unknown as Memory;
+  tab.save(memory, (text) => hiddenText(text, true, [{ id, kind: "routine", who: "a", data: { private: true } }]));
+  const raw = storage.raw.get("wp.place.a")!;
+  assert.equal(raw.toLowerCase().includes(id), false);
+  assert.deepEqual(Object.keys(tab.load().entries), ["ok", "from", "nested", "unknown"]);
+  assert.deepEqual(Object.keys(tab.load().routes), ["/books", "/tasks"]);
 });
