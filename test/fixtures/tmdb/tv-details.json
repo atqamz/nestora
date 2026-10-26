@@ -1,0 +1,11 @@
+{
+  "adult": false,
+  "id": 920001,
+  "name": "Rumah di Ujung Jalan",
+  "original_name": "Rumah di Ujung Jalan",
+  "overview": "INVENTED-OVERVIEW-MARKER",
+  "first_air_date": "2023-11-02",
+  "number_of_seasons": 2,
+  "poster_path": "/invPoster0101AbCdEfGhIjKlMn.jpg",
+  "seasons": [{ "id": 1, "name": "Season 1", "overview": "INVENTED-OVERVIEW-MARKER" }]
+}

@@ -231,6 +231,19 @@ test("a refused move shows no toast and returns the failure, and a refused Undo 
   overlay.dismissToast();
 });
 
+test("a refused Undo with several reasons shows them all, in order, separated by a space", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  overlay.dismissToast();
+  let calls = 0;
+  const flaky = { update: async (): Promise<Written> => (++calls === 1 ? { ok: true, id } : { ok: false, errors: ["gone elsewhere", "and edited here"] }) };
+  await moveScreen(flaky, rowOf(a, id)!, "watching", "2026-10-25");
+  overlay.getSnapshot().toast!.action!.run();
+  await settle();
+  assert.equal(overlay.getSnapshot().toast!.message, "gone elsewhere and edited here");
+  overlay.dismissToast();
+});
+
 test("a successful Undo does not announce again", async () => {
   const { a } = await pair();
   const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));

@@ -88,6 +88,12 @@ test("only sync and export check the side", async () => {
   assert.equal((await call("/api/me", { headers })).status, 200);
   assert.equal((await call("/api/login", { headers })).status, 302);
   assert.equal((await call("/api/nope", { headers })).status, 404);
+  for (const path of ["/api/lookup/screen?kind=movie&title=x", "/api/lookup/screen?kind=movie&title=x&side=b"]) {
+    const res = await call(path, { headers });
+    assert.equal(res.status, 400, path);
+    assert.deepEqual(await res.json(), { error: "bad_query" });
+  }
+  assert.equal((await call("/api/lookup/screen?kind=movie&title=xy", { headers })).status, 502);
   assert.equal((await call("/api/sync", { method: "PUT", headers: { [SIDE_HEADER]: "a" } })).status, 405);
 });
 

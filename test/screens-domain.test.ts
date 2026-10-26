@@ -12,21 +12,36 @@ import { item } from "./domain-rows.ts";
 
 const movie = (fields: Partial<ItemRow>) => item({ kind: "movie", status: "want", ...fields });
 
-test("sections hold one kind each: watching, to watch by sort, watched newest first", () => {
+test("sections hold one kind each: watching and to watch by sort, watched newest first, whatever the input order", () => {
   const rows = [
     movie({ title: "w2", sort: 2 }),
     movie({ title: "w1", sort: 1 }),
-    movie({ title: "now", status: "watching" }),
-    movie({ title: "old", status: "watched", done_on: "2026-01-02" }),
-    movie({ title: "new", status: "watched", done_on: "2026-10-02" }),
+    movie({ title: "w3", sort: 3 }),
+    movie({ title: "n2", status: "watching", sort: 2 }),
+    movie({ title: "n1", status: "watching", sort: 1 }),
+    movie({ title: "n3", status: "watching", sort: 3 }),
+    movie({ title: "mid", status: "watched", done_on: "2026-05-02", sort: 1 }),
+    movie({ title: "new", status: "watched", done_on: "2026-10-02", sort: 3 }),
+    movie({ title: "old", status: "watched", done_on: "2026-01-02", sort: 2 }),
     item({ kind: "series", title: "other kind", status: "watching" }),
     item({ kind: "book", title: "a book", status: "shelf" }),
   ];
   const sections = screenSections(rows, "movie");
-  assert.deepEqual(sections.watching.map((row) => row.title), ["now"]);
-  assert.deepEqual(sections.want.map((row) => row.title), ["w1", "w2"]);
-  assert.deepEqual(sections.watched.map((row) => row.title), ["new", "old"]);
+  assert.deepEqual(sections.watching.map((row) => row.title), ["n1", "n2", "n3"]);
+  assert.deepEqual(sections.want.map((row) => row.title), ["w1", "w2", "w3"]);
+  assert.deepEqual(sections.watched.map((row) => row.title), ["new", "mid", "old"]);
   assert.deepEqual(screenSections(rows, "series").watching.map((row) => row.title), ["other kind"]);
+});
+
+test("watched rows with the same day, or with no day, fall back to the manual sort, and a dated row precedes an undated one", () => {
+  const rows = [
+    movie({ title: "undated b", status: "watched", done_on: null, sort: 2 }),
+    movie({ title: "same b", status: "watched", done_on: "2026-03-03", sort: 2 }),
+    movie({ title: "undated a", status: "watched", done_on: null, sort: 1 }),
+    movie({ title: "dated", status: "watched", done_on: "2026-01-01", sort: 9 }),
+    movie({ title: "same a", status: "watched", done_on: "2026-03-03", sort: 1 }),
+  ];
+  assert.deepEqual(screenSections(rows, "movie").watched.map((row) => row.title), ["same a", "same b", "dated", "undated a", "undated b"]);
 });
 
 test("a row with a status outside the three lands in To watch rather than vanishing", () => {

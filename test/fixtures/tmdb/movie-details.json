@@ -1,0 +1,22 @@
+{
+  "adult": false,
+  "backdrop_path": "/invBackdrop0001.jpg",
+  "belongs_to_collection": null,
+  "budget": 1000,
+  "genres": [{ "id": 18, "name": "Drama" }],
+  "homepage": "https://invented.example/film",
+  "id": 910001,
+  "imdb_id": "tt0000000",
+  "original_language": "id",
+  "original_title": "Pelabuhan Terakhir",
+  "overview": "INVENTED-OVERVIEW-MARKER a fictional synopsis that must never be stored or sent on.",
+  "poster_path": "/invPoster0001AbCdEfGhIjKlMn.jpg",
+  "production_companies": [{ "id": 1, "name": "Invented Pictures" }],
+  "release_date": "2017-03-09",
+  "revenue": 5000,
+  "runtime": 104,
+  "status": "Released",
+  "tagline": "INVENTED-TAGLINE-MARKER",
+  "title": "Pelabuhan Terakhir",
+  "vote_average": 7.1
+}
