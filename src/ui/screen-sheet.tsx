@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { START, parseYear } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
-import { adopt, heldPick } from "../domain/tmdb.ts";
+import { adopt, heldIds, heldPick, letGo } from "../domain/tmdb.ts";
 import type { Picked, ScreenHit } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useScreenSearch } from "../hooks/use-lookup.ts";
@@ -29,6 +29,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const [status, setStatus] = useState<ScreenInput["status"]>("want");
   const [who, setWho] = useState<ScreenInput["who"]>("both");
   const [picked, setPicked] = useState<Picked | null>(null);
+  const [filled, setFilled] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const words = kind === "movie" ? text.movies : text.series;
@@ -38,13 +39,18 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const search = useScreenSearch({ kind, title, year: typedYear.ok ? typedYear.value : null }, settled === null);
 
   useEffect(() => {
-    if (picked !== null && settled === null) setPicked(null);
-  }, [picked, settled]);
+    const gone = letGo(picked, title, year, filled);
+    if (gone === null) return;
+    setPicked(null);
+    setYear(gone.year);
+    setFilled(null);
+  }, [picked, title, year, filled]);
 
   const pick = (hit: ScreenHit) => {
     const next = adopt({ year }, hit);
     setTitle(next.title);
     setYear(next.year);
+    setFilled(next.filled);
     setPicked(next.picked);
   };
 
@@ -85,8 +91,8 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
           control={{ name: "title", label: text.screen.sheet.title, type: "text", required: true, words: true, value: title, onChange: setTitle }}
           error={attempt ? problems.title : undefined}
         />
-        <Field control={{ name: "year", label: text.screen.sheet.year, type: "year", value: year, onChange: setYear }} error={attempt ? problems.year : undefined} />
-        <ScreenLookup kind={kind} search={search} onPick={pick} />
+        <Field control={{ name: "year", label: text.screen.sheet.year, type: "year", value: year, onChange: (value) => (setYear(value), setFilled(null)) }} error={attempt ? problems.year : undefined} />
+        <ScreenLookup kind={kind} search={search} have={heldIds(items, kind)} onPick={pick} />
         <Field
           control={{
             name: "who",

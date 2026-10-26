@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemRow } from "../shared/tables.ts";
-import { SCREEN_HITS_MAX, SCREEN_URL, adopt, heldPick, hitSub, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, tmdbData, tmdbPage, usesTmdb, validId, validYear } from "../src/domain/tmdb.ts";
+import { SCREEN_HITS_MAX, SCREEN_URL, adopt, heldIds, heldPick, letGo, hitSub, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, tmdbData, tmdbPage, unfill, usesTmdb, validId, validYear } from "../src/domain/tmdb.ts";
 import type { ScreenQuery } from "../src/domain/tmdb.ts";
 
 const of = (query: string) => screenQueryOf(new URLSearchParams(query));
@@ -166,7 +166,7 @@ test("eight distinct hits are kept however many repeats and bad rows come first"
 
 test("a hit fills the title and the year only when the year is empty, and keeps what the hit knows for the row", () => {
   const hit = { ...good, kind: "movie" as const, original: "Original", year: 2017 };
-  assert.deepEqual(adopt({ year: "" }, hit), { title: good.title, year: "2017", picked: { title: good.title, tmdb: 910001, original: "Original", cover: good.cover } });
+  assert.deepEqual(adopt({ year: "" }, hit), { title: good.title, year: "2017", filled: "2017", picked: { title: good.title, tmdb: 910001, original: "Original", cover: good.cover } });
   assert.equal(adopt({ year: "   " }, hit).year, "2017");
   assert.equal(adopt({ year: "1999" }, hit).year, "1999");
   assert.equal(adopt({ year: "abc" }, hit).year, "abc");
@@ -209,4 +209,39 @@ test("a list shows TMDB when a row of its kind has a poster or an id, and not fo
   assert.equal(usesTmdb([row("movie", { cover: "https://evil.example/a.jpg", tmdb: 0 })], "movie"), false);
   assert.equal(usesTmdb([row("movie", { cover: "https://covers.openlibrary.org/b/id/1-M.jpg" })], "movie"), false);
   assert.equal(usesTmdb([], "movie"), false);
+});
+
+test("a year the hit filled is cleared when the pick is dropped, and a year the user typed never is", () => {
+  const hit = { ...good, original: null };
+  const picked = adopt({ year: "" }, hit);
+  assert.deepEqual([picked.year, picked.filled], ["2017", "2017"]);
+  assert.deepEqual(letGo(picked.picked, "Pelabuhan Terakhir 2", picked.year, picked.filled), { year: "" });
+  const typed = adopt({ year: "2017" }, hit);
+  assert.equal(typed.filled, null);
+  assert.deepEqual(letGo(typed.picked, "Other", "2017", typed.filled), { year: "2017" });
+  assert.deepEqual(letGo(typed.picked, "Other", "1999", null), { year: "1999" });
+  assert.deepEqual(adopt({ year: "" }, { ...hit, year: null }).filled, null);
+  assert.deepEqual(adopt({ year: "1999" }, hit).filled, null);
+});
+
+test("a pick that still holds, or none at all, lets go of nothing", () => {
+  const picked = adopt({ year: "" }, good);
+  assert.equal(letGo(picked.picked, "Pelabuhan Terakhir", "2017", "2017"), null);
+  assert.equal(letGo(picked.picked, "  pelabuhan   terakhir ", "2017", "2017"), null);
+  assert.equal(letGo(null, "Anything", "2017", "2017"), null);
+});
+
+test("a year is cleared only while it is still the one the hit filled", () => {
+  assert.equal(unfill("2017", "2017"), "");
+  assert.equal(unfill("2018", "2017"), "2018");
+  assert.equal(unfill("", "2017"), "");
+  assert.equal(unfill("2017", null), "2017");
+});
+
+test("the ids already on the list are those of rows of the same kind with a valid id", () => {
+  const row = (kind: string, data: Record<string, unknown> | null) => ({ id: "x", kind, title: "T", data }) as unknown as ItemRow;
+  const rows = [row("movie", { tmdb: 5 }), row("series", { tmdb: 6 }), row("movie", { tmdb: 0 }), row("movie", { tmdb: "7" }), row("movie", null), row("movie", { year: 2001 }), row("movie", { tmdb: 8 })];
+  assert.deepEqual([...heldIds(rows, "movie")].sort(), [5, 8]);
+  assert.deepEqual([...heldIds(rows, "series")], [6]);
+  assert.equal(heldIds([], "movie").size, 0);
 });

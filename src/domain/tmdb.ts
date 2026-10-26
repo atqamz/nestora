@@ -81,17 +81,29 @@ export const hitSub = (hit: ScreenHit) => [hit.original, hit.year === null ? nul
 export const usesTmdb = (rows: readonly ItemRow[], kind: ScreenKind) =>
   rows.some((row) => row.kind === kind && (isPoster(row.data?.cover) || validId(row.data?.tmdb) !== null));
 
+export const heldIds = (rows: readonly ItemRow[], kind: ScreenKind) =>
+  new Set(rows.flatMap((row) => (row.kind === kind && validId(row.data?.tmdb) !== null ? [row.data?.tmdb as number] : [])));
+
 export const tmdbPage = (kind: ScreenKind, id: number) => `https://www.themoviedb.org/${kind === "movie" ? "movie" : "tv"}/${id}`;
 
 export type Picked = { title: string; tmdb: number; original: string | null; cover: string | null };
 
-export const adopt = (typed: { year: string }, hit: ScreenHit) => ({
-  title: hit.title,
-  year: typed.year.trim() === "" && hit.year !== null ? String(hit.year) : typed.year,
-  picked: { title: hit.title, tmdb: hit.tmdb, original: hit.original, cover: hit.cover },
-});
+export const adopt = (typed: { year: string }, hit: ScreenHit) => {
+  const filled = typed.year.trim() === "" && hit.year !== null ? String(hit.year) : null;
+  return {
+    title: hit.title,
+    year: filled ?? typed.year,
+    filled,
+    picked: { title: hit.title, tmdb: hit.tmdb, original: hit.original, cover: hit.cover },
+  };
+};
+
+export const unfill = (year: string, filled: string | null) => (filled !== null && year === filled ? "" : year);
 
 export const heldPick = (picked: Picked | null, title: string) => (picked !== null && fold(picked.title) === fold(title) ? picked : null);
+
+export const letGo = (picked: Picked | null, title: string, year: string, filled: string | null) =>
+  picked !== null && heldPick(picked, title) === null ? { year: unfill(year, filled) } : null;
 
 export const tmdbData = (picked: Picked | null, today: string) =>
   picked === null ? {} : { ...(picked.original === null ? {} : { original_title: picked.original }), ...(picked.cover === null ? {} : { cover: picked.cover }), tmdb: picked.tmdb, tmdb_at: today };
