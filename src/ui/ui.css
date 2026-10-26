@@ -280,9 +280,12 @@ fieldset.field {
   }
 
   .row-b {
-    flex: 1 1 0;
     min-width: auto;
     max-width: 100%;
+  }
+
+  .row-b:last-child {
+    flex-basis: 0;
   }
 
   .row-b .title {
@@ -303,6 +306,7 @@ fieldset.field {
   max-width: 100%;
   min-width: 0;
   margin-left: auto;
+  overflow-wrap: anywhere;
 }
 
 .lead {
@@ -901,6 +905,7 @@ main:has(> .split[data-wide]) {
 
 .nums dd {
   margin: 0 0 0 auto;
+  overflow-wrap: anywhere;
   font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums lining-nums;

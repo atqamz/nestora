@@ -69,8 +69,26 @@ const active = (query: string | null, width: number) => {
 export const cascade = (rules: Rule[], selector: string, width: number) => {
   const final = new Map<string, string>();
   for (const rule of rules)
-    if (active(rule.query, width) && rule.selectors.includes(selector)) for (const [property, value] of rule.declarations) final.set(property, value);
+    if (active(rule.query, width) && rule.selectors.includes(selector))
+      for (const [property, value] of rule.declarations) {
+        if (property === "font") final.delete("font-size");
+        final.set(property, value);
+      }
   return final;
+};
+
+export const PHONE_WIDTHS = [320, 360, 390, 412];
+
+export const TEXT_ZOOMS = [1, 1.25, 1.5, 1.75, 2];
+
+export const eachScreen = (visit: (screen: { px: number; zoom: number; rem: number; width: number }) => void) => {
+  for (const zoom of TEXT_ZOOMS)
+    for (const px of PHONE_WIDTHS) visit({ px, zoom, rem: 16 * zoom, width: px / (16 * zoom) });
+};
+
+export const fontRem = (final: Map<string, string>) => {
+  const size = final.get("font-size") ?? /([\d.]+)rem\s*\//.exec(final.get("font") ?? "")?.[1] ?? "";
+  return Number(size.replace("rem", ""));
 };
 
 export const queries = (rules: Rule[]) => [...new Set(rules.flatMap((rule) => (rule.query === null ? [] : [rule.query])))];

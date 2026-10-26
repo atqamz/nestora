@@ -69,9 +69,15 @@ main.entry {
   margin: 0;
 }
 
-@media (max-width: 13rem) {
+@media (max-width: 14rem) {
   .entry-brand {
     font-size: 2.25rem;
+  }
+}
+
+@media (max-width: 11.5rem) {
+  .entry-brand {
+    font-size: 1.75rem;
   }
 }
 

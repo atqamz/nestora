@@ -258,10 +258,6 @@ a {
 }
 
 @media (max-width: 18.5rem) {
-  :root {
-    --tabs: calc(56px + var(--s2) + var(--s1) + 1px);
-  }
-
   html {
     scroll-padding-top: calc(4.25rem + var(--safe-t) + var(--s2));
   }
@@ -278,6 +274,22 @@ a {
 
   .tabs {
     grid-template-columns: 1fr 1fr auto 1fr 1fr;
+  }
+
+  .tab-add {
+    width: 56px;
+    height: 56px;
+  }
+
+  .tab-add svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+@media (max-width: 15.5rem) {
+  :root {
+    --tabs: calc(56px + var(--s2) + var(--s1) + 1px);
   }
 
   .tabs a {
@@ -312,14 +324,7 @@ a {
   }
 
   .tab-add {
-    width: 56px;
-    height: 56px;
     margin: 0 var(--s1);
-  }
-
-  .tab-add svg {
-    width: 26px;
-    height: 26px;
   }
 }
 

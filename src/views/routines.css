@@ -442,6 +442,12 @@
   list-style: none;
 }
 
+@media (max-width: 18.5rem) {
+  .rt-week {
+    grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+  }
+}
+
 .rt-week li {
   display: grid;
   gap: 2px;
@@ -517,6 +523,15 @@
   margin: 0;
   font-size: var(--fs-station);
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 18.5rem) {
+  .start-name {
+    flex: 1 1 0;
+    min-width: auto;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
 }
 
 .start-pos,

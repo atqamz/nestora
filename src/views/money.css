@@ -62,6 +62,7 @@
 .event-m {
   display: flex;
   flex-wrap: wrap;
+  overflow-wrap: anywhere;
   gap: 0 var(--s3);
   margin: var(--s1) 0 var(--s3);
   color: var(--ink-2);
@@ -90,6 +91,7 @@
 .plan {
   grid-column: 2;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .plan[data-none] {
@@ -104,6 +106,7 @@
   gap: 0 var(--s3);
   color: var(--ink-2);
   font-size: var(--fs-meta);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 18.5rem) {

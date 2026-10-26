@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cascade, sheet } from "./css.ts";
+import { cascade, eachScreen, fontRem, sheet } from "./css.ts";
 
 const css = ["tokens.css", "style.css", "ui/ui.css", "views/entry.css"].flatMap(sheet);
 
@@ -21,11 +21,23 @@ test("the scroll reserves follow the real height of the wrapped header and of th
   expects("html", PHONE, { "scroll-padding-top": null });
 });
 
-test("a heading and the sign-in wordmark drop one size step when 'Payments' or 'Nestora' would not fit a line", () => {
+const WORDMARK_EM = 4.4;
+
+test("a heading drops one size step when 'Payments' would not fit a line", () => {
   expects("h1", 12.9, { "font-size": "1.5rem", "font-stretch": "100%" });
   expects("h1", 13.1, { "font-size": null, "font-stretch": "var(--stretch-display)" });
-  expects(".entry-brand", 12.9, { font: "800 2.75rem / 1 var(--font-display)", "font-size": "2.25rem" });
-  expects(".entry-brand", 13.1, { "font-size": null });
+});
+
+test("the sign-in wordmark stays one word in its column at every phone width and text size, and keeps its full size when it fits", () => {
+  eachScreen(({ px, zoom, rem, width }) => {
+    const size = fontRem(at(".entry-brand", width)) * rem;
+    const column = px - 40;
+    assert.ok(size * WORDMARK_EM <= column, `wordmark ${size}px needs ${size * WORDMARK_EM}px of ${column}px at ${zoom * 100}% on ${px}px`);
+    if (width > 14) assert.equal(fontRem(at(".entry-brand", width)), 2.75, `${zoom * 100}% on ${px}px`);
+  });
+  expects(".entry-brand", 20, { font: "800 2.75rem / 1 var(--font-display)", "font-size": null });
+  expects(".entry-brand", 14, { "font-size": "2.25rem" });
+  expects(".entry-brand", 11.5, { "font-size": "1.75rem" });
 });
 
 test("the sign-in screens let text size reach the wordmark and the headline", () => {
