@@ -2,13 +2,15 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { sortBefore } from "../domain/order.ts";
 import { parseYear, restoreStatus, statusPatch } from "../domain/screen.ts";
 import type { ScreenKind, Watch } from "../domain/screen.ts";
+import { tmdbData } from "../domain/tmdb.ts";
+import type { Picked } from "../domain/tmdb.ts";
 import type { Store, Written } from "../store/store.ts";
 import { failureOf } from "./failure.ts";
 import { overlay } from "./overlay.ts";
 import { views } from "./registry.ts";
 import { text } from "./text.ts";
 
-export type ScreenInput = { kind: ScreenKind; title: string; year: string; status: "want" | "watched"; who: "a" | "b" | "both" };
+export type ScreenInput = { kind: ScreenKind; title: string; year: string; status: "want" | "watched"; who: "a" | "b" | "both"; picked?: Picked | null };
 
 export const screenProblems = (title: string, year: string) => ({
   title: title.trim() === "" ? text.screen.sheet.needTitle : undefined,
@@ -27,7 +29,7 @@ export const saveScreen = async (items: readonly ItemRow[], create: Store["creat
     who: input.who,
     ...(input.status === "watched" ? { done_on: today } : {}),
     sort: sortBefore(items.filter((row) => row.kind === input.kind && row.status === input.status)),
-    data: year.value === null ? {} : { year: year.value },
+    data: { ...(year.value === null ? {} : { year: year.value }), ...tmdbData(input.picked ?? null, today) },
   });
 };
 

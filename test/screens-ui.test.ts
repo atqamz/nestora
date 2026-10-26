@@ -97,8 +97,8 @@ test("rows and detail reuse the book layout classes, which keep a 44 px target, 
   assert.match(rule(ui, ".space-tabs"), /flex-wrap:\s*wrap/);
 });
 
-test("the list draws no poster, so nothing here can load from another host", () => {
-  for (const file of files) assert.doesNotMatch(read(file), /tmdb|themoviedb|<img/i, file);
+test("the screens draw no image of their own and name no host: posters go through Cover, which checks the host", () => {
+  for (const file of files) assert.doesNotMatch(read(file), /<img|image\.tmdb\.org|api\.themoviedb/i, file);
 });
 
 test("a row of the other list shows its own not-found page with Back and no Undo", () => {

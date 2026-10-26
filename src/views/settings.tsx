@@ -16,6 +16,7 @@ import type { ViewName } from "../ui/registry.ts";
 import { SettingRow } from "../ui/setting-row.tsx";
 import { StageEditor } from "../ui/stage-editor.tsx";
 import { text } from "../ui/text.ts";
+import { TmdbCredit } from "../ui/tmdb-credit.tsx";
 import { THEMES, readTheme, saveTheme } from "../ui/theme.ts";
 import type { Theme } from "../ui/theme.ts";
 import { Title } from "../ui/title.tsx";
@@ -168,6 +169,9 @@ export function Settings() {
           {text.settings.signOut}
         </a>
         <p className="hint">{text.settings.signOutNote}</p>
+
+        <h2>{text.tmdb.credits}</h2>
+        <TmdbCredit />
       </div>
     </>
   );

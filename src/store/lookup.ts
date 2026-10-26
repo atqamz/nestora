@@ -58,7 +58,7 @@ export const createLookup = ({
       signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
     });
 
-  const get = async <T>(signal: AbortSignal, url: string, parse: (body: unknown) => T, own = false): Promise<Outcome<T>> => {
+  const get = async <T>(signal: AbortSignal, url: string, parse: (body: unknown) => T, own = false, keeps: (value: T) => boolean = () => true): Promise<Outcome<T>> => {
     const kept = cache.get(url);
     if (kept !== undefined) {
       const age = Date.now() - kept.at;
@@ -92,8 +92,10 @@ export const createLookup = ({
     } finally {
       clearTimeout(timer);
     }
-    if (cache.size >= remember) cache.delete(cache.keys().next().value as string);
-    cache.set(url, { value, at: Date.now() });
+    if (keeps(value)) {
+      if (cache.size >= remember) cache.delete(cache.keys().next().value as string);
+      cache.set(url, { value, at: Date.now() });
+    }
     return signal.aborted ? { kind: "stale" } : { kind: "ok", value };
   };
 
@@ -124,12 +126,12 @@ export const createLookup = ({
       await pause(signal);
       if (signal.aborted) return { kind: "stale" };
       const query = screenQueryOf(new URLSearchParams({ kind, title, ...(year === null ? {} : { year: String(year) }) }));
-      return query === null ? { kind: "ok", value: [] } : get(signal, screenLookupUrl(query), parseScreenHits, true);
+      return query === null ? { kind: "ok", value: [] } : get(signal, screenLookupUrl(query), (body) => parseScreenHits(body, kind), true);
     },
     screenById: async (kind, id) => {
       const signal = begin();
       if (validId(id) === null) return { kind: "ok", value: null };
-      const out = await get(signal, screenLookupUrl({ kind, by: "id", id }), parseScreenHits, true);
+      const out = await get(signal, screenLookupUrl({ kind, by: "id", id }), (body) => parseScreenHits(body, kind), true, (hits) => hits.length > 0);
       return out.kind === "ok" ? { kind: "ok", value: out.value.find((hit) => hit.tmdb === id) ?? null } : out;
     },
     cancel: () => searching && current?.abort(),
@@ -137,21 +139,21 @@ export const createLookup = ({
   };
 };
 
-export type Search = { state: "idle" | "busy" | "offline" | "failed" | "slow" | "empty" | "found"; hits: Hit[] };
+export type Search<T = Hit> = { state: "idle" | "busy" | "offline" | "failed" | "slow" | "empty" | "found"; hits: T[] };
 
-export const IDLE: Search = { state: "idle", hits: [] };
+export const IDLE: Search<never> = { state: "idle", hits: [] };
 
-export const searchOf = (out: Outcome<Hit[]>): Search =>
+export const searchOf = <T>(out: Outcome<T[]>): Search<T> =>
   out.kind === "stale" ? IDLE : out.kind !== "ok" ? { state: out.kind, hits: [] } : out.value.length === 0 ? { state: "empty", hits: [] } : { state: "found", hits: out.value };
 
-export const follow = (lookup: Lookup, ready: boolean, input: { title: string; author: string; original: string }, set: (search: Search) => void): (() => void) => {
+const trail = <T>(lookup: Lookup, ready: boolean, run: () => Promise<Outcome<T[]>>, set: (search: Search<T>) => void): (() => void) => {
   if (!ready) {
     set(IDLE);
     return () => {};
   }
   let current = true;
   set({ state: "busy", hits: [] });
-  void lookup.search(input).then((out) => {
+  void run().then((out) => {
     if (current) set(searchOf(out));
   });
   return () => {
@@ -159,6 +161,12 @@ export const follow = (lookup: Lookup, ready: boolean, input: { title: string; a
     lookup.cancel();
   };
 };
+
+export const follow = (lookup: Lookup, ready: boolean, input: { title: string; author: string; original: string }, set: (search: Search) => void) =>
+  trail(lookup, ready, () => lookup.search(input), set);
+
+export const followScreen = (lookup: Lookup, ready: boolean, input: { kind: ScreenKind; title: string; year: number | null }, set: (search: Search<ScreenHit>) => void) =>
+  trail(lookup, ready, () => lookup.screen(input), set);
 
 export type Filled = { kind: "patch"; patch: Record<string, string> } | { kind: "empty" | "mismatch" | "nothing" | "offline" | "failed" | "slow" | "stale"; retry?: number };
 

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN_HITS_MAX, SCREEN_URL, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, validId, validYear } from "../src/domain/tmdb.ts";
+import type { ItemRow } from "../shared/tables.ts";
+import { SCREEN_HITS_MAX, SCREEN_URL, adopt, heldPick, hitSub, parseScreenHits, screenCacheKey, screenLookupUrl, screenParams, screenQueryOf, tmdbData, tmdbPage, usesTmdb, validId, validYear } from "../src/domain/tmdb.ts";
 import type { ScreenQuery } from "../src/domain/tmdb.ts";
 
 const of = (query: string) => screenQueryOf(new URLSearchParams(query));
@@ -72,15 +73,15 @@ test("a title with &, #, %26 or a newline stays one parameter value in the route
   }
 });
 
-const good = { kind: "movie", tmdb: 910001, title: "Pelabuhan Terakhir", original: null, year: 2017, cover: "https://image.tmdb.org/t/p/w342/abc.jpg" };
+const good = { kind: "movie" as const, tmdb: 910001, title: "Pelabuhan Terakhir", original: null, year: 2017, cover: "https://image.tmdb.org/t/p/w342/abc.jpg" };
 
-const parsed = (extra: object) => parseScreenHits({ hits: [{ ...good, ...extra }] });
+const parsed = (extra: object, kind: "movie" | "series" = "movie") => parseScreenHits({ hits: [{ ...good, ...extra }] }, kind);
 
 test("a well-formed hit is kept as six fields, and anything else on it is dropped", () => {
-  assert.deepEqual(parseScreenHits({ hits: [good] }), [good]);
+  assert.deepEqual(parseScreenHits({ hits: [good] }, "movie"), [good]);
   assert.deepEqual(parsed({ overview: "INVENTED", genre_ids: [1], vote_average: 9 }), [good]);
   assert.deepEqual(Object.keys(parsed({ overview: "x" })[0]), ["kind", "tmdb", "title", "original", "year", "cover"]);
-  assert.deepEqual(parsed({ kind: "series", original: "Original", year: null, cover: null }), [{ ...good, kind: "series", original: "Original", year: null, cover: null }]);
+  assert.deepEqual(parsed({ kind: "series", original: "Original", year: null, cover: null }, "series"), [{ ...good, kind: "series", original: "Original", year: null, cover: null }]);
 });
 
 test("a hit is refused for each bad field: kind, id, title, original, year and cover", () => {
@@ -124,14 +125,14 @@ test("a hit is refused for each bad field: kind, id, title, original, year and c
 
 test("titles are trimmed, and a body of any other shape is no hit", () => {
   assert.equal(parsed({ title: "  Padded  " })[0].title, "Padded");
-  for (const body of [null, undefined, 5, "x", [], {}, { hits: null }, { hits: "x" }, { hits: {} }, { hits: [null, "x", 5, []] }]) assert.deepEqual(parseScreenHits(body), [], JSON.stringify(body));
+  for (const body of [null, undefined, 5, "x", [], {}, { hits: null }, { hits: "x" }, { hits: {} }, { hits: [null, "x", 5, []] }]) assert.deepEqual(parseScreenHits(body, "movie"), [], JSON.stringify(body));
 });
 
 test("at most eight hits are kept, the first eight, and a bad one in front does not count", () => {
   const many = Array.from({ length: 12 }, (_, n) => ({ ...good, tmdb: 100 + n }));
   assert.equal(SCREEN_HITS_MAX, 8);
-  assert.deepEqual(parseScreenHits({ hits: many }).map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
-  assert.deepEqual(parseScreenHits({ hits: [{ ...good, tmdb: 0 }, ...many] }).map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(parseScreenHits({ hits: many }, "movie").map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(parseScreenHits({ hits: [{ ...good, tmdb: 0 }, ...many] }, "movie").map((hit) => hit.tmdb), [100, 101, 102, 103, 104, 105, 106, 107]);
 });
 
 test("validId and validYear take only the numbers they should", () => {
@@ -148,4 +149,61 @@ test("the query type keeps the two forms apart", () => {
   const id: ScreenQuery = { kind: "series", by: "id", id: 3 };
   assert.equal(screenLookupUrl(title), "/api/lookup/screen?kind=movie&title=up");
   assert.equal(screenLookupUrl(id), "/api/lookup/screen?kind=series&id=3");
+});
+
+test("a hit of another kind than the one asked for is dropped, and a repeated id keeps the first", () => {
+  const mixed = { hits: [{ ...good, tmdb: 1 }, { ...good, tmdb: 2, kind: "series" }, { ...good, tmdb: 1, title: "Again" }, { ...good, tmdb: 3 }] };
+  assert.deepEqual(parseScreenHits(mixed, "movie").map((hit) => [hit.tmdb, hit.title]), [[1, good.title], [3, good.title]]);
+  assert.deepEqual(parseScreenHits(mixed, "series").map((hit) => hit.tmdb), [2]);
+});
+
+test("eight distinct hits are kept however many repeats and bad rows come first", () => {
+  const rows = [...Array.from({ length: 50 }, () => ({ ...good, tmdb: 1 })), ...Array.from({ length: 12 }, (_, n) => ({ ...good, tmdb: 10 + n }))];
+  assert.deepEqual(parseScreenHits({ hits: rows }, "movie").map((hit) => hit.tmdb), [1, 10, 11, 12, 13, 14, 15, 16]);
+});
+
+test("a hit fills the title and the year only when the year is empty, and keeps what the hit knows for the row", () => {
+  const hit = { ...good, kind: "movie" as const, original: "Original", year: 2017 };
+  assert.deepEqual(adopt({ year: "" }, hit), { title: good.title, year: "2017", picked: { title: good.title, tmdb: 910001, original: "Original", cover: good.cover } });
+  assert.equal(adopt({ year: "   " }, hit).year, "2017");
+  assert.equal(adopt({ year: "1999" }, hit).year, "1999");
+  assert.equal(adopt({ year: "abc" }, hit).year, "abc");
+  assert.equal(adopt({ year: "" }, { ...hit, year: null }).year, "");
+});
+
+test("a pick holds for its own title only, folded, and lets go as soon as the title is changed", () => {
+  const picked = { title: "Amélie", tmdb: 5, original: null, cover: null };
+  assert.equal(heldPick(picked, "Amélie"), picked);
+  assert.equal(heldPick(picked, "  AMELIE "), picked);
+  assert.equal(heldPick(picked, "Amélie 2"), null);
+  assert.equal(heldPick(picked, ""), null);
+  assert.equal(heldPick(null, "Amélie"), null);
+});
+
+test("the data a pick writes is the original title, the poster, the id and the day, and nothing else; no pick writes nothing", () => {
+  assert.deepEqual(tmdbData(null, "2026-10-26"), {});
+  assert.deepEqual(tmdbData({ title: "T", tmdb: 5, original: "O", cover: good.cover }, "2026-10-26"), { original_title: "O", cover: good.cover, tmdb: 5, tmdb_at: "2026-10-26" });
+  assert.deepEqual(tmdbData({ title: "T", tmdb: 5, original: null, cover: null }, "2026-10-26"), { tmdb: 5, tmdb_at: "2026-10-26" });
+});
+
+test("a hit shows its original title and year on one line, and no line when it has neither", () => {
+  assert.equal(hitSub({ ...good, original: "灯台守の夏", year: 2001 }), "灯台守の夏 · 2001");
+  assert.equal(hitSub({ ...good, original: null, year: 2001 }), "2001");
+  assert.equal(hitSub({ ...good, original: "O", year: null }), "O");
+  assert.equal(hitSub({ ...good, original: null, year: null }), "");
+});
+
+test("the TMDB page of a row is the movie or tv path of its id on the public site", () => {
+  assert.equal(tmdbPage("movie", 910001), "https://www.themoviedb.org/movie/910001");
+  assert.equal(tmdbPage("series", 920001), "https://www.themoviedb.org/tv/920001");
+});
+
+test("a list shows TMDB when a row of its kind has a poster or an id, and not for the other kind or a typed row", () => {
+  const row = (kind: string, data: Record<string, unknown> | null) => ({ id: "x", kind, title: "T", data }) as unknown as ItemRow;
+  assert.equal(usesTmdb([row("movie", { cover: good.cover })], "movie"), true);
+  assert.equal(usesTmdb([row("movie", { tmdb: 5 })], "movie"), true);
+  assert.equal(usesTmdb([row("movie", { cover: good.cover })], "series"), false);
+  assert.equal(usesTmdb([row("movie", { year: 2001, original_title: "O" }), row("movie", null)], "movie"), false);
+  assert.equal(usesTmdb([row("movie", { cover: "https://evil.example/a.jpg", tmdb: 0 })], "movie"), false);
+  assert.equal(usesTmdb([], "movie"), false);
 });

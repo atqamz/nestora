@@ -14,9 +14,9 @@ const screens: Record<string, string[]> = {
   people: ["views/people.tsx", "views/person.tsx"],
   routines: ["views/routines.tsx", "views/routine.tsx", "ui/timetable.tsx"],
   books: ["views/books.tsx", "views/book.tsx"],
-  movies: ["views/screens.tsx", "views/screen.tsx"],
-  series: ["views/screens.tsx", "views/screen.tsx", "ui/screen-row.tsx", "ui/screen-sheet.tsx"],
-  settings: ["views/settings.tsx", "ui/feed-section.tsx"],
+  movies: ["views/screens.tsx", "views/screen.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
+  series: ["views/screens.tsx", "views/screen.tsx", "ui/screen-row.tsx", "ui/screen-sheet.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
+  settings: ["views/settings.tsx", "ui/feed-section.tsx", "ui/tmdb-credit.tsx"],
 };
 
 for (const [screen, files] of Object.entries(screens)) {
@@ -25,3 +25,8 @@ for (const [screen, files] of Object.entries(screens)) {
     assert.deepEqual(found, found.map((_, index) => index + 1));
   });
 }
+
+test("the Credits section in Settings is an h2 and holds the TMDB credit, so the logo never sits under another section's heading", () => {
+  const settings = readFileSync(new URL("../src/views/settings.tsx", import.meta.url), "utf8");
+  assert.match(settings, /<h2>\{text\.tmdb\.credits\}<\/h2>\s*<TmdbCredit \/>/);
+});
