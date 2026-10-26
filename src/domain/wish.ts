@@ -11,6 +11,16 @@ export const weGotIt = (book: ItemRow, placeId: string | null): { book: Patch<"i
   };
 };
 
+export type Change = { id: string; change: Patch<"items"> };
+
+export const backToWishlist = (book: ItemRow, copies: readonly ItemRow[], today: string): { moves: Change[]; undo: Change[] } => {
+  const lost = copies.filter((copy) => copy.status !== "gone");
+  return {
+    moves: [{ id: book.id, change: { status: "wish" } }, ...lost.map((copy) => ({ id: copy.id, change: { status: "gone", done_on: today } }))],
+    undo: [{ id: book.id, change: { status: "shelf", who: book.who } }, ...lost.map((copy) => ({ id: copy.id, change: { status: copy.status, done_on: copy.done_on } }))],
+  };
+};
+
 export const wishSections = (rows: readonly ItemRow[]) => {
   const wishes = rows.filter((row) => row.kind === "book" && row.status === "wish").sort(bySort);
   return { next: wishes.filter((row) => row.data?.priority === "high"), someday: wishes.filter((row) => row.data?.priority !== "high") };

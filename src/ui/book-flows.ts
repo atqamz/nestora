@@ -3,7 +3,8 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { copiesAt, lastPlace, moveCopy, placesOf, restoreMove } from "../domain/places.ts";
 import { reorder, sortAfter } from "../domain/order.ts";
 import { fold } from "../domain/search.ts";
-import { weGotIt } from "../domain/wish.ts";
+import { backToWishlist, weGotIt } from "../domain/wish.ts";
+import type { Change } from "../domain/wish.ts";
 import type { Store, Written } from "../store/store.ts";
 import { failureOf } from "./failure.ts";
 import { overlay } from "./overlay.ts";
@@ -11,7 +12,7 @@ import { text } from "./text.ts";
 
 type Deps = {
   items: readonly ItemRow[];
-  actions: Pick<Store, "create" | "update" | "remove">;
+  actions: Pick<Store, "create" | "update" | "remove" | "many">;
   stamp: () => string;
   me: Side | null;
   go: (hash: string) => void;
@@ -45,15 +46,27 @@ export const bookFlows = ({ items, actions, stamp, me, go }: Deps) => {
   const gotIt = async (book: ItemRow): Promise<Written> => {
     if (items.find((row) => row.id === book.id)?.status !== "wish") return { ok: true, id: book.id };
     const { book: patch, copy } = weGotIt(book, lastPlace(items));
-    const [updated, created] = await Promise.all([actions.update("items", book.id, patch), actions.create("items", copy)]);
+    const held = items.some((row) => row.kind === "copy" && row.parent_id === book.id && row.status !== "gone");
+    const [updated, ...made] = await Promise.all([actions.update("items", book.id, patch), ...(held ? [] : [actions.create("items", copy)])]);
+    const created = made.flatMap((result) => (result.ok ? [result.id] : []));
     const wish = { status: "wish", who: book.who } as const;
-    if (updated.ok && created.ok) {
-      overlay.announce(text.books.gotItDone(book.title), undoing(() => Promise.all([actions.update("items", book.id, wish), actions.remove("items", created.id)])));
+    if (updated.ok && created.length === made.length) {
+      overlay.announce(text.books.gotItDone(book.title), undoing(() => Promise.all([actions.update("items", book.id, wish), ...created.map((id) => actions.remove("items", id))])));
       return updated;
     }
     if (updated.ok) await actions.update("items", book.id, wish);
-    if (created.ok) await actions.remove("items", created.id);
-    return settled([updated, created]);
+    await Promise.all(created.map((id) => actions.remove("items", id)));
+    return settled([updated, ...made]);
+  };
+
+  const steps = (changes: readonly Change[]) => changes.map(({ id, change }) => ({ op: "update", table: "items", id, change }) as const);
+
+  const lostIt = async (book: ItemRow): Promise<Written> => {
+    if (items.find((row) => row.id === book.id)?.status !== "shelf") return { ok: true, id: book.id };
+    const { moves, undo } = backToWishlist(book, items.filter((row) => row.kind === "copy" && row.parent_id === book.id), stamp());
+    const result = await actions.many(steps(moves));
+    if (result.ok) overlay.announce(text.books.lostItDone(book.title), undoing(async () => [await actions.many(steps(undo))]));
+    return result.ok ? { ok: true, id: book.id } : result;
   };
 
   const removeBook = async (book: ItemRow, copies: readonly ItemRow[]): Promise<Written> => {
@@ -108,5 +121,5 @@ export const bookFlows = ({ items, actions, stamp, me, go }: Deps) => {
     return result;
   };
 
-  return { move, gotIt, removeBook, removeCopy, addPlace, renamePlace, swapPlace, deletePlace };
+  return { move, gotIt, lostIt, removeBook, removeCopy, addPlace, renamePlace, swapPlace, deletePlace };
 };

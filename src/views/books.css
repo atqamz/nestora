@@ -120,6 +120,39 @@
   min-height: 3rem;
 }
 
+.lost svg {
+  flex: none;
+}
+
+.lost,
+.lost-sure {
+  margin-top: var(--s2);
+}
+
+.lost-sure {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.lost-q {
+  margin: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.lost-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.lost-acts > button {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .cover {
   display: grid;
   flex: none;
