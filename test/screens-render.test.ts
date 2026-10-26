@@ -216,3 +216,9 @@ test("the posters block reserves two lines for its status, so a longer last line
   const css = readFileSync(new URL("../src/views/books.css", import.meta.url), "utf8");
   assert.match(css, /\.posters \.imp-progress \{\s*min-height: 2lh;\s*\}/);
 });
+
+test("Remove poster renders as one button and no error until a write is refused", async () => {
+  const html = plain(await markupOf("views/screen.tsx", ({ PosterRemoval }) => createElement(PosterRemoval, { row: item({ kind: "movie", title: "Heat", status: "want", data: { tmdb: 949 } }) })));
+  assert.match(html, /<button type="button" class="secondary">Remove poster<\/button>/);
+  assert.doesNotMatch(html, /role="alert"/);
+});

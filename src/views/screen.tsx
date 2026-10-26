@@ -52,7 +52,7 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
   );
 }
 
-function PosterRemoval({ row }: { row: ItemRow }) {
+export function PosterRemoval({ row }: { row: ItemRow }) {
   const { busy, once } = useBusy();
   const [failure, setFailure] = useState<string[]>([]);
   const remove = () =>

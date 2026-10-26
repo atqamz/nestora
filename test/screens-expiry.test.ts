@@ -285,6 +285,11 @@ test("a store learns the server's time from the Date header of its answers, what
   idOf(await undated.create("items", { kind: "task", title: "Typed", status: "todo" }));
   await undated.sync();
   assert.deepEqual([undated.serverNow(), undated.getSnapshot().dated, undated.getSnapshot().pending], [null, false, 0]);
+  let emits = 0;
+  undated.subscribe(() => emits++);
+  await undated.sync();
+  await undated.sync();
+  assert.equal(emits, 0);
 });
 
 test("a phone whose clock is 200 days ahead sweeps nothing fresh: the sweep runs on the server's day, and the device's day would have wiped it", async () => {
