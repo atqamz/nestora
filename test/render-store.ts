@@ -10,6 +10,8 @@ export const useTable = (table: keyof typeof snapshot.rows) => snapshot.rows[tab
 
 export const actions = { serverNow: () => null };
 
+export const timers = {};
+
 export const readItems = () => snapshot.rows.items;
 
 export const openStore = () => Promise.resolve();
