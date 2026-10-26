@@ -1,4 +1,5 @@
 import type { ItemRow } from "../../shared/tables.ts";
+import { joinPatch, parseCollection } from "../domain/collection.ts";
 import { todayIn } from "../domain/dates.ts";
 import { sortBefore } from "../domain/order.ts";
 import { datePatch, parseYear, restoreDate, restoreStatus, statusPatch, watchedDate } from "../domain/screen.ts";
@@ -12,18 +13,20 @@ import { overlay } from "./overlay.ts";
 import { views } from "./registry.ts";
 import { text } from "./text.ts";
 
-export type ScreenInput = { kind: ScreenKind; title: string; year: string; status: "want" | "watched"; who: "a" | "b" | "both"; picked?: Picked | null };
+export type ScreenInput = { kind: ScreenKind; title: string; year: string; status: "want" | "watched"; who: "a" | "b" | "both"; collection?: string; picked?: Picked | null };
 
 export const screenProblems = (title: string, year: string) => ({
   title: title.trim() === "" ? text.screen.sheet.needTitle : undefined,
   year: parseYear(year).ok ? undefined : text.invalid.year,
 });
 
+export const collectionProblem = (collection: string) => (parseCollection(collection).ok ? undefined : text.screen.collection.invalid);
+
 export const saveScreen = async (items: readonly ItemRow[], create: Store["create"], input: ScreenInput, today: string, tmdbDay = today): Promise<Written> => {
-  const problems = screenProblems(input.title, input.year);
-  const errors = Object.values(problems).filter((message) => message !== undefined);
+  const errors = [...Object.values(screenProblems(input.title, input.year)), collectionProblem(input.collection ?? "")].filter((message) => message !== undefined);
   const year = parseYear(input.year);
-  if (errors.length > 0 || !year.ok) return { ok: false, errors };
+  const named = parseCollection(input.collection ?? "");
+  if (errors.length > 0 || !year.ok || !named.ok) return { ok: false, errors };
   return create("items", {
     kind: input.kind,
     title: input.title.trim(),
@@ -31,7 +34,11 @@ export const saveScreen = async (items: readonly ItemRow[], create: Store["creat
     who: input.who,
     ...(input.status === "watched" ? { done_on: today } : {}),
     sort: sortBefore(items.filter((row) => row.kind === input.kind && row.status === input.status)),
-    data: { ...(year.value === null ? {} : { year: year.value }), ...tmdbData(input.picked ?? null, tmdbDay) },
+    data: {
+      ...(year.value === null ? {} : { year: year.value }),
+      ...tmdbData(input.picked ?? null, tmdbDay),
+      ...(named.value === null ? {} : joinPatch(items, input.kind, named.value).data),
+    },
   });
 };
 
@@ -45,7 +52,7 @@ export const sweepExpired = (items: readonly ItemRow[], today: string | null, ma
   if (steps.length > 0) void many(steps);
 };
 
-const undoing = (work: () => Promise<Written>, refused?: string) => ({
+export const undoing = (work: () => Promise<Written>, refused?: string) => ({
   label: text.undo,
   run: () =>
     void work().then((undone) => {

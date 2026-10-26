@@ -158,7 +158,8 @@ test("Remove poster comes after the TMDB link and before the edit form, and noth
   assert.ok(html.indexOf("Open on TMDB") < html.indexOf("Remove poster"));
   assert.ok(html.indexOf("Remove poster") < html.indexOf('id="sc-edit"'));
   assert.equal(html.split("Remove poster").length, 2);
-  assert.equal(html.match(/<h2/g)?.length, 2);
+  assert.equal(html.match(/<h2/g)?.length, 3);
+  assert.equal(html.match(/<h2[^>]*>Collection</g)?.length, 1);
 });
 
 const barHtml = async (props: Record<string, unknown>) =>

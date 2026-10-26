@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { COLLECTION_MAX } from "../../shared/tables.ts";
+import { collectionNames } from "../domain/collection.ts";
 import { START, parseYear } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { adopt, heldIds, heldPick, letGo } from "../domain/tmdb.ts";
@@ -15,7 +17,7 @@ import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
 import { overlay } from "./overlay.ts";
 import { ScreenLookup } from "./screen-lookup.tsx";
-import { saveScreen, screenProblems } from "./screen-save.ts";
+import { collectionProblem, saveScreen, screenProblems } from "./screen-save.ts";
 import type { ScreenInput } from "./screen-save.ts";
 import { text } from "./text.ts";
 
@@ -28,6 +30,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
   const [status, setStatus] = useState<ScreenInput["status"]>("want");
+  const [collection, setCollection] = useState("");
   const [who, setWho] = useState<ScreenInput["who"]>("both");
   const [picked, setPicked] = useState<Picked | null>(null);
   const [filled, setFilled] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const [failure, setFailure] = useState<string[]>([]);
   const words = kind === "movie" ? text.movies : text.series;
   const problems = screenProblems(title, year);
+  const collectionError = collectionProblem(collection);
   const settled = heldPick(picked, title);
   const typedYear = parseYear(year);
   const search = useScreenSearch({ kind, title, year: typedYear.ok ? typedYear.value : null }, settled === null);
@@ -58,9 +62,9 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAttempt(true);
-    if (problems.title !== undefined || problems.year !== undefined) return;
+    if (problems.title !== undefined || problems.year !== undefined || collectionError !== undefined) return;
     return once(async () => {
-      const result = await saveScreen(items, actions.create, { kind, title, year, status, who, picked: settled }, stamp(), tmdbDay());
+      const result = await saveScreen(items, actions.create, { kind, title, year, status, who, collection, picked: settled }, stamp(), tmdbDay());
       setFailure(failureOf(result));
       if (!result.ok) return;
       overlay.announce(text.screen.added(title.trim()));
@@ -94,6 +98,20 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
         />
         <Field control={{ name: "year", label: text.screen.sheet.year, type: "year", value: year, onChange: (value) => (setYear(value), setFilled(null)) }} error={attempt ? problems.year : undefined} />
         <ScreenLookup kind={kind} search={search} have={heldIds(items, kind)} onPick={pick} />
+        <Field
+          control={{
+            name: "collection",
+            label: text.screen.collection.label,
+            type: "text",
+            words: true,
+            max: COLLECTION_MAX,
+            hint: text.screen.collection.hint,
+            value: collection,
+            onChange: setCollection,
+            suggestions: collectionNames(items, kind),
+          }}
+          error={attempt ? collectionError : undefined}
+        />
         <Field
           control={{
             name: "who",

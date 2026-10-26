@@ -72,13 +72,13 @@ for (const kind of kinds) {
 test("the year bounds are one pair of constants that the add sheet, the edit form and the registry all read", () => {
   assert.deepEqual([YEAR_MIN, YEAR_MAX], [1880, 2200]);
   assert.equal(tables.items.variants.movie.data.year, "year");
-  assert.equal("caps" in tables.items.variants.movie, false);
+  assert.deepEqual(tables.items.variants.movie.caps, { "data.collection": 60 });
   assert.match(text.invalid.year, new RegExp(`${YEAR_MIN} to ${YEAR_MAX}`));
 });
 
 test("movie and series share one field set, so the registry cannot drift between them", () => {
   assert.deepEqual(tables.items.variants.movie, tables.items.variants.series);
-  assert.deepEqual(Object.keys(tables.items.variants.movie.data), ["original_title", "year", "rating_a", "rating_b", "cover", "tmdb", "tmdb_at"]);
+  assert.deepEqual(Object.keys(tables.items.variants.movie.data), ["original_title", "year", "rating_a", "rating_b", "cover", "tmdb", "tmdb_at", "collection", "order"]);
   assert.deepEqual([tables.items.variants.movie.data.cover, tables.items.variants.movie.data.tmdb, tables.items.variants.movie.data.tmdb_at], ["poster", "tmdb", "date"]);
 });
 

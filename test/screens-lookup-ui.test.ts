@@ -221,7 +221,7 @@ test("the rendered add sheet starts with To watch pressed, an empty lookup regio
   const html = (await markupOf("ui/screen-sheet.tsx", ({ ScreenSheet }) => createElement(ScreenSheet, { kind: "series", onClose: () => undefined }))).replace(/<link rel="preload"[^>]*\/>/g, "");
   assert.match(html, /<button type="button" aria-pressed="true"><svg[^>]*>.*?<\/svg>To watch<\/button><button type="button" aria-pressed="false"><svg[^>]*>.*?<\/svg>Watched<\/button>/);
   assert.match(html, /<input id="[^"]+" required="" type="text"[^>]*name="title" value=""\/>/);
-  assert.match(html, /name="year" value=""\/><\/div><div class="lookup"><p class="hint look-note" role="status"><\/p><\/div><fieldset class="field choice-field"><legend>Whose pick is it\?<\/legend>/);
+  assert.match(html, /name="year" value=""\/><\/div><div class="lookup"><p class="hint look-note" role="status"><\/p><\/div><div class="field"><label[^>]*>Collection \(optional\)<\/label>[^]*?<\/div><fieldset class="field choice-field"><legend>Whose pick is it\?<\/legend>/);
   assert.match(html, /<input type="radio" name="who" checked="" value="both"\/>/);
   assert.match(html, /<button type="submit">Add<\/button>/);
   assert.doesNotMatch(html, /Add as typed|<ul class="hits"|tmdb/);

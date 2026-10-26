@@ -1,4 +1,4 @@
-import { tables } from "./tables.ts";
+import { ORDER_MAX, tables } from "./tables.ts";
 import { applyPatch } from "./api.ts";
 import { DAY_CODES } from "./routines.ts";
 import type { Column, Table, Type, Variant } from "./tables.ts";
@@ -188,6 +188,7 @@ const expected: Record<string, string> = {
   days: "weekday codes in order, separated by commas, from MO,TU,WE,TH,FR,SA,SU, such as MO,TH",
   isbn: "an ISBN-13 as 13 digits with no hyphens and a valid check digit",
   tmdb: "a positive integer",
+  order: `a finite number from -${ORDER_MAX} to ${ORDER_MAX}`,
   cover: "an https URL on covers.openlibrary.org, books.google.com, books.googleusercontent.com or image.tmdb.org",
   poster: "a TMDB poster URL such as https://image.tmdb.org/t/p/w342/<file>.jpg",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
@@ -221,6 +222,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "isbn" ? isIsbn13(v)
     : type === "cover" ? isCover(v)
     : type === "poster" ? isPoster(v)
+    : type === "order" ? typeof v === "number" && Math.abs(v) <= ORDER_MAX
     : type === "tmdb" ? typeof v === "number" && Number.isSafeInteger(v) && v > 0
     : isPlain(v);
   return ok ? null : `must be ${expected[type as string]}`;
