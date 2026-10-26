@@ -140,7 +140,7 @@ const ID = "aaaaaaaa-0000-4000-8000-000000000001";
 const SHARED = "bbbbbbbb-0000-4000-8000-000000000002";
 const rows = [
   { id: ID, kind: "routine", who: "a", data: { private: true } },
-  { id: SHARED, kind: "routine", who: "shared", data: null },
+  { id: SHARED, kind: "routine", who: "both", data: null },
   { id: "cccccccc-0000-4000-8000-000000000003", kind: "step", parent_id: SHARED, data: {} },
 ];
 
@@ -177,6 +177,8 @@ test("a route that cannot be decoded to the end, or keeps decoding, is hidden", 
   assert.equal(hiddenRoute("/books/100%25", true, rows), true);
   assert.equal(hiddenRoute("/%2572outines/x%25zz", true, rows), true);
   assert.equal(hiddenRoute("/books/a%2520b", true, rows), false);
+  assert.equal(hiddenRoute("/books/%252561", true, rows), false);
+  assert.equal(hiddenRoute("/books/%25252561", true, rows), true);
 });
 
 test("a row id that differs from the route only in case is judged together with the other row of that id", () => {

@@ -1194,7 +1194,7 @@ const PRIVATE = "aaaaaaaa-0000-4000-8000-000000000001";
 const SHARED = "bbbbbbbb-0000-4000-8000-000000000002";
 type Row = { id: string; kind: string; who: string; data: Record<string, unknown> | null };
 const mine: Row = { id: PRIVATE, kind: "routine", who: "a", data: { private: true } };
-const shared: Row = { id: SHARED, kind: "routine", who: "shared", data: null };
+const shared: Row = { id: SHARED, kind: "routine", who: "both", data: null };
 const snap = { ready: true, items: [mine, shared] as Row[] };
 const rule = (route: string) => hiddenRoute(route, snap.ready, snap.items);
 const dump = () => JSON.stringify([...world.store]);
