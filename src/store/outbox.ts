@@ -38,7 +38,16 @@ export const live = (maps: Maps): Rows =>
     tableNames.map((table) => [table, [...maps[table].values()].filter((row) => row.deleted_at === null)]),
   ) as unknown as Rows;
 
-export const newer = (base: Maps, changes: Changes): Partial<Rows> => {
+export const stable = (previous: Rows, next: Rows): Rows =>
+  Object.fromEntries(
+    tableNames.map((table) => {
+      const kept = previous[table] as Dict[];
+      const rows = next[table] as Dict[];
+      return [table, kept.length === rows.length && rows.every((row, index) => row === kept[index]) ? kept : rows];
+    }),
+  ) as unknown as Rows;
+
+export const newer =(base: Maps, changes: Changes): Partial<Rows> => {
   const fresh: Record<string, Dict[]> = {};
   for (const table of tableNames) {
     for (const row of (changes[table] ?? []) as Dict[]) {
