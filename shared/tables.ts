@@ -7,6 +7,7 @@ export type Type =
   | "longtext"
   | "note"
   | "int"
+  | "year"
   | "real"
   | "bool"
   | "instant"
@@ -68,7 +69,7 @@ const days = { days: "days" } as const;
 const marks = { done_a: "date", done_b: "date" } as const;
 const screen = {
   original_title: "text",
-  year: "int",
+  year: "year",
   rating_a: ["1", "2", "3", "4", "5"],
   rating_b: ["1", "2", "3", "4", "5"],
 } as const;
@@ -77,7 +78,6 @@ const watchable = {
   required: ["status"],
   status: ["want", "watching", "watched"],
   doneOnStatus: "watched",
-  caps: { "data.year": 2200 },
   data: screen,
 } as const;
 const action = ["parent_id", "group_key", "note"] as const;

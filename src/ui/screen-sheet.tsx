@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { parseYear } from "../domain/screen.ts";
+import { START } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
@@ -11,7 +11,7 @@ import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
 import { overlay } from "./overlay.ts";
-import { saveScreen } from "./screen-save.ts";
+import { saveScreen, screenProblems } from "./screen-save.ts";
 import type { ScreenInput } from "./screen-save.ts";
 import { text } from "./text.ts";
 
@@ -27,11 +27,12 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const [attempt, setAttempt] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const words = kind === "movie" ? text.movies : text.series;
+  const problems = screenProblems(title, year);
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAttempt(true);
-    if (title.trim() === "" || !parseYear(year).ok) return;
+    if (problems.title !== undefined || problems.year !== undefined) return;
     return once(async () => {
       const result = await saveScreen(items, actions.create, { kind, title, year, status, who }, stamp());
       setFailure(failureOf(result));
@@ -53,7 +54,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       }
     >
       <div role="group" aria-label={text.screen.sheet.kind} className="kinds">
-        {(["want", "watched"] as const).map((pick) => (
+        {START.map((pick) => (
           <button key={pick} type="button" aria-pressed={status === pick} onClick={() => setStatus(pick)}>
             <Icon name={pick === "want" ? "play" : "check"} />
             {text.screen.pick[pick]}
@@ -63,9 +64,9 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       <div className="form bk-form">
         <Field
           control={{ name: "title", label: text.screen.sheet.title, type: "text", required: true, words: true, value: title, onChange: setTitle }}
-          error={attempt && title.trim() === "" ? text.screen.sheet.needTitle : undefined}
+          error={attempt ? problems.title : undefined}
         />
-        <Field control={{ name: "year", label: text.screen.sheet.year, type: "int", value: year, onChange: setYear }} error={attempt && !parseYear(year).ok ? text.screen.sheet.badYear : undefined} />
+        <Field control={{ name: "year", label: text.screen.sheet.year, type: "year", value: year, onChange: setYear }} error={attempt ? problems.year : undefined} />
         <Field
           control={{
             name: "who",

@@ -145,6 +145,7 @@ export const text = {
   invalid: {
     phone: "Enter a phone number such as 0812 3456 7890 or +62 812 3456 7890.",
     int: "Enter a whole number, for example 2500000 or 2.500.000.",
+    year: "Enter a year from 1880 to 2200, or leave it empty.",
     url: "Enter a link that starts with http:// or https://.",
     isbn: "Enter a valid ISBN-10 or ISBN-13. Hyphens are fine.",
     text: "Use at most 500 characters, with at least one that shows.",
@@ -502,6 +503,8 @@ export const text = {
     original: (title: string) => `Original title: ${title}`,
     added: (title: string) => `Added: ${title}`,
     deleted: (title: string) => `Deleted: ${title}`,
+    moved: (title: string, to: string) => `Moved to ${to}: ${title}`,
+    notHere: "We can't find that here.",
     sheet: {
       kind: "Where does it go?",
       title: "Title",
@@ -509,7 +512,6 @@ export const text = {
       owner: "Whose pick is it?",
       save: "Add",
       needTitle: "Add a title.",
-      badYear: "Enter a year from 1880 to 2200, or leave it empty.",
     },
   },
   books: {

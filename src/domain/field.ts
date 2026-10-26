@@ -2,6 +2,7 @@ import type { Type } from "../../shared/tables.ts";
 import { toIsbn13 } from "./isbn.ts";
 import { parseRupiah } from "./money.ts";
 import { normalizePhone } from "./phone.ts";
+import { parseYear } from "./screen.ts";
 
 export type Parsed = { ok: true; value: string | number | boolean | null } | { ok: false };
 
@@ -21,5 +22,6 @@ export const parseField = (type: Type, raw: string | boolean): Parsed => {
     const number = parseRupiah(text);
     return number === null ? { ok: false } : { ok: true, value: number };
   }
+  if (type === "year") return parseYear(text);
   return { ok: true, value: text };
 };

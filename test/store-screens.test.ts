@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import type { ItemRow } from "../shared/tables.ts";
 import { ratingOf, ratingPatch, screenSections, statusPatch } from "../src/domain/screen.ts";
 import { overlay } from "../src/ui/overlay.ts";
-import { removeScreen, saveScreen } from "../src/ui/screen-save.ts";
+import { text } from "../src/ui/text.ts";
+import { moveScreen, removeScreen, saveScreen, screenProblems } from "../src/ui/screen-save.ts";
+import type { ScreenInput } from "../src/ui/screen-save.ts";
+import type { Written } from "../src/store/store.ts";
 import { createServer } from "./store-server.ts";
 import { client, idOf } from "./store-client.ts";
 
@@ -149,4 +152,130 @@ test("a deleted series goes back to the series list, and a deleted row on anothe
   assert.deepEqual(went, ["/series"]);
   assert.equal(rowOf(b, id), undefined);
   overlay.dismissToast();
+});
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+test("a status move offers an Undo that brings back the earlier status and the watched date, on both phones", async () => {
+  const { server, a, b } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, { ...input, status: "watched" }, "2026-10-17"));
+  await a.sync();
+  idOf(await moveScreen(a, rowOf(a, id)!, "watching", "2026-10-25"));
+  assert.deepEqual([rowOf(a, id)!.status, rowOf(a, id)!.done_on], ["watching", null]);
+  const toast = overlay.getSnapshot().toast!;
+  assert.equal(toast.message, "Moved to Watching: Inception");
+  assert.equal(toast.action?.label, "Undo");
+  toast.action!.run();
+  await settle();
+  assert.deepEqual([rowOf(a, id)!.status, rowOf(a, id)!.done_on], ["watched", "2026-10-17"]);
+  await a.sync();
+  await b.sync();
+  assert.deepEqual([server.row("items", id)!.status, server.row("items", id)!.done_on], ["watched", "2026-10-17"]);
+  assert.deepEqual([rowOf(b, id)!.status, rowOf(b, id)!.done_on], ["watched", "2026-10-17"]);
+  overlay.dismissToast();
+});
+
+test("the mis-tap that lost the watched date: watched, Watching, Watched, then Undo on the last move", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, { ...input, status: "watched" }, "2026-10-17"));
+  idOf(await moveScreen(a, rowOf(a, id)!, "watching", "2026-10-25"));
+  idOf(await moveScreen(a, rowOf(a, id)!, "watched", "2026-10-25"));
+  assert.equal(rowOf(a, id)!.done_on, "2026-10-25");
+  assert.equal(overlay.getSnapshot().toast!.message, "Moved to Watched: Inception");
+  overlay.getSnapshot().toast!.action!.run();
+  await settle();
+  assert.deepEqual([rowOf(a, id)!.status, rowOf(a, id)!.done_on], ["watching", null]);
+  overlay.dismissToast();
+});
+
+test("a move from To watch to Watched and back by Undo leaves no date", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  idOf(await moveScreen(a, rowOf(a, id)!, "watched", "2026-10-25"));
+  assert.equal(rowOf(a, id)!.done_on, "2026-10-25");
+  overlay.getSnapshot().toast!.action!.run();
+  await settle();
+  assert.deepEqual([rowOf(a, id)!.status, rowOf(a, id)!.done_on], ["want", null]);
+  overlay.dismissToast();
+});
+
+test("moving to the status the row already has writes nothing and shows no toast", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  await a.sync();
+  overlay.dismissToast();
+  const result = await moveScreen(a, rowOf(a, id)!, "want", "2026-10-25");
+  assert.deepEqual(result, { ok: true, id });
+  assert.equal(a.getSnapshot().pending, 0);
+  assert.equal(overlay.getSnapshot().toast, null);
+});
+
+test("a refused move shows no toast and returns the failure, and a refused Undo says why in a new toast", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  overlay.dismissToast();
+  const refuse = { update: async (): Promise<Written> => ({ ok: false, errors: ["nope"] }) };
+  const refused = await moveScreen(refuse, rowOf(a, id)!, "watching", "2026-10-25");
+  assert.deepEqual(refused, { ok: false, errors: ["nope"] });
+  assert.equal(overlay.getSnapshot().toast, null);
+  let calls = 0;
+  const flaky = { update: async (): Promise<Written> => (++calls === 1 ? { ok: true, id } : { ok: false, errors: ["gone elsewhere"] }) };
+  await moveScreen(flaky, rowOf(a, id)!, "watching", "2026-10-25");
+  const first = overlay.getSnapshot().toast!;
+  first.action!.run();
+  await settle();
+  const second = overlay.getSnapshot().toast!;
+  assert.equal(second.message, "gone elsewhere");
+  assert.equal(second.action, undefined);
+  assert.notEqual(second.id, first.id);
+  overlay.dismissToast();
+});
+
+test("a successful Undo does not announce again", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  idOf(await moveScreen(a, rowOf(a, id)!, "watching", "2026-10-25"));
+  const first = overlay.getSnapshot().toast!;
+  first.action!.run();
+  await settle();
+  assert.equal(overlay.getSnapshot().toast!.id, first.id);
+  overlay.dismissToast();
+});
+
+test("the add sheet's problems name the title and the year separately, and saveScreen refuses with them before any write", async () => {
+  assert.deepEqual(screenProblems("Heat", "1995"), { title: undefined, year: undefined });
+  assert.deepEqual(screenProblems("Heat", ""), { title: undefined, year: undefined });
+  assert.deepEqual(screenProblems("  ", "1995"), { title: "Add a title.", year: undefined });
+  for (const year of ["5", "1700", "0", "2201", "abc"]) assert.deepEqual(screenProblems("Heat", year), { title: undefined, year: text.invalid.year }, year);
+  assert.deepEqual(screenProblems("", "5"), { title: "Add a title.", year: text.invalid.year });
+  const { a } = await pair();
+  const before = items(a).length;
+  assert.deepEqual(await saveScreen(items(a), a.create, { ...input, title: " ", year: "5" }, "2026-10-17"), { ok: false, errors: ["Add a title.", text.invalid.year] });
+  assert.deepEqual(await saveScreen(items(a), a.create, { ...input, year: "1700" }, "2026-10-17"), { ok: false, errors: [text.invalid.year] });
+  assert.deepEqual(await saveScreen(items(a), a.create, { ...input, title: " ", year: "" }, "2026-10-17"), { ok: false, errors: ["Add a title."] });
+  assert.equal(items(a).length, before);
+});
+
+test("a refused Undo of a delete says why, and a good one stays quiet", async () => {
+  const { a } = await pair();
+  const id = idOf(await saveScreen(items(a), a.create, input, "2026-10-17"));
+  const row = rowOf(a, id)!;
+  const failing = { remove: a.remove, update: async (): Promise<Written> => ({ ok: false, errors: ["too late"] }) };
+  await removeScreen({ actions: failing, go: () => undefined }, row, "movie");
+  const first = overlay.getSnapshot().toast!;
+  first.action!.run();
+  await settle();
+  assert.equal(overlay.getSnapshot().toast!.message, "too late");
+  overlay.dismissToast();
+});
+
+test("a new row goes on top of its own kind and status only, whatever sits in the other lists", async () => {
+  const { a } = await pair();
+  const sortOf = async (fields: Partial<ScreenInput>) => rowOf(a, idOf(await saveScreen(items(a), a.create, { ...input, ...fields }, "2026-10-17")))!.sort;
+  assert.equal(await sortOf({ kind: "series", title: "Other kind" }), 0);
+  assert.equal(await sortOf({ kind: "series", title: "Other kind again" }), -1);
+  assert.equal(await sortOf({ status: "watched", title: "Other status" }), 0);
+  assert.equal(await sortOf({ title: "First" }), 0);
+  assert.equal(await sortOf({ title: "Second" }), -1);
+  assert.equal(await sortOf({ title: "Third" }), -2);
 });

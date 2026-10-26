@@ -43,27 +43,28 @@ test("no screen source makes a request or opens a database, so every write goes 
 
 test("the detail shows a rating control only for the signed-in partner, and none while the side is unknown", () => {
   const view = read("views/screen.tsx");
-  assert.match(view, /\{side === me \? \(\s*<div className="rate"/);
+  assert.match(view, /ratingRows\(row, me\)\.map\(\(\{ side, stars, mine \}\) => \(/);
+  assert.match(view, /\{mine \? \(\s*<div className="rate"/);
   assert.equal(view.match(/ratingPatch\(/g)?.length, 1);
   assert.match(view, /onClick=\{\(\) => run\(ratingPatch\(row, side, n\)\)\}/);
   assert.match(view, /text\.screen\.notRated/);
-  assert.match(view, /\{watchOf\(row\) === "watched" && <Ratings row=\{row\} \/>\}/);
+  assert.match(view, /\{watched && <Ratings row=\{row\} \/>\}/);
 });
 
 test("the status control moves a row through the registry's three statuses and does nothing for the current one", () => {
   const view = read("views/screen.tsx");
   assert.match(view, /\{WATCH\.map\(\(pick\) => \(/);
   assert.match(view, /aria-pressed=\{now === pick\}/);
-  assert.match(view, /if \(patch !== null\) return once\(/);
+  assert.match(view, /once\(async \(\) => setFailure\(failureOf\(await moveScreen\(actions, row, pick, stamp\(\)\)\)\)\)/);
   assert.deepEqual(text.screen.pick, { want: "To watch", watching: "Watching", watched: "Watched" });
 });
 
 test("the list gives each kind its own words, an empty state and an all-watched state, and searches over the title and original title", () => {
   const view = read("views/screens.tsx");
   assert.match(view, /words\.empty/);
-  assert.match(view, /words\.allWatched/);
-  assert.match(view, /searchScreens\(query, items, kind\)/);
-  assert.match(view, /open=\{watched\.length <= OPEN_ALL\}/);
+  assert.match(view, /shown\.allWatched && <p className="empty">\{words\.allWatched\}<\/p>/);
+  assert.match(view, /screenList\(items, kind, query\)/);
+  assert.match(view, /open=\{shown\.openWatched\}/);
   assert.equal(text.movies.empty, "No movies yet. Add one you want to watch.");
   assert.equal(text.movies.allWatched, "Nothing left to watch. Add another movie.");
   assert.equal(text.series.add, "Add a series");
@@ -75,7 +76,7 @@ test("the add sheet needs only a title, defaults the pick to both, and offers To
   const sheet = read("ui/screen-sheet.tsx");
   assert.match(sheet, /useState<ScreenInput\["who"\]>\("both"\)/);
   assert.match(sheet, /useState<ScreenInput\["status"\]>\("want"\)/);
-  assert.match(sheet, /\(\["want", "watched"\] as const\)\.map/);
+  assert.match(sheet, /START\.map\(\(pick\)/);
   assert.match(sheet, /name: "title", label: text\.screen\.sheet\.title, type: "text", required: true/);
   assert.doesNotMatch(sheet, /name: "year"[^\n]*required/);
   assert.doesNotMatch(read("ui/add-sheet.tsx"), /movie|series/);
@@ -98,6 +99,12 @@ test("rows and detail reuse the book layout classes, which keep a 44 px target, 
 
 test("the list draws no poster, so nothing here can load from another host", () => {
   for (const file of files) assert.doesNotMatch(read(file), /tmdb|themoviedb|<img/i, file);
+});
+
+test("a row of the other list shows its own not-found page with Back and no Undo", () => {
+  const view = read("views/screen.tsx");
+  assert.match(view, /if \(!row && elsewhere\) \{[^]*?<DetailTitle wide=\{false\}>\{text\.screen\.notHere\}<\/DetailTitle>[^]*?\{text\.back\}[^]*?\}\s*if \(!row\) return <Gone/);
+  assert.doesNotMatch(view.slice(view.indexOf("if (!row && elsewhere)"), view.indexOf("if (!row) return")), /text\.undo/);
 });
 
 test("deleting a row goes back to its own list and offers Undo", () => {

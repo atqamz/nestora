@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { screenSections, searchScreens } from "../domain/screen.ts";
+import type { ItemRow } from "../../shared/tables.ts";
+import { screenList } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { useTable } from "../hooks/use-store.ts";
 import { Icon } from "../ui/icons.tsx";
@@ -10,17 +11,13 @@ import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 import { ScreenDetail } from "./screen.tsx";
 
-const OPEN_ALL = 30;
-
 function ScreenList({ kind }: { kind: ScreenKind }) {
   const items = useTable("items");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const words = kind === "movie" ? text.movies : text.series;
-  const { watching, want, watched } = useMemo(() => screenSections(items, kind), [items, kind]);
-  const total = watching.length + want.length + watched.length;
-  const found = useMemo(() => (query.trim() === "" || total === 0 ? null : searchScreens(query, items, kind)), [query, items, kind, total]);
-  const list = (rows: typeof want) => (
+  const shown = useMemo(() => screenList(items, kind, query), [items, kind, query]);
+  const list = (rows: readonly ItemRow[]) => (
     <ul className="rows">
       {rows.map((row) => (
         <ScreenRow key={row.id} row={row} kind={kind} />
@@ -38,7 +35,7 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
           {words.add}
         </button>
       </div>
-      {total > 0 && (
+      {shown.mode !== "empty" && (
         <form role="search" className="capture" onSubmit={(event) => event.preventDefault()}>
           <label className="visually-hidden" htmlFor={`find-${kind}`}>
             {words.search}
@@ -56,44 +53,44 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
           />
         </form>
       )}
-      {found !== null ? (
-        found.length === 0 ? (
+      {shown.mode === "found" ? (
+        shown.found.length === 0 ? (
           <p className="empty">{text.screen.noMatch}</p>
         ) : (
           <section aria-label={words.search}>
             <p className="hint" role="status">
-              {words.found(found.length)}
+              {words.found(shown.found.length)}
             </p>
-            {list(found)}
+            {list(shown.found)}
           </section>
         )
-      ) : total === 0 ? (
+      ) : shown.mode === "empty" ? (
         <p className="empty">{words.empty}</p>
       ) : (
         <>
-          {watching.length > 0 && (
+          {shown.watching.length > 0 && (
             <section aria-labelledby="sc-watching">
               <h2 id="sc-watching">{text.screen.watching}</h2>
-              {list(watching)}
+              {list(shown.watching)}
             </section>
           )}
-          {want.length > 0 ? (
+          {shown.want.length > 0 ? (
             <section aria-labelledby="sc-want">
               <h2 id="sc-want">
-                {text.screen.want} <span className="tally">{want.length}</span>
+                {text.screen.want} <span className="tally">{shown.want.length}</span>
               </h2>
-              {list(want)}
+              {list(shown.want)}
             </section>
           ) : (
-            watching.length === 0 && <p className="empty">{words.allWatched}</p>
+            shown.allWatched && <p className="empty">{words.allWatched}</p>
           )}
-          {watched.length > 0 && (
-            <details className="shelf-sec" open={watched.length <= OPEN_ALL}>
+          {shown.watched.length > 0 && (
+            <details className="shelf-sec" open={shown.openWatched}>
               <summary>
                 <span className="shelf-name">{text.screen.watched}</span>
-                <span className="tally">{watched.length}</span>
+                <span className="tally">{shown.watched.length}</span>
               </summary>
-              {list(watched)}
+              {list(shown.watched)}
             </details>
           )}
         </>

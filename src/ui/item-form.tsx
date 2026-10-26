@@ -92,7 +92,7 @@ export function ItemForm({ name, row, only, onRemove }: Props) {
       const raw = control.type === "bool" ? form.get(control.name) !== null : String(form.get(control.name) ?? "");
       const parsed = parseField(control.type, raw);
       if (!parsed.ok || (control.name === "title" && parsed.value === null)) {
-        invalid[control.name] = control.name === "title" ? text.invalid.required : text.invalid[control.type as "phone" | "int"];
+        invalid[control.name] = control.name === "title" ? text.invalid.required : text.invalid[control.type as "phone" | "int" | "year"];
         continue;
       }
       if (parsed.value === valueOf(initial, control.name)) continue;
