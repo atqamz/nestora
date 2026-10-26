@@ -17,8 +17,8 @@ export function ScreenRow({ row, kind, member }: { row: ItemRow; kind: ScreenKin
   const words = text.screen.collection;
   return (
     <li className="bk" data-member={member ? true : undefined} data-next={member?.next || undefined}>
-      {member && <span className="co-no">{member.position}</span>}
       <a className="bk-link" href={`#/${views[kind].route}/${row.id}`}>
+        {member && <span className="co-no">{member.position}</span>}
         <Cover book={row} />
         <span className="bk-text">
           <span className="title">{row.title}</span>
