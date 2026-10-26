@@ -14,8 +14,8 @@ const screens: Record<string, string[]> = {
   people: ["views/people.tsx", "views/person.tsx"],
   routines: ["views/routines.tsx", "views/routine.tsx", "ui/timetable.tsx"],
   books: ["views/books.tsx", "views/book.tsx"],
-  movies: ["views/screens.tsx", "views/screen.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
-  series: ["views/screens.tsx", "views/screen.tsx", "ui/screen-row.tsx", "ui/screen-sheet.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
+  movies: ["views/screens.tsx", "views/screen.tsx", "ui/collection-section.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
+  series: ["views/screens.tsx", "views/screen.tsx", "ui/collection-section.tsx", "ui/screen-row.tsx", "ui/screen-sheet.tsx", "ui/screen-lookup.tsx", "ui/tmdb-credit.tsx"],
   settings: ["views/settings.tsx", "ui/feed-section.tsx", "ui/tmdb-credit.tsx"],
 };
 

@@ -4,6 +4,7 @@ import { screenList } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { usesTmdb } from "../domain/tmdb.ts";
 import { useTable } from "../hooks/use-store.ts";
+import { CollectionSection } from "../ui/collection-section.tsx";
 import { Icon } from "../ui/icons.tsx";
 import { ScreenRow } from "../ui/screen-row.tsx";
 import { ScreenSheet } from "../ui/screen-sheet.tsx";
@@ -76,6 +77,9 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
               {list(shown.watching)}
             </section>
           )}
+          {shown.groups.map((group) => (
+            <CollectionSection key={group.key} kind={kind} group={group} />
+          ))}
           {shown.want.length > 0 ? (
             <section aria-labelledby="sc-want">
               <h2 id="sc-want">
