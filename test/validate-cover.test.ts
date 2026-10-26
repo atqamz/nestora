@@ -71,3 +71,13 @@ test("a stored cover is checked with the same rule, and the refusal names the TM
     assert.match(validateCreate("items", row(bad)).join("\n"), /data\.cover: must be an https URL on covers\.openlibrary\.org, books\.google\.com, books\.googleusercontent\.com or image\.tmdb\.org/, bad);
   }
 });
+
+test("a movie and a series hold the poster in data.cover, and refuse a cover that is not on a known host, with the same message", () => {
+  const row = (kind: string, cover: string) => ({ id: "00000000-0000-4000-8000-000000000001", kind, title: "Placeholder", status: "want", created_at: "2026-10-06T05:00:00Z", updated_at: "2026-10-06T05:00:00Z", data: { cover } });
+  for (const kind of ["movie", "series"]) {
+    assert.deepEqual(validateCreate("items", row(kind, OK[0])), [], kind);
+    for (const bad of ["https://image.tmdb.org.evil.example/t/p/w342/a.jpg", "https://evil.example/a.jpg", "https://image.tmdb.org/t/p/w500/a.jpg", "https://image.tmdb.org/t/p/w342/a.png", "http://image.tmdb.org/t/p/w342/a.jpg"]) {
+      assert.match(validateCreate("items", row(kind, bad)).join("\n"), /data\.cover: must be an https URL on covers\.openlibrary\.org, books\.google\.com, books\.googleusercontent\.com or image\.tmdb\.org/, `${kind} ${bad}`);
+    }
+  }
+});

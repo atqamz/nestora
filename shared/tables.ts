@@ -23,6 +23,7 @@ export type Type =
   | "photo"
   | "isbn"
   | "cover"
+  | "tmdb"
   | "time"
   | "days"
   | readonly string[];
@@ -72,6 +73,9 @@ const screen = {
   year: "year",
   rating_a: ["1", "2", "3", "4", "5"],
   rating_b: ["1", "2", "3", "4", "5"],
+  cover: "cover",
+  tmdb: "tmdb",
+  tmdb_at: "date",
 } as const;
 const watchable = {
   columns: ["status", "who", "done_on", "note"],
