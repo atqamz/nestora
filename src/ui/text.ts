@@ -23,6 +23,7 @@ export const text = {
   reload: "Reload",
   resetView: "Reset the view",
   gone: "This item was deleted",
+  goneOpen: "This item was deleted. What you typed is still here.",
   undo: "Undo",
   back: "Back",
   save: "Save",

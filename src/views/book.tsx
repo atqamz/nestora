@@ -5,6 +5,7 @@ import { moverOf } from "../domain/places.ts";
 import { READING, ratingPatch, readingOf, readingPatch } from "../domain/reading.ts";
 import type { Reading } from "../domain/reading.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
@@ -177,7 +178,7 @@ export function BookDetail({ id }: { id: string }) {
   const { busy, once } = useBusy();
   const [sheet, setSheet] = useState<"add" | ItemRow | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
-  const book = items.find((row) => row.id === id && row.kind === "book");
+  const { row: book, gone } = useOpenRow(items.find((row) => row.id === id && row.kind === "book"));
   if (!book) return <Gone name="book" id={id} back="#/books" />;
   const wish = book.status === "wish";
   const mine = (copies.get(book.id) ?? []).filter((copy) => copy.status !== "gone").sort(bySort);
@@ -208,8 +209,8 @@ export function BookDetail({ id }: { id: string }) {
           {rated !== null && <p className="hint">{text.books.ratedElsewhere(rated)}</p>}
         </div>
       </div>
-      <FillBook key={book.id} book={book} />
-      {wish ? (
+      {!gone && <FillBook key={book.id} book={book} />}
+      {gone ? null : wish ? (
         <section aria-labelledby="bk-wish">
           <h2 id="bk-wish">{text.books.wishBook}</h2>
           <p className="facts">
@@ -275,9 +276,9 @@ export function BookDetail({ id }: { id: string }) {
       )}
       <section aria-labelledby="bk-edit">
         <h2 id="bk-edit">{text.books.edit}</h2>
-        <ItemForm key={book.id} name="book" row={book} only={wish ? views.book.fields : SHELF_FIELDS} onRemove={() => removeBook(book, copies.get(book.id) ?? [])} />
+        <ItemForm key={book.id} name="book" row={book} gone={gone} only={wish ? views.book.fields : SHELF_FIELDS} onRemove={() => removeBook(book, copies.get(book.id) ?? [])} />
       </section>
-      {sheet !== null && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
+      {sheet !== null && !gone && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
     </>
   );
 }

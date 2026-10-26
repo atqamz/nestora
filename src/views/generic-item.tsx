@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { failureOf } from "../ui/failure.ts";
 import { ItemForm, backHref } from "../ui/item-form.tsx";
@@ -34,12 +35,12 @@ export function Gone({ name, id, back, wide = false }: { name: ViewName; id: str
 export function GenericItem({ name, id }: { name: ViewName; id: string }) {
   const view = views[name];
   const rows = useTable(view.table);
-  const row = rows.find((candidate) => candidate.id === id);
+  const { row, gone } = useOpenRow(rows.find((candidate) => candidate.id === id));
   if (!row) return <Gone name={name} id={id} back={`#/${view.route === "payments" ? "money" : view.route}`} />;
   return (
     <>
       <Title>{row.title}</Title>
-      <ItemForm key={row.id} name={name} row={row} />
+      <ItemForm key={row.id} name={name} row={row} gone={gone} />
       <p className="trail">
         <a href={backHref(name, row)}>{text.back}</a>
       </p>
