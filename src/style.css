@@ -145,6 +145,7 @@ a {
 }
 
 .sync[data-state="pending"] a::before,
+.sync[data-state="paused"] a::before,
 .sync[data-state="offline"] a::before {
   content: "";
   flex: none;
