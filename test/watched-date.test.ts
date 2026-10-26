@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import type { ItemRow } from "../shared/tables.ts";
 import { DONE_MIN, validateChange } from "../shared/validate.ts";
 import { todayIn } from "../src/domain/dates.ts";
-import { datePatch, restoreDate, watchedDate } from "../src/domain/screen.ts";
+import { datePatch, restoreDate, settleDraft, watchedDate } from "../src/domain/screen.ts";
+import { failureOf } from "../src/ui/failure.ts";
 import { overlay } from "../src/ui/overlay.ts";
 import { saveScreen, moveScreen, moveWatched } from "../src/ui/screen-save.ts";
 import { text } from "../src/ui/text.ts";
@@ -117,6 +118,18 @@ test("the Worker refuses a future date, a date before 1888 and a date on a row t
   assert.equal(stored(sqlite, "items", id(1))?.done_on, "2026-10-07");
   assert.equal("errors" in (await put(id(1), "2026-10-01")), false);
   assert.equal(NOW.toISOString().slice(0, 10), "2026-10-06");
+});
+
+test("the Worker takes a rating and a note on a stored row dated 1850, and still refuses 1887 in a patch", async () => {
+  const { db, sqlite } = createDb();
+  const base = { kind: "movie", title: "Jaws", created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z", status: "watched", done_on: "2026-10-05" };
+  assert.equal("errors" in (await apply(db, [mutation("create", "items", id(1), { id: id(1), ...base })])), false);
+  sqlite.prepare("UPDATE items SET done_on = ? WHERE id = ?").run("1850-05-05", id(1));
+  const edit = (patch: Record<string, unknown>) => apply(db, [mutation("update", "items", id(1), patch)]);
+  assert.equal("errors" in (await edit({ note: "Rewatch" })), false);
+  assert.equal("errors" in (await edit({ data: { rating_a: "4" } })), false);
+  assert.match(((await edit({ done_on: "1887-12-31" })) as { errors: string[] }).errors.join(), /done_on: must not be before 1888-01-01/);
+  assert.equal(stored(sqlite, "items", id(1))?.done_on, "1850-05-05");
 });
 
 const pair = async () => {
@@ -235,11 +248,26 @@ test("an Undo after the partner left Watched says why in a new toast and changes
   await a.sync();
   undo.run();
   await settle();
-  assert.match(overlay.getSnapshot().toast!.message, /done_on: only allowed when status is watched/);
+  assert.equal(overlay.getSnapshot().toast!.message, text.screen.watchedDate.undoRefused);
+  assert.doesNotMatch(overlay.getSnapshot().toast!.message, /done_on/);
   assert.equal(rowOf(a, rowId).status, "want");
   assert.equal(rowOf(a, rowId).done_on, null);
   overlay.dismissToast();
 });
+
+test("a refused write says the given words, and a storage or paused failure keeps its own", () => {
+  const refused = { ok: false as const, errors: ["done_on: only allowed when status is watched"] };
+  assert.deepEqual(failureOf(refused, "Mine"), ["Mine"]);
+  assert.deepEqual(failureOf(refused), refused.errors);
+  assert.deepEqual(failureOf({ ...refused, storage: true }, "Mine"), [text.storageFailed]);
+  assert.deepEqual(failureOf({ ...refused, paused: true }, "Mine"), [text.paused]);
+  assert.deepEqual(failureOf({ ok: true, id: "x" }, "Mine"), []);
+});
+
+const watchedOn = () => {
+  const view = read("views/screen.tsx");
+  return view.slice(view.indexOf("function WatchedOn"), view.indexOf("function Status"));
+};
 
 test("the detail labels the date input, caps it to the day window, and saves through moveWatched only while the status is Watched", () => {
   const view = read("views/screen.tsx");
@@ -249,18 +277,104 @@ test("the detail labels the date input, caps it to the day window, and saves thr
   assert.match(view, /min=\{DONE_MIN\}/);
   assert.match(view, /max=\{stamp\(\)\}/);
   assert.match(view, /moveWatched\(actions, row, shown, stamp\(\)\)/);
-  assert.match(view, /\{watchedOn !== null && <WatchedOn row=\{row\} day=\{watchedOn\} \/>\}/);
-  assert.match(view, /onSubmit=\{save\}/);
-  assert.match(view, /disabled=\{busy \|\| shown === day\}/);
-  assert.match(view, /role="alert"/);
+  assert.match(view, /<WatchedOn row=\{row\} day=\{watchedOn\} \/>/);
+  assert.match(watchedOn(), /onSubmit=\{save\}/);
 });
 
-test("a partner's live change never moves a focused or edited date: the draft holds its own base until it is released on blur", () => {
+test("the form names its error for assistive tech: noValidate, aria-invalid, aria-describedby and a role=alert paragraph that the input points at", () => {
+  const form = watchedOn();
+  assert.match(form, /<form className="watched-on" onSubmit=\{save\} noValidate>/);
+  assert.match(form, /type="date"\s+value=\{shown\}/);
+  assert.match(form, /aria-invalid=\{failure\.length > 0 \|\| undefined\}/);
+  assert.match(form, /aria-describedby=\{failure\.length > 0 \? `\$\{id\}-error` : undefined\}/);
+  assert.match(form, /<p className="error" id=\{`\$\{id\}-error`\} role="alert">/);
+});
+
+test("the draft follows the live row until the user types, and a typed draft is dropped once the row shows it", () => {
+  assert.equal(settleDraft(null, "2026-10-17"), null);
+  assert.equal(settleDraft("2026-10-20", "2026-10-17"), "2026-10-20");
+  assert.equal(settleDraft("2026-10-20", "2026-10-20"), null);
+  assert.equal(settleDraft("", "2026-10-17"), "");
+  const view = watchedOn();
+  assert.match(view, /const draft = settleDraft\(typed, day\);\s*if \(draft !== typed\) setTyped\(draft\);\s*const shown = draft \?\? day;/);
+  assert.doesNotMatch(view, /onFocus|onBlur/);
+  assert.match(view, /if \(result\.ok\) setTyped\(null\);/);
+});
+
+test("the button stays focusable after a save: aria-disabled while there is nothing to save, never disabled", () => {
+  const form = watchedOn();
+  assert.match(form, /<button type="submit" className="secondary" aria-disabled=\{busy \|\| shown === day \|\| undefined\}>/);
+  assert.doesNotMatch(form, /(?<!-)\bdisabled=/);
+  assert.match(read("ui/ui.css"), /button:disabled,\s*button\[aria-disabled="true"\] \{/);
+});
+
+test("the error clears when the date changes", () => {
+  assert.match(watchedOn(), /onChange=\{\(event\) => \{\s*setTyped\(event\.target\.value\);\s*setFailure\(\[\]\);\s*\}\}/);
+});
+
+test("focus moves to the chosen status when the date form goes away while it held focus", () => {
   const view = read("views/screen.tsx");
-  assert.match(view, /const shown = draft\?\.value \?\? day;/);
-  assert.match(view, /onFocus=\{\(\) => setDraft\(\(now\) => now \?\? \{ base: day, value: day \}\)\}/);
-  assert.match(view, /now\.value === now\.base \? null : now/);
-  assert.match(view, /if \(result\.ok\) setDraft\(null\);/);
+  assert.match(view, /if \(watchedOn === null && held\.current\) \{\s*held\.current = false;\s*group\.current\?\.querySelector<HTMLButtonElement>\("\[aria-pressed=true\]"\)\?\.focus\(\);/);
+  assert.match(view, /<div onFocus=\{\(\) => \(held\.current = true\)\} onBlur=\{\(\) => \(held\.current = false\)\}>/);
+  assert.match(view, /className="seg" ref=\{group\}/);
+});
+
+const shownOf = (typed: string | null, row: ItemRow) => settleDraft(typed, row.done_on!) ?? row.done_on!;
+
+test("a focused, untouched date never writes the shown day over a partner's change, and a stale draft does not come back", async () => {
+  const { server, a, b } = await pair();
+  const rowId = idOf(await saveScreen(a.getSnapshot().rows.items, a.create, input, "2026-10-17"));
+  await a.sync();
+  await b.sync();
+  overlay.dismissToast();
+  idOf(await moveWatched(b, rowOf(b, rowId), "2026-10-24", TODAY));
+  await b.sync();
+  await a.sync();
+  assert.equal(shownOf(null, rowOf(a, rowId)), "2026-10-24");
+  idOf(await moveWatched(a, rowOf(a, rowId), shownOf(null, rowOf(a, rowId)), TODAY));
+  assert.equal(a.getSnapshot().pending, 0);
+  assert.equal(server.row("items", rowId)!.done_on, "2026-10-24");
+
+  let typed: string | null = "2026-10-20";
+  idOf(await moveWatched(b, rowOf(b, rowId), "2026-10-20", TODAY));
+  await b.sync();
+  await a.sync();
+  typed = settleDraft(typed, rowOf(a, rowId).done_on!);
+  assert.equal(typed, null);
+  idOf(await moveWatched(b, rowOf(b, rowId), "2026-10-22", TODAY));
+  await b.sync();
+  await a.sync();
+  assert.equal(shownOf(typed, rowOf(a, rowId)), "2026-10-22");
+  idOf(await moveWatched(a, rowOf(a, rowId), shownOf(typed, rowOf(a, rowId)), TODAY));
+  await a.sync();
+  assert.equal(server.row("items", rowId)!.done_on, "2026-10-22");
+  overlay.dismissToast();
+});
+
+test("a typed date survives the partner's change and saves only when the user chose to", async () => {
+  const { server, a, b } = await pair();
+  const rowId = idOf(await saveScreen(a.getSnapshot().rows.items, a.create, input, "2026-10-17"));
+  await a.sync();
+  await b.sync();
+  const typed = "2026-10-20";
+  idOf(await moveWatched(b, rowOf(b, rowId), "2026-10-24", TODAY));
+  await b.sync();
+  await a.sync();
+  assert.equal(settleDraft(typed, rowOf(a, rowId).done_on!), typed);
+  assert.equal(shownOf(typed, rowOf(a, rowId)), typed);
+  assert.equal(server.row("items", rowId)!.done_on, "2026-10-24");
+  idOf(await moveWatched(a, rowOf(a, rowId), typed, TODAY));
+  await a.sync();
+  assert.equal(server.row("items", rowId)!.done_on, typed);
+  overlay.dismissToast();
+});
+
+test("a stored row with an odd date keeps taking unrelated edits, and a patch that sets the date still refuses 1887", () => {
+  const odd = watched({ done_on: "1850-05-05" });
+  assert.deepEqual(validateChange("items", odd, { note: "Rewatch" }, "2026-10-27"), []);
+  assert.deepEqual(validateChange("items", odd, { data: { rating_a: "4" } }, "2026-10-27"), []);
+  assert.match(validateChange("items", odd, { done_on: "1887-12-31" }, "2026-10-27").join("\n"), /done_on: must not be before 1888-01-01/);
+  assert.match(validateChange("items", watched(), { done_on: "1850-05-05", note: "x" }, "2026-10-27").join("\n"), /done_on: must not be before 1888-01-01/);
 });
 
 test("the date form stays at 44 px and wraps on a narrow screen", () => {

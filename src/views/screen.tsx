@@ -1,8 +1,8 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { DONE_MIN } from "../../shared/validate.ts";
-import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
+import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, settleDraft, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -26,15 +26,17 @@ function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
   const stamp = useStamp();
   const { busy, once } = useBusy();
   const id = useId();
-  const [draft, setDraft] = useState<{ base: string; value: string } | null>(null);
+  const [typed, setTyped] = useState<string | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
-  const shown = draft?.value ?? day;
+  const draft = settleDraft(typed, day);
+  if (draft !== typed) setTyped(draft);
+  const shown = draft ?? day;
   const save = (event: FormEvent) => {
     event.preventDefault();
     return once(async () => {
       const result = await moveWatched(actions, row, shown, stamp());
       setFailure(failureOf(result));
-      if (result.ok) setDraft(null);
+      if (result.ok) setTyped(null);
     });
   };
   return (
@@ -49,12 +51,13 @@ function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
           max={stamp()}
           aria-invalid={failure.length > 0 || undefined}
           aria-describedby={failure.length > 0 ? `${id}-error` : undefined}
-          onFocus={() => setDraft((now) => now ?? { base: day, value: day })}
-          onChange={(event) => setDraft({ base: draft?.base ?? day, value: event.target.value })}
-          onBlur={() => setDraft((now) => (now !== null && now.value === now.base ? null : now))}
+          onChange={(event) => {
+            setTyped(event.target.value);
+            setFailure([]);
+          }}
         />
       </div>
-      <button type="submit" className="secondary" disabled={busy || shown === day}>
+      <button type="submit" className="secondary" aria-disabled={busy || shown === day || undefined}>
         {text.screen.watchedDate.save}
       </button>
       {failure.length > 0 && (
@@ -71,10 +74,18 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
   const { busy, once } = useBusy();
   const [failure, setFailure] = useState<string[]>([]);
   const now = watchOf(row);
+  const group = useRef<HTMLDivElement>(null);
+  const held = useRef(false);
+  useEffect(() => {
+    if (watchedOn === null && held.current) {
+      held.current = false;
+      group.current?.querySelector<HTMLButtonElement>("[aria-pressed=true]")?.focus();
+    }
+  }, [watchedOn]);
   return (
     <section aria-labelledby="sc-status">
       <h2 id="sc-status">{text.screen.status}</h2>
-      <div role="group" aria-label={text.screen.status} className="seg">
+      <div role="group" aria-label={text.screen.status} className="seg" ref={group}>
         {WATCH.map((pick) => (
           <button
             key={pick}
@@ -87,7 +98,11 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
           </button>
         ))}
       </div>
-      {watchedOn !== null && <WatchedOn row={row} day={watchedOn} />}
+      {watchedOn !== null && (
+        <div onFocus={() => (held.current = true)} onBlur={() => (held.current = false)}>
+          <WatchedOn row={row} day={watchedOn} />
+        </div>
+      )}
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}

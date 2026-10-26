@@ -40,6 +40,8 @@ export const watchedDate = (raw: string, today: string): { ok: true; value: stri
 
 export const datePatch = (row: ItemRow, day: string): Patch<"items"> | null => (row.done_on === day ? null : { done_on: day });
 
+export const settleDraft = (draft: string | null, day: string): string | null => (draft === day ? null : draft);
+
 export const restoreDate = (row: ItemRow): Patch<"items"> => ({ done_on: row.done_on });
 
 export const ratingOf = (row: ItemRow, side: Side): number | null => {

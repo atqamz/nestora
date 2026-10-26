@@ -509,6 +509,7 @@ export const text = {
       invalid: "Pick a real date, 1888 or later.",
       future: "That day has not happened yet. Pick today or earlier.",
       changed: (title: string, day: string) => `Watched on ${day}: ${title}`,
+      undoRefused: "Could not undo: the date or the status changed in the meantime.",
     },
     notes: "Notes",
     edit: "Edit details",

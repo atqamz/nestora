@@ -34,11 +34,11 @@ export const saveScreen = async (items: readonly ItemRow[], create: Store["creat
   });
 };
 
-const undoing = (work: () => Promise<Written>) => ({
+const undoing = (work: () => Promise<Written>, refused?: string) => ({
   label: text.undo,
   run: () =>
     void work().then((undone) => {
-      const message = failureOf(undone);
+      const message = failureOf(undone, refused);
       if (message.length > 0) overlay.announce(message.join(" "));
     }),
 });
@@ -57,7 +57,7 @@ export const moveWatched = async (actions: Pick<Store, "update">, row: ItemRow, 
   const patch = datePatch(row, date.value);
   if (patch === null) return { ok: true, id: row.id };
   const result = await actions.update("items", row.id, patch);
-  if (result.ok) overlay.announce(text.screen.watchedDate.changed(row.title, formatDate(date.value)), undoing(() => actions.update("items", row.id, restoreDate(row))));
+  if (result.ok) overlay.announce(text.screen.watchedDate.changed(row.title, formatDate(date.value)), undoing(() => actions.update("items", row.id, restoreDate(row)), text.screen.watchedDate.undoRefused));
   return result;
 };
 

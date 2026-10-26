@@ -281,7 +281,7 @@ const checkVariant = (
   if (variant.doneOnStatus && input.done_on != null && input.status !== undefined && input.status !== variant.doneOnStatus) {
     errors.push(`done_on: only allowed when status is ${variant.doneOnStatus}`);
   }
-  if (variant.pastDone && typeof input.done_on === "string" && input.done_on < DONE_MIN) {
+  if (variant.pastDone && mode !== "stored" && typeof input.done_on === "string" && input.done_on < DONE_MIN) {
     errors.push(`done_on: must not be before ${DONE_MIN}`);
   }
   for (const [name, max] of Object.entries(variant.caps ?? {})) {
