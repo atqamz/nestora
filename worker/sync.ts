@@ -15,6 +15,7 @@ type Context = { db: Db; world: World; hidden: Set<string>; stamp: string; who: 
 export type Statement = { bind(...values: unknown[]): Statement; all(): Promise<Result> };
 export type Db = { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<Result[]> };
 
+const DAY = 86_400_000;
 const NEW_REV = "(SELECT rev FROM sync_state WHERE id = 1)";
 
 const parents: Record<string, string> = { copy: "book", ...Object.fromEntries(ACTION_KINDS.map((kind) => [kind, "routine"])) };
@@ -160,7 +161,7 @@ const update = (ctx: Context, name: TableName, id: string, patch: Raw, stored: R
         (key === "data" && dropsPoster(name, stored) && typeof value === "object" && value !== null && Object.keys(value).every((held) => POSTER_KEYS.some((poster) => poster === held))),
     );
   if (stored.deleted_at !== null && !revives) return undefined;
-  const errors = validateChange(name, stored, patch);
+  const errors = validateChange(name, stored, patch, new Date(Date.parse(ctx.stamp) + DAY).toISOString().slice(0, 10));
   if (errors.length > 0) return { status: 400, errors };
   const merged = applyPatch(stored, patch);
   const conflicts = [...checkRefs(ctx.world, name, stored, merged), ...privacy(ctx, name, stored, merged)];

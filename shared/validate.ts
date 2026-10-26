@@ -45,12 +45,13 @@ export const MONTH_MIN = -36;
 export const MONTH_MAX = 12;
 export const YEAR_MIN = 1880;
 export const YEAR_MAX = 2200;
+export const DONE_MIN = "1888-01-01";
 
 const show = (v: unknown) => (typeof v === "string" ? JSON.stringify(v) : typeof v);
 
 const isPlain = (v: unknown): v is Plain => typeof v === "object" && v !== null && !Array.isArray(v);
 
-const isDate = (v: string) => {
+export const isDate = (v: string) => {
   const m = DATE.exec(v);
   if (!m) return false;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
@@ -284,6 +285,9 @@ const checkVariant = (
   if (variant.doneOnStatus && input.done_on != null && input.status !== undefined && input.status !== variant.doneOnStatus) {
     errors.push(`done_on: only allowed when status is ${variant.doneOnStatus}`);
   }
+  if (variant.pastDone && mode !== "stored" && typeof input.done_on === "string" && input.done_on < DONE_MIN) {
+    errors.push(`done_on: must not be before ${DONE_MIN}`);
+  }
   for (const [name, max] of Object.entries(variant.caps ?? {})) {
     const value = name.startsWith("data.") && isPlain(input.data) ? input.data[name.slice(5)] : input[name];
     if (typeof value === "string" && value.length > max) errors.push(`${name}: must be at most ${max} characters`);
@@ -365,12 +369,16 @@ export const validatePatch = (tableName: unknown, variantName: unknown, patch: u
   return errors;
 };
 
-export const validateChange = (tableName: unknown, stored: unknown, patch: unknown): string[] => {
+export const validateChange = (tableName: unknown, stored: unknown, patch: unknown, latest?: string): string[] => {
   const table = lookup<Table>(tables, tableName);
   if (table === undefined) return [`unknown table ${show(tableName)}`];
   if (!isPlain(stored)) return ["row: must be an object"];
   const errors = validatePatch(tableName, stored[table.by ?? table.key], patch);
   if (errors.length > 0) return errors;
+  const variant = table.by ? lookup(table.variants, stored[table.by]) : undefined;
+  if (latest !== undefined && variant?.pastDone && isPlain(patch) && typeof patch.done_on === "string" && patch.done_on > latest) {
+    return [`done_on: must not be after ${latest}`];
+  }
   const merged = applyPatch(stored, patch as Plain);
   const rows = validateRow(tableName, merged);
   const sent = isPlain(patch) ? patch.data : undefined;
