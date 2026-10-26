@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { Type } from "../../shared/tables.ts";
+import { attributes } from "./field-attributes.ts";
 import { isbnNote } from "./isbn-note.ts";
 
 export type Control = {
@@ -21,19 +22,6 @@ export type Control = {
 };
 
 const LIMITS: Partial<Record<string, number>> = { text: 500, longtext: 2000, note: 10000, url: 2048 };
-
-const attributes = (type: Type, words?: true) =>
-  type === "date" || type === "time"
-    ? { type }
-    : type === "phone"
-      ? { type: "tel", inputMode: "tel" as const, autoComplete: "off", autoCapitalize: "none", spellCheck: false }
-      : type === "url"
-        ? { type: "url", inputMode: "url" as const, autoComplete: "off", autoCapitalize: "none", autoCorrect: "off", spellCheck: false }
-        : type === "int" || type === "year"
-          ? { type: "text", inputMode: "numeric" as const, autoComplete: "off", enterKeyHint: "done" as const }
-          : type === "zone" || type === "isbn"
-            ? { type: "text", autoComplete: "off", autoCapitalize: "none", spellCheck: false }
-            : { type: "text", autoComplete: "off", autoCapitalize: words ? "words" : "sentences" };
 
 export function Field({ control, error }: { control: Control; error?: string }) {
   const id = useId();
