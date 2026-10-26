@@ -10,6 +10,8 @@ import { item } from "./domain-rows.ts";
 const film = (title: string, fields: Partial<ItemRow> = {}, data: Record<string, unknown> = {}) =>
   item({ kind: "movie", status: "want", title, ...fields, data: { ...data } });
 
+const mark = (row: ItemRow, status: string) => void ((row as { status: string }).status = status);
+
 const hannibal = (name = "Hannibal") => [
   film("Hannibal Rising", { created_at: "2026-10-04T00:00:00Z" }, { collection: name, order: 0 }),
   film("Red Dragon", { created_at: "2026-10-03T00:00:00Z" }, { collection: name, order: 1 }),
@@ -84,15 +86,15 @@ test("ties and missing order keys fall back to created_at then id, and a missing
 
 test("next up is the first member in watch order that is not watched, and a finished collection has none", () => {
   const rows = hannibal();
-  rows[0].status = "watched";
-  rows[1].status = "watching";
+  mark(rows[0], "watched");
+  mark(rows[1], "watching");
   assert.equal(collections(rows, "movie")[0].next, rows[1].id);
-  rows[1].status = "watched";
+  mark(rows[1], "watched");
   assert.equal(collections(rows, "movie")[0].next, rows[2].id);
-  rows[2].status = "watched";
-  rows[3].status = "watched";
+  mark(rows[2], "watched");
+  mark(rows[3], "watched");
   assert.equal(collections(rows, "movie")[0].next, null);
-  rows[0].status = "odd" as never;
+  mark(rows[0], "odd");
   assert.equal(collections(rows, "movie")[0].next, rows[0].id);
 });
 
@@ -118,7 +120,7 @@ test("a screen with only collection members is not empty, and 'nothing left' nee
   const rows = hannibal();
   const open = screenList(rows, "movie", "");
   assert.equal(open.mode === "sections" && open.allWatched, false);
-  for (const row of rows) row.status = "watched";
+  for (const row of rows) mark(row, "watched");
   const finished = screenList(rows, "movie", "");
   assert.equal(finished.mode === "sections" && finished.allWatched, true);
   assert.equal(screenList([], "movie", "").mode, "empty");
@@ -126,7 +128,7 @@ test("a screen with only collection members is not empty, and 'nothing left' nee
 
 test("search still finds a member by title, in any status, without grouping it twice", () => {
   const rows = hannibal();
-  rows[1].status = "watched";
+  mark(rows[1], "watched");
   assert.deepEqual(titles(searchScreens("red dragon", rows, "movie")), ["Red Dragon"]);
   assert.equal(screenList(rows, "movie", "hannibal").mode, "found");
 });

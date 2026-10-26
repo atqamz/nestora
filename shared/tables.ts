@@ -45,6 +45,7 @@ export type Variant = {
   status?: readonly string[];
   who?: readonly string[];
   doneOnStatus?: string;
+  pastDone?: true;
   caps?: Readonly<Record<string, number>>;
   data: Readonly<Record<string, Type>>;
 };
@@ -89,6 +90,7 @@ const watchable = {
   status: ["want", "watching", "watched"],
   doneOnStatus: "watched",
   caps: { "data.collection": COLLECTION_MAX },
+  pastDone: true,
   data: screen,
 } as const;
 const action = ["parent_id", "group_key", "note"] as const;
