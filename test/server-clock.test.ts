@@ -88,3 +88,14 @@ test("the newest stamp is the latest valid tmdb_at of the rows, and nothing when
   assert.equal(newestStamp([{ data: null }, { data: { tmdb_at: "" } }, { data: { tmdb_at: "2027-02-30x" } }, { data: { tmdb_at: 5 } }, { data: { tmdb_at: 1798761600000 } }]), null);
   assert.equal(newestStamp([]), null);
 });
+
+test("the limits are exact: a Date a day behind the last one, two answers a day apart and a stamp a day ahead are still fine", () => {
+  const good = accepted(DEVICE);
+  assert.equal(learned(good, DEVICE - DAY, DEVICE, never).last, DEVICE - DAY);
+  const wrong = at("2027-09-17");
+  const held = learned(unknown, at("2027-03-01"), wrong, never);
+  assert.notEqual(learned(held, at("2027-03-01") + DAY, wrong, never).skew, null);
+  assert.equal(learned(held, at("2027-03-01") + DAY + 1, wrong, never).skew, null);
+  assert.notEqual(learned(held, at("2027-03-01"), wrong, () => at("2027-03-01") + DAY).skew, null);
+  assert.equal(learned(held, at("2027-03-01"), wrong, () => at("2027-03-01") + DAY + 1).skew, null);
+});

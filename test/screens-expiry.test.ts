@@ -539,3 +539,25 @@ test("a 2015 Date that keeps coming, and one 2100 Date, take nothing either", as
   }
   keepsPosters(server, Object.values(ids));
 });
+
+test("a phone with a wrong clock does not take a Date that the rows it holds contradict, however often it comes", async () => {
+  const { server } = await seeded();
+  fixedServerDate(server);
+  const store = client(server, "a").store;
+  await store.open();
+  idOf(await store.create("items", { kind: "movie", title: "Ahead", status: "want", data: { cover: POSTER, tmdb: 910001, tmdb_at: addDays(SERVER_DAY, 30) } } as never));
+  await store.sync();
+  deviceAt("2027-09-17T05:00:00Z");
+  const wrong = client(server, "a").store;
+  await wrong.open();
+  await wrong.sync();
+  await wrong.sync();
+  assert.equal(wrong.serverNow(), null);
+  const calm = createServer();
+  fixedServerDate(calm);
+  deviceAt("2027-09-17T05:00:00Z");
+  const other = client(calm, "a").store;
+  await other.open();
+  await other.sync();
+  assert.notEqual(other.serverNow(), null);
+});
