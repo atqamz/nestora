@@ -4,7 +4,7 @@ import type { ItemRow } from "../shared/tables.ts";
 import { validateChange, validateCreate } from "../shared/validate.ts";
 import { fold, searchBooks } from "../src/domain/search.ts";
 import { shelfSections } from "../src/domain/shelf.ts";
-import { weGotIt, wishSections } from "../src/domain/wish.ts";
+import { backToWishlist, weGotIt, wishSections } from "../src/domain/wish.ts";
 import { item } from "./domain-rows.ts";
 
 const book = (title: string, fields: Partial<ItemRow> = {}) => item({ kind: "book", title, status: "shelf", ...fields });
@@ -225,6 +225,31 @@ test("We got it copies only what the wish has, and allows no place yet", () => {
   assert.equal(done.copy.group_key, null);
   assert.deepEqual(weGotIt(book("Bumi Manusia", { status: "wish", data: { isbn: "9789799731234" } }), null).copy.data, { format: "print", isbn: "9789799731234" });
   assert.equal(plain.status, "wish");
+});
+
+test("back to the wishlist changes only the status of the book and marks each live copy gone on the day, and the undo puts every earlier value back", () => {
+  const read = book("Laskar Pelangi", { who: null, note: "Lent twice", data: { reading_a: "read", rating_a: "5", finished_a: "2026-03-12" } });
+  const here = copy(read, { group_key: homeA.id });
+  const lent = copy(read, { status: "lent", group_key: homeB.id, data: { format: "print", lent_to: "Partner B" } });
+  const lost = copy(read, { status: "gone", done_on: "2026-09-01" });
+  const { moves, undo } = backToWishlist(read, [here, lent, lost], "2026-10-26");
+  assert.deepEqual(moves, [
+    { id: read.id, change: { status: "wish" } },
+    { id: here.id, change: { status: "gone", done_on: "2026-10-26" } },
+    { id: lent.id, change: { status: "gone", done_on: "2026-10-26" } },
+  ]);
+  assert.deepEqual(undo, [
+    { id: read.id, change: { status: "shelf", who: null } },
+    { id: here.id, change: { status: "here", done_on: null } },
+    { id: lent.id, change: { status: "lent", done_on: null } },
+  ]);
+  for (const { id, change } of moves) assert.deepEqual(validateChange("items", [read, here, lent].find((row) => row.id === id)!, change), []);
+  for (const { id, change } of undo) assert.deepEqual(validateChange("items", [{ ...read, status: "wish" }, { ...here, status: "gone", done_on: "2026-10-26" }, { ...lent, status: "gone", done_on: "2026-10-26" }].find((row) => row.id === id)!, change), []);
+});
+
+test("a shelf book with no copy goes back alone", () => {
+  const bare = book("Bumi Manusia");
+  assert.deepEqual(backToWishlist(bare, [], "2026-10-26").moves, [{ id: bare.id, change: { status: "wish" } }]);
 });
 
 test("places order the sections by their own order, even when books and places were made in the opposite order", () => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
 import { bySort } from "../domain/order.ts";
 import { moverOf } from "../domain/places.ts";
@@ -79,6 +79,63 @@ function Reader({ book }: { book: ItemRow }) {
           {theirs.rating !== null && <Stars value={theirs.rating} />}
         </p>
       </div>
+      {failure.length > 0 && (
+        <p className="error" role="alert">
+          {failure.join(" ")}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function LostIt({ book }: { book: ItemRow }) {
+  const { lostIt } = useBookActions();
+  const { busy, once } = useBusy();
+  const [asking, setAsking] = useState(false);
+  const [failure, setFailure] = useState<string[]>([]);
+  const ask = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const asked = useRef(false);
+  const noted = useId();
+  useEffect(() => {
+    if (asking) {
+      asked.current = true;
+      keep.current?.focus();
+    } else if (asked.current) {
+      asked.current = false;
+      ask.current?.focus();
+    }
+  }, [asking]);
+  const move = () =>
+    once(async () => {
+      const result = await lostIt(book);
+      setFailure(failureOf(result));
+      if (result.ok) document.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+    });
+  return (
+    <section aria-labelledby="bk-lost">
+      <h2 id="bk-lost">{text.books.lostTitle}</h2>
+      <p className="hint">{text.books.lostHint}</p>
+      {asking ? (
+        <div className="lost-sure" role="group" aria-labelledby={noted} onKeyDown={(event) => event.key === "Escape" && !busy && setAsking(false)}>
+          <p id={noted} className="lost-q">
+            {text.books.lostSure(book.title)}
+          </p>
+          <div className="lost-acts">
+            <button ref={keep} type="button" disabled={busy} onClick={() => setAsking(false)}>
+              {text.books.lostKeep}
+            </button>
+            <button type="button" className="secondary" disabled={busy} onClick={move}>
+              {text.books.lostConfirm}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button ref={ask} type="button" className="secondary lost" disabled={busy} onClick={() => setAsking(true)}>
+          <Icon name="back" />
+          {text.books.lostIt}
+        </button>
+      )}
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
@@ -196,6 +253,7 @@ export function BookDetail({ id }: { id: string }) {
             </button>
           </section>
           <Reader book={book} />
+          <LostIt key={book.id} book={book} />
         </>
       )}
       {blurb && (

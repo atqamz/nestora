@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { moveCopy, restoreMove } from "../src/domain/places.ts";
 import { readingPatch } from "../src/domain/reading.ts";
-import { weGotIt } from "../src/domain/wish.ts";
+import { backToWishlist, weGotIt } from "../src/domain/wish.ts";
 import { createServer } from "./store-server.ts";
 import { client, idOf } from "./store-client.ts";
 
@@ -79,6 +79,63 @@ test("We got it and its copy leave in one request, and undoing both brings the w
   await store.sync();
   assert.deepEqual([server.row("items", book)!.status, server.row("items", book)!.who], ["wish", "b"]);
   assert.notEqual(server.row("items", copyId)!.deleted_at, null);
+});
+
+const lostIt = (store: Awaited<ReturnType<typeof seeded>>["store"], book: string, copy: string, today: string) => {
+  const { moves, undo } = backToWishlist(rowOf(store, book), [rowOf(store, copy)], today);
+  const steps = (changes: typeof moves) => changes.map(({ id, change }) => ({ op: "update", table: "items", id, change }) as const);
+  return { go: () => store.many(steps(moves)), back: () => store.many(steps(undo)) };
+};
+
+test("Lost it leaves in one request, the server takes the wish and the gone copy, and the other partner sees both after a pull", async () => {
+  const { server, store, book, copy } = await seeded("a");
+  const other = client(server, "b");
+  server.control.down = false;
+  await other.store.open();
+  server.control.down = true;
+  const before = server.seen.length;
+  const move = lostIt(store, book, copy, "2026-10-26");
+  idOf(await move.go());
+  assert.equal(store.getSnapshot().pending, 2);
+  server.control.down = false;
+  await store.sync();
+  const posts = server.seen.slice(before).filter((request) => request.method === "POST");
+  assert.deepEqual(posts.map((request) => request.mutations), [2]);
+  assert.deepEqual([server.row("items", book)!.status, server.row("items", book)!.data], ["wish", { author: "Partner A" }]);
+  assert.deepEqual([server.row("items", copy)!.status, server.row("items", copy)!.done_on, server.row("items", copy)!.parent_id], ["gone", "2026-10-26", book]);
+  await other.store.sync();
+  assert.deepEqual([rowOf(other.store, book).status, rowOf(other.store, copy).status], ["wish", "gone"]);
+  idOf(await move.back());
+  await store.sync();
+  assert.deepEqual([server.row("items", book)!.status, server.row("items", copy)!.status, server.row("items", copy)!.done_on], ["shelf", "here", null]);
+});
+
+test("Lost it made offline while the other partner rates the book keeps both: the status and the rating each survive", async () => {
+  const { server, store, book, copy } = await seeded("a");
+  const other = client(server, "b");
+  server.control.down = false;
+  await other.store.open();
+  idOf(await other.store.update("items", book, readingPatch(rowOf(other.store, book), "b", "read", "2026-10-26")));
+  server.control.down = true;
+  idOf(await lostIt(store, book, copy, "2026-10-26").go());
+  server.control.down = false;
+  await store.sync();
+  await other.store.sync();
+  const stored = server.row("items", book)!;
+  assert.deepEqual([stored.status, (stored.data as Record<string, unknown>).reading_b, rowOf(other.store, book).status], ["wish", "read", "wish"]);
+});
+
+test("a second Lost it with the same steps after the first reached the server writes nothing", async () => {
+  const { server, store, book, copy } = await seeded("a");
+  idOf(await lostIt(store, book, copy, "2026-10-26").go());
+  server.control.down = false;
+  await store.sync();
+  const settled = [server.row("items", book)!.rev, server.row("items", copy)!.rev];
+  idOf(await lostIt(store, book, copy, "2026-10-27").go());
+  await store.sync();
+  assert.equal(store.getSnapshot().pending, 0);
+  assert.deepEqual([server.row("items", book)!.rev, server.row("items", copy)!.rev], settled);
+  assert.equal(server.row("items", copy)!.done_on, "2026-10-26");
 });
 
 test("undoing a move restores the old place and date in one update", async () => {

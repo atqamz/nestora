@@ -108,6 +108,12 @@ test("a copy made by We got it, at the moment the book changed, is hidden too", 
   assert.deepEqual(summary([book, copy]), [["changed", "Laskar Pelangi", null]]);
 });
 
+test("a copy marked gone when its book went back to the wishlist adds no line of its own", () => {
+  const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z", { status: "wish", updated_at: "2026-10-05T10:00:00Z", rev: 4 });
+  const copy = copyOf(book, { status: "gone", created_at: "2026-10-01T10:00:30Z", updated_at: "2026-10-05T10:00:00Z", rev: 4 });
+  assert.deepEqual(summary([book, copy]), [["changed", "Laskar Pelangi", null]]);
+});
+
 test("a copy added to an older book shows as added", () => {
   const book = shelf("Laskar Pelangi", "2026-10-01T10:00:00Z");
   const copy = copyOf(book, { created_at: "2026-10-05T10:00:00Z", updated_at: "2026-10-05T10:00:00Z" });
