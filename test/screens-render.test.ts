@@ -214,7 +214,7 @@ test("Find posters turns into Resume after a row was tried or a pass ended early
 
 test("the posters block reserves two lines for its status, so a longer last line does not push the list down", () => {
   const css = readFileSync(new URL("../src/views/books.css", import.meta.url), "utf8");
-  assert.match(css, /\.posters \.imp-progress \{\s*min-height: 2lh;\s*\}/);
+  assert.match(css, /\.posters > p \{\s*min-height: 2lh;\s*\}/);
 });
 
 test("Remove poster renders as one button and no error until a write is refused", async () => {

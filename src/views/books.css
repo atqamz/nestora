@@ -22,7 +22,7 @@
   margin: 0;
 }
 
-.posters .imp-progress {
+.posters > p {
   min-height: 2lh;
 }
 
