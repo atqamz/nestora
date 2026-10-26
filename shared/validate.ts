@@ -91,7 +91,9 @@ export const isPhoto = (v: unknown): v is string => {
   }
 };
 
-export const isCover = (v: unknown): v is string => typeof v === "string" && (COVER_SHAPE.test(v) || POSTER_SHAPE.test(v));
+export const isPoster = (v: unknown): v is string => typeof v === "string" && POSTER_SHAPE.test(v);
+
+export const isCover = (v: unknown): v is string => isPoster(v) || (typeof v === "string" && COVER_SHAPE.test(v));
 
 export const isIsbn13 = (v: unknown) =>
   typeof v === "string" && /^\d{13}$/.test(v) && [...v].reduce((sum, digit, i) => sum + Number(digit) * (i % 2 === 0 ? 1 : 3), 0) % 10 === 0;
@@ -188,6 +190,7 @@ const expected: Record<string, string> = {
   tmdb: "a positive integer",
   order: `a finite number from -${ORDER_MAX} to ${ORDER_MAX}`,
   cover: "an https URL on covers.openlibrary.org, books.google.com, books.googleusercontent.com or image.tmdb.org",
+  poster: "a TMDB poster URL such as https://image.tmdb.org/t/p/w342/<file>.jpg",
   photo: `an https URL of up to ${PHOTO_MAX} characters on googleusercontent.com without credentials or a port, or an empty string`,
   stages: `a JSON array of 1 to ${STAGES_MAX} stages, each with a unique key, a unique name of up to ${STAGE_NAME_MAX} characters and a month range from ${MONTH_MIN} to ${MONTH_MAX} that starts after the stage before`,
 };
@@ -218,6 +221,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "days" ? isDays(v)
     : type === "isbn" ? isIsbn13(v)
     : type === "cover" ? isCover(v)
+    : type === "poster" ? isPoster(v)
     : type === "order" ? typeof v === "number" && Math.abs(v) <= ORDER_MAX
     : type === "tmdb" ? typeof v === "number" && Number.isSafeInteger(v) && v > 0
     : isPlain(v);

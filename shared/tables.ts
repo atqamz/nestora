@@ -23,6 +23,7 @@ export type Type =
   | "photo"
   | "isbn"
   | "cover"
+  | "poster"
   | "tmdb"
   | "order"
   | "time"
@@ -78,7 +79,7 @@ const screen = {
   year: "year",
   rating_a: ["1", "2", "3", "4", "5"],
   rating_b: ["1", "2", "3", "4", "5"],
-  cover: "cover",
+  cover: "poster",
   tmdb: "tmdb",
   tmdb_at: "date",
   collection: "text",

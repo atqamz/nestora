@@ -185,10 +185,10 @@ test("hits that are not in our own shape are dropped before the screens see them
   for (const odd of [{}, { hits: "x" }, []]) assert.deepEqual(await lookup(net(() => reply(odd)).fetcher).screen(input), { kind: "ok", value: [] });
 });
 
-test("an id lookup shows the hit with that id, null when the route has none, and nothing else", async () => {
+test("an id lookup shows the hit with that id, null when the route has none, and a failure for an answer about another id", async () => {
   assert.deepEqual(await lookup(net(() => found(hit)).fetcher).screenById("movie", 910001), { kind: "ok", value: hit });
   assert.deepEqual(await lookup(net(() => found()).fetcher).screenById("movie", 910001), { kind: "ok", value: null });
-  assert.deepEqual(await lookup(net(() => found({ ...hit, tmdb: 2 })).fetcher).screenById("movie", 910001), { kind: "ok", value: null });
+  assert.deepEqual(await lookup(net(() => found({ ...hit, tmdb: 2 })).fetcher).screenById("movie", 910001), { kind: "failed" });
 });
 
 test("a screen lookup never asks a book source, and a book lookup is unchanged beside it", async () => {

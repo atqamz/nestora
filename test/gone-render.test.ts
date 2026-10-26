@@ -32,7 +32,7 @@ for (const [name, routine] of routines) {
     assert.ok(body.indexOf(text.undo) < body.indexOf('name="routine-title"'));
     assert.equal(foot.includes(text.undo) || foot.includes("role="), false);
     assert.deepEqual(buttons(foot), ['<button type="submit" disabled="">']);
-    assert.ok(buttons(body).some((tag) => tag.includes("rt-delete") && tag.includes('disabled=""')));
+    assert.equal(buttons(body).some((tag) => tag.includes("danger")), false);
   });
 
   test(`the sheet of ${name} that is live has an empty notice region, no Undo and a working Save`, async () => {
@@ -41,7 +41,7 @@ for (const [name, routine] of routines) {
     assert.equal(body.includes(text.undo), false);
     assert.equal(body.includes(text.routines.goneOpen), false);
     assert.deepEqual(buttons(foot), ['<button type="submit">']);
-    assert.ok(buttons(body).some((tag) => tag.includes("rt-delete") && !tag.includes("disabled")));
+    assert.equal(buttons(body).some((tag) => tag.includes("danger")), false);
   });
 }
 
