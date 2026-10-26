@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { budgetOf } from "../domain/budget.ts";
 import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { failureOf } from "../ui/failure.ts";
 import { ItemForm } from "../ui/item-form.tsx";
@@ -17,7 +18,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
   const budget = useMemo(() => budgetOf(entries), [entries]);
   const [errors, setErrors] = useState<string[]>([]);
   const { busy, once } = useBusy();
-  const line = budget.groups.flatMap((group) => group.lines).find((candidate) => candidate.row.id === id);
+  const { row: line, gone } = useOpenRow(budget.groups.flatMap((group) => group.lines).find((candidate) => candidate.row.id === id));
   if (!line) return <Gone name="planned" id={id} back="#/money" wide={wide} />;
   const { row, payments } = line;
   const Heading = wide ? "h3" : "h2";
@@ -75,7 +76,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
           </div>
         )}
       </dl>
-      <section aria-labelledby="payments">
+      <section aria-labelledby="payments" inert={gone}>
         <Heading id="payments">{text.budget.payments}</Heading>
         {payments.length === 0 ? (
           <p className="empty">{text.empty.payments}</p>
@@ -114,7 +115,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
       </section>
       <section aria-labelledby="line-edit">
         <Heading id="line-edit">{text.budget.editLine}</Heading>
-        <ItemForm key={row.id} name="planned" row={row} />
+        <ItemForm key={row.id} name="planned" row={row} gone={gone} />
       </section>
       {!wide && (
         <p className="trail">

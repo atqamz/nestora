@@ -47,7 +47,7 @@ export const stable = (previous: Rows, next: Rows): Rows =>
     }),
   ) as unknown as Rows;
 
-export const newer =(base: Maps, changes: Changes): Partial<Rows> => {
+export const newer = (base: Maps, changes: Changes): Partial<Rows> => {
   const fresh: Record<string, Dict[]> = {};
   for (const table of tableNames) {
     for (const row of (changes[table] ?? []) as Dict[]) {
