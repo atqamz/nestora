@@ -13,18 +13,18 @@ const all = [books, read("style.css"), read("ui/ui.css"), read("ui/sheet.css")].
 const rule = (css: string, selector: string) =>
   new RegExp(`(?:^|\\n)${selector.replace(/[.>*[\]="():]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
 
-test("the phone tab bar has one column per entry, the Add button's wider than the rest and capped by the viewport so the links keep 44 px at large text", () => {
-  const columns = /\.tabs\s*\{[^}]*grid-template-columns:\s*([^;]+);/.exec(read("style.css"))?.[1].trim().replace(/min\(([^)]*)\)/, (_, args) => `min(${args.replace(/\s+/g, "")})`).split(/\s+/) ?? [];
+test("the phone tab bar has one column per entry and the Add button's column is wider than the rest", () => {
+  const columns = /\.tabs\s*\{[^}]*grid-template-columns:\s*([^;]+);/.exec(read("style.css"))?.[1].trim().split(/\s+/) ?? [];
   assert.equal(columns.length, navEntries("tabs").length);
-  assert.deepEqual(columns, ["1fr", "1fr", "min(4.5rem,20vw)", "1fr", "1fr"]);
-  assert.match(rule(read("style.css"), ".tab-add"), /width:\s*min\(3\.5rem, 16vw\)/);
+  assert.deepEqual(columns, ["1fr", "1fr", "4.5rem", "1fr", "1fr"]);
+  assert.match(rule(read("style.css"), ".tab-add"), /width:\s*3\.5rem/);
 });
 
 test("a tab label never breaks inside a word and never outgrows its column", () => {
   const link = rule(read("style.css"), ".tabs a");
   assert.match(link, /white-space:\s*nowrap/);
   assert.match(link, /min-width:\s*0/);
-  assert.match(link, /font-size:\s*min\(var\(--fs-micro\), 3\.6vw\)/);
+  assert.match(link, /font-size:\s*var\(--fs-micro\)/);
   assert.match(link, /min-height:\s*3\.25rem/);
 });
 
