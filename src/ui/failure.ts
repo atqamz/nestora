@@ -1,7 +1,8 @@
 import type { Written } from "../hooks/use-store.ts";
 import { text } from "./text.ts";
 
-export const failureOf = (result: Written): string[] => (result.ok ? [] : result.storage ? [text.storageFailed] : result.paused ? [text.paused] : result.errors);
+export const failureOf = (result: Written, refused?: string): string[] =>
+  result.ok ? [] : result.storage ? [text.storageFailed] : result.paused ? [text.paused] : refused === undefined ? result.errors : [refused];
 
 export const splitErrors = (errors: readonly string[], names: readonly string[]) => {
   const fields: Record<string, string> = {};

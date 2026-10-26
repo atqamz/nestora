@@ -1,11 +1,12 @@
 import type { ItemRow } from "../../shared/tables.ts";
 import { sortBefore } from "../domain/order.ts";
-import { parseYear, restoreStatus, statusPatch } from "../domain/screen.ts";
+import { datePatch, parseYear, restoreDate, restoreStatus, statusPatch, watchedDate } from "../domain/screen.ts";
 import type { ScreenKind, Watch } from "../domain/screen.ts";
 import { tmdbData } from "../domain/tmdb.ts";
 import type { Picked } from "../domain/tmdb.ts";
 import type { Store, Written } from "../store/store.ts";
 import { failureOf } from "./failure.ts";
+import { formatDate } from "./format.ts";
 import { overlay } from "./overlay.ts";
 import { views } from "./registry.ts";
 import { text } from "./text.ts";
@@ -33,11 +34,11 @@ export const saveScreen = async (items: readonly ItemRow[], create: Store["creat
   });
 };
 
-const undoing = (work: () => Promise<Written>) => ({
+const undoing = (work: () => Promise<Written>, refused?: string) => ({
   label: text.undo,
   run: () =>
     void work().then((undone) => {
-      const message = failureOf(undone);
+      const message = failureOf(undone, refused);
       if (message.length > 0) overlay.announce(message.join(" "));
     }),
 });
@@ -47,6 +48,16 @@ export const moveScreen = async (actions: Pick<Store, "update">, row: ItemRow, p
   if (patch === null) return { ok: true, id: row.id };
   const result = await actions.update("items", row.id, patch);
   if (result.ok) overlay.announce(text.screen.moved(row.title, text.screen.pick[pick]), undoing(() => actions.update("items", row.id, restoreStatus(row))));
+  return result;
+};
+
+export const moveWatched = async (actions: Pick<Store, "update">, row: ItemRow, raw: string, today: string): Promise<Written> => {
+  const date = watchedDate(raw, today);
+  if (!date.ok) return { ok: false, errors: [text.screen.watchedDate[date.reason]] };
+  const patch = datePatch(row, date.value);
+  if (patch === null) return { ok: true, id: row.id };
+  const result = await actions.update("items", row.id, patch);
+  if (result.ok) overlay.announce(text.screen.watchedDate.changed(row.title, formatDate(date.value)), undoing(() => actions.update("items", row.id, restoreDate(row)), text.screen.watchedDate.undoRefused));
   return result;
 };
 
