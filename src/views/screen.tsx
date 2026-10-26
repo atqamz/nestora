@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import type { FormEvent } from "react";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
+import { DONE_MIN } from "../../shared/validate.ts";
 import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
@@ -10,16 +12,59 @@ import { actions, useTable } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { Cover, Stars } from "../ui/book-bits.tsx";
 import { failureOf } from "../ui/failure.ts";
-import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
 import { ItemForm } from "../ui/item-form.tsx";
 import { views } from "../ui/registry.ts";
-import { moveScreen, removeScreen } from "../ui/screen-save.ts";
+import { moveScreen, moveWatched, removeScreen } from "../ui/screen-save.ts";
 import { text } from "../ui/text.ts";
 import { DetailTitle } from "../ui/split.tsx";
 import { TmdbCredit } from "../ui/tmdb-credit.tsx";
 import { Title } from "../ui/title.tsx";
 import { Gone } from "./generic-item.tsx";
+
+function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
+  const stamp = useStamp();
+  const { busy, once } = useBusy();
+  const id = useId();
+  const [draft, setDraft] = useState<{ base: string; value: string } | null>(null);
+  const [failure, setFailure] = useState<string[]>([]);
+  const shown = draft?.value ?? day;
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    return once(async () => {
+      const result = await moveWatched(actions, row, shown, stamp());
+      setFailure(failureOf(result));
+      if (result.ok) setDraft(null);
+    });
+  };
+  return (
+    <form className="watched-on" onSubmit={save} noValidate>
+      <div className="field">
+        <label htmlFor={id}>{text.screen.watchedDate.label}</label>
+        <input
+          id={id}
+          type="date"
+          value={shown}
+          min={DONE_MIN}
+          max={stamp()}
+          aria-invalid={failure.length > 0 || undefined}
+          aria-describedby={failure.length > 0 ? `${id}-error` : undefined}
+          onFocus={() => setDraft((now) => now ?? { base: day, value: day })}
+          onChange={(event) => setDraft({ base: draft?.base ?? day, value: event.target.value })}
+          onBlur={() => setDraft((now) => (now !== null && now.value === now.base ? null : now))}
+        />
+      </div>
+      <button type="submit" className="secondary" disabled={busy || shown === day}>
+        {text.screen.watchedDate.save}
+      </button>
+      {failure.length > 0 && (
+        <p className="error" id={`${id}-error`} role="alert">
+          {failure.join(" ")}
+        </p>
+      )}
+    </form>
+  );
+}
 
 function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) {
   const stamp = useStamp();
@@ -42,7 +87,7 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
           </button>
         ))}
       </div>
-      {watchedOn !== null && <p className="hint">{text.screen.watchedOn(formatDate(watchedOn))}</p>}
+      {watchedOn !== null && <WatchedOn row={row} day={watchedOn} />}
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}

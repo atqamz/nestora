@@ -503,6 +503,13 @@ export const text = {
     rateStar: (n: number) => `${n} ${n === 1 ? "star" : "stars"}`,
     notRated: "Not rated yet",
     watchedOn: (day: string) => `Watched ${day}`,
+    watchedDate: {
+      label: "Watched on",
+      save: "Save date",
+      invalid: "Pick a real date, 1888 or later.",
+      future: "That day has not happened yet. Pick today or earlier.",
+      changed: (title: string, day: string) => `Watched on ${day}: ${title}`,
+    },
     notes: "Notes",
     edit: "Edit details",
     original: (title: string) => `Original title: ${title}`,
