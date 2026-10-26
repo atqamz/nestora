@@ -68,6 +68,10 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   let sending: ReadonlySet<number> = new Set();
   let running: Promise<void> | null = null;
   let again = false;
+  let loud = false;
+  let calm = false;
+  let struck = false;
+  let reached = false;
   let snapshot: Snapshot = { ready: false, me, rows: live(base), pending: 0, rejected: [], link, storage, notice, paused: held, dated: false };
   const listeners = new Set<() => void>();
 
@@ -90,6 +94,11 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
   };
 
   const failed = (kind: Exclude<Link, "online">) => {
+    reached = false;
+    if (calm && kind === "offline" && link === "online" && !struck) {
+      struck = true;
+      return;
+    }
     if (link === kind) return;
     link = kind;
     emit();
@@ -185,6 +194,8 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       learn(res.served);
       const quiet = unchanged && link === "online" && wasDated === (clock.skew !== null);
       link = "online";
+      struck = false;
+      reached = true;
       if (!quiet) emit();
       if (!photoChecked) {
         photoChecked = true;
@@ -233,8 +244,9 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     await catchUp();
   };
 
-  const sync = (): Promise<void> => {
+  const sync = (soft?: true): Promise<void> => {
     if (!loaded) return Promise.resolve();
+    if (soft !== true) loud = true;
     if (running) {
       again = true;
       return running;
@@ -243,6 +255,9 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
       try {
         do {
           again = false;
+          calm = !loud;
+          loud = false;
+          reached = false;
           await cycle().catch((error) => (error instanceof StorageFailure ? undefined : failed("offline")));
         } while (again);
       } finally {
@@ -251,6 +266,8 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     })();
     return running;
   };
+
+  const poll = () => sync(true).then(() => reached);
 
   const open = async () => {
     const saved = await persistence.load();
@@ -418,6 +435,7 @@ export const createStore = ({ persistence, api, held = false }: { persistence: P
     serverNow: () => (clock.skew === null ? null : new Date(Date.now() + clock.skew)),
     open,
     sync,
+    poll,
     create,
     update,
     remove,

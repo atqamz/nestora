@@ -15,9 +15,9 @@ type Down = "offline" | "expired";
 
 type Open = { at: "open"; side: Side; down: Down | null; store: Store };
 
-type Later = (run: () => Promise<unknown>, ms: number) => () => void;
+export type Later = (run: () => Promise<unknown>, ms: number) => () => void;
 
-const timer: Later = (run, ms) => {
+export const timer: Later = (run, ms) => {
   const handle = setTimeout(() => void run(), ms);
   return () => clearTimeout(handle);
 };
@@ -135,6 +135,7 @@ export const createSession = ({ disk, hint, api, later = timer, purge = () => {}
     serverNow: () => (state.at === "open" ? state.store.serverNow() : null),
     open: run,
     sync: () => (state.at === "open" && state.down === null ? state.store.sync() : run().catch(() => undefined)),
+    poll: () => (state.at === "open" ? state.store.poll() : Promise.resolve(false)),
     create: write("create"),
     update: write("update"),
     remove: write("remove"),
