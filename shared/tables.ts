@@ -24,6 +24,7 @@ export type Type =
   | "isbn"
   | "cover"
   | "tmdb"
+  | "order"
   | "time"
   | "days"
   | readonly string[];
@@ -64,6 +65,9 @@ const server = <const C extends Column>(column: C) => ({ ...column, server: true
 const immutable = <const C extends Column>(column: C) => ({ ...column, immutable: true as const });
 const clearOnly = <const C extends Column>(column: C) => ({ ...column, clearOnly: true as const });
 
+export const COLLECTION_MAX = 60;
+export const ORDER_MAX = 1_000_000_000;
+
 const who = ["a", "b", "both"] as const;
 
 const days = { days: "days" } as const;
@@ -76,12 +80,15 @@ const screen = {
   cover: "cover",
   tmdb: "tmdb",
   tmdb_at: "date",
+  collection: "text",
+  order: "order",
 } as const;
 const watchable = {
   columns: ["status", "who", "done_on", "note"],
   required: ["status"],
   status: ["want", "watching", "watched"],
   doneOnStatus: "watched",
+  caps: { "data.collection": COLLECTION_MAX },
   data: screen,
 } as const;
 const action = ["parent_id", "group_key", "note"] as const;
