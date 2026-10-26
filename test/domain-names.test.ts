@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { heading, possessive, sideName } from "../src/domain/names.ts";
+import { readFileSync } from "node:fs";
+import { heading, nicknameOf, possessive, sideName } from "../src/domain/names.ts";
 import { text } from "../src/ui/text.ts";
 
 const name = (side: string | null, me: "a" | "b" | null, a: string | null, b: string | null) => sideName(side, me, { a, b }, text);
@@ -62,4 +63,32 @@ test("a group heading is the nickname's possessive, Mine for the viewer and Part
   const { mine, theirs, both } = text.routines.owner;
   assert.deepEqual([mine("Sam"), theirs("Alex"), both], ["Sam's", "Alex's", "Shared"]);
   for (const blank of [null, "", "  "]) assert.deepEqual([mine(blank), theirs(blank), heading(blank, "x")], ["Mine", "Partner's", "x"]);
+});
+
+test("nicknameOf gives the trimmed nickname of that side only, null when blank, unset or no side", () => {
+  const both = { a: " Sam ", b: "Alex" };
+  assert.deepEqual([nicknameOf("a", both), nicknameOf("b", both)], ["Sam", "Alex"]);
+  assert.deepEqual([nicknameOf("a", { a: "Sam", b: null }), nicknameOf("b", { a: "Sam", b: null })], ["Sam", null]);
+  assert.deepEqual([nicknameOf("a", { a: null, b: "Alex" }), nicknameOf("b", { a: null, b: "Alex" })], [null, "Alex"]);
+  for (const blank of ["", "  ", " \t "]) assert.deepEqual([nicknameOf("a", { a: blank, b: "Alex" }), nicknameOf("b", { a: "Sam", b: blank })], [null, null], JSON.stringify(blank));
+  assert.equal(nicknameOf(null, both), null);
+});
+
+const source = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
+
+test("usePartner hands its two nicknames to nicknameOf as a and b", () => {
+  assert.match(source("hooks/use-plan.ts"), /nicknameOf\(side, \{ a: partnerA, b: partnerB \}\)/);
+});
+
+test("the Mine chip is the viewer's own nickname or Mine, never the partner's", () => {
+  const chip = source("ui/owner-filter.tsx");
+  assert.match(chip, /\["mine", nickname\(me\) \?\? text\.owner\.mine\]/);
+  assert.equal(text.owner.mine, "Mine");
+  assert.doesNotMatch(chip, /nickname\(me === /);
+  assert.match(chip, /\["theirs", label\(me === "a" \? "b" : "a"\)\]/);
+});
+
+test("a routines heading is Shared for both, the viewer's nickname for mine and the partner's for theirs", () => {
+  assert.match(source("views/routines.tsx"), /owner === "both" \? copy\.owner\.both : copy\.owner\[owner\]\(nickname\(owner === "mine" \? me : me === "a" \? "b" : "a"\)\)/);
+  assert.equal(text.routines.owner.both, "Shared");
 });
