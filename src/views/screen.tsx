@@ -1,15 +1,19 @@
 import { useState } from "react";
+import { COLLECTION_MAX } from "../../shared/tables.ts";
 import type { ItemRow, Patch } from "../../shared/tables.ts";
+import { collectionName, collectionNames, collections } from "../domain/collection.ts";
 import { WATCH, ratingPatch, ratingRows, screenDetail, screenFacts, watchOf } from "../domain/screen.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { tmdbPage, usesTmdb, validId } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
-import { actions, useTable } from "../hooks/use-store.ts";
+import { actions, readItems, useTable } from "../hooks/use-store.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { Cover, Stars } from "../ui/book-bits.tsx";
+import { setCollection } from "../ui/collection-flows.ts";
 import { failureOf } from "../ui/failure.ts";
+import { Field } from "../ui/field.tsx";
 import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
 import { ItemForm } from "../ui/item-form.tsx";
@@ -88,6 +92,63 @@ function Ratings({ row }: { row: ItemRow }) {
   );
 }
 
+function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
+  const rows = useTable("items");
+  const { busy, once } = useBusy();
+  const live = rows.find((candidate) => candidate.id === row.id) ?? row;
+  const current = collectionName(live);
+  const group = collections(rows, kind).find(({ rows: members }) => members.some((member) => member.id === row.id));
+  const [typed, setTyped] = useState(current ?? "");
+  const [failure, setFailure] = useState<string[]>([]);
+  const run = (raw: string) => once(async () => setFailure(failureOf(await setCollection({ items: readItems, actions }, kind, row, raw))));
+  const words = text.screen.collection;
+  return (
+    <section aria-labelledby="sc-collection">
+      <h2 id="sc-collection">{words.section}</h2>
+      <form
+        className="form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          return run(typed);
+        }}
+      >
+        <Field
+          control={{ name: "collection", label: words.label, type: "text", words: true, max: COLLECTION_MAX, hint: words.hint, value: typed, onChange: setTyped, suggestions: collectionNames(rows, kind) }}
+        />
+        {group && (
+          <p className="hint" role="status">
+            {words.position(group.rows.findIndex((member) => member.id === row.id) + 1, group.rows.length)}
+          </p>
+        )}
+        <div className="form-actions">
+          <button type="submit" disabled={busy}>
+            {words.save}
+          </button>
+          {current !== null && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => {
+                setTyped("");
+                return run("");
+              }}
+            >
+              {words.remove}
+            </button>
+          )}
+        </div>
+      </form>
+      {failure.length > 0 && (
+        <p className="error" role="alert">
+          {failure.join(" ")}
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   const rows = useTable("items");
   const { me } = usePartner();
@@ -133,6 +194,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
       </div>
       {!gone && <Status row={row} watchedOn={watchedOn} />}
       {!gone && watched && <Ratings row={row} />}
+      {!gone && <Collection row={row} kind={kind} />}
       {row.note && (
         <section aria-labelledby="sc-notes">
           <h2 id="sc-notes">{text.screen.notes}</h2>
