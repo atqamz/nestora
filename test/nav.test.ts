@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCurrent, marriageTabs, navEntries, navItems } from "../src/ui/nav.ts";
+import { isCurrent, libraryTabs, marriageTabs, navEntries, navItems } from "../src/ui/nav.ts";
 import { screenOf, screens } from "../src/ui/routes.ts";
 import type { Screen } from "../src/ui/routes.ts";
 import { text } from "../src/ui/text.ts";
@@ -52,6 +52,10 @@ const destinations: Record<string, [Screen, string]> = {
   "books/import": ["books", "books"],
   wishlist: ["books", "books"],
   places: ["books", "books"],
+  movies: ["movies", "books"],
+  "movies/m1": ["movies", "books"],
+  series: ["series", "books"],
+  "series/s1": ["series", "books"],
   settings: ["settings", "settings"],
 };
 
@@ -74,6 +78,19 @@ test("the Marriage tabs cover Journey, Tasks, Money and People, and each opens a
     assert.ok(isCurrent(marriage, tab.section), tab.section);
   }
   for (const screen of marriage.screens) assert.equal(marriageTabs.filter((tab) => tab.screens.includes(screen)).length, 1, screen);
+});
+
+test("the Library tabs cover Books, Movies and Series, each opens its own screen and keeps Library current", () => {
+  assert.deepEqual(
+    libraryTabs.map((tab) => tab.label),
+    ["Books", "Movies", "Series"],
+  );
+  const library = navItems("rail").find((item) => item.section === "books")!;
+  for (const tab of libraryTabs) {
+    assert.ok(tab.screens.includes(screenOf(tab.section)!), tab.section);
+    assert.ok(isCurrent(library, tab.section), tab.section);
+  }
+  for (const screen of library.screens) assert.equal(libraryTabs.filter((tab) => tab.screens.includes(screen)).length, 1, screen);
 });
 
 test("every destination links to a route that opens one of its own screens", () => {

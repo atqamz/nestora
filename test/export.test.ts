@@ -147,3 +147,23 @@ test("imported rows may carry CR: it is quoted and a leading CR is guarded", asy
   assert.ok(text.includes(`,"a\rb",`));
   assert.ok(text.includes(`,"'\r=1",`));
 });
+
+test("movie and series csv hold their own columns and data keys, and a title that starts with = is not a formula", async () => {
+  const { db } = createDb();
+  const stamps = { created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" };
+  const result = await apply(db, [
+    mutation("create", "items", id(40), { id: id(40), kind: "movie", title: "=Inception", status: "watched", who: "both", done_on: "2026-10-17", note: "Lights on", data: { original_title: "Origin", year: 2010, rating_a: "4", rating_b: "3" }, ...stamps }),
+    mutation("create", "items", id(41), { id: id(41), kind: "series", title: "Breaking Bad", status: "want", ...stamps }),
+  ]);
+  assert.equal("errors" in result, false);
+  const movies = parse(await (await get(db, "format=csv&table=items&kind=movie")).text());
+  assert.equal(movies.length, 2);
+  const header = movies[0].split(",");
+  for (const column of ["status", "who", "done_on", "note", "data.original_title", "data.year", "data.rating_a", "data.rating_b"]) assert.ok(header.includes(column), column);
+  assert.ok(!header.includes("data.cover") && !header.includes("data.tmdb"));
+  assert.ok(movies[1].includes(",'=Inception,"));
+  assert.ok(movies[1].includes(",2010,4,3"));
+  const series = parse(await (await get(db, "format=csv&table=items&kind=series")).text());
+  assert.equal(series.length, 2);
+  assert.ok(series[1].includes("Breaking Bad") && !series[1].includes("Inception"));
+});

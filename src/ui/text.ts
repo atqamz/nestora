@@ -2,6 +2,14 @@ import { heading, possessive } from "../domain/names.ts";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+const screenFields = {
+  title: "Title",
+  who: "Whose pick is it?",
+  note: "Notes",
+  "data.original_title": "Original title",
+  "data.year": "Year",
+};
+
 export const text = {
   appName: "Nestora",
   loading: "Loading",
@@ -110,6 +118,8 @@ export const text = {
     guest: { who: "Side", group_key: "Category", qty: "People" },
     planned: { group_key: "Event", amount: "Planned amount" },
     payment: { who: "Paid by" },
+    movie: screenFields,
+    series: screenFields,
   },
   option: {
     status: {
@@ -137,6 +147,7 @@ export const text = {
   invalid: {
     phone: "Enter a phone number such as 0812 3456 7890 or +62 812 3456 7890.",
     int: "Enter a whole number, for example 2500000 or 2.500.000.",
+    year: "Enter a year from 1880 to 2200, or leave it empty.",
     url: "Enter a link that starts with http:// or https://.",
     isbn: "Enter a valid ISBN-10 or ISBN-13. Hyphens are fine.",
     text: "Use at most 500 characters, with at least one that shows.",
@@ -398,6 +409,8 @@ export const text = {
     vendor: "Vendors (CSV)",
     guest: "Guests (CSV)",
     book: "Books (CSV)",
+    movie: "Movies (CSV)",
+    series: "Series (CSV)",
     copy: "Copies (CSV)",
     place: "Places (CSV)",
     planned: "Budget lines (CSV)",
@@ -455,6 +468,53 @@ export const text = {
     placeholder: "Add something",
     go: "Add",
     review: "Review and add",
+  },
+  movies: {
+    title: "Movies",
+    add: "Add a movie",
+    sheetTitle: "Add a movie",
+    search: "Search movies",
+    found: (n: number) => (n === 1 ? "1 movie found" : `${n} movies found`),
+    empty: "No movies yet. Add one you want to watch.",
+    allWatched: "Nothing left to watch. Add another movie.",
+  },
+  series: {
+    title: "Series",
+    add: "Add a series",
+    sheetTitle: "Add a series",
+    search: "Search series",
+    found: (n: number) => `${n} series found`,
+    empty: "No series yet. Add one you want to watch.",
+    allWatched: "Nothing left to watch. Add another series.",
+  },
+  screen: {
+    placeholder: "Title or original title",
+    noMatch: "No match.",
+    watching: "Watching now",
+    want: "To watch",
+    watched: "Watched",
+    status: "Status",
+    pick: { want: "To watch", watching: "Watching", watched: "Watched" },
+    ratings: "Ratings",
+    rate: "Your rating",
+    rateStar: (n: number) => `${n} ${n === 1 ? "star" : "stars"}`,
+    notRated: "Not rated yet",
+    watchedOn: (day: string) => `Watched ${day}`,
+    notes: "Notes",
+    edit: "Edit details",
+    original: (title: string) => `Original title: ${title}`,
+    added: (title: string) => `Added: ${title}`,
+    deleted: (title: string) => `Deleted: ${title}`,
+    moved: (title: string, to: string) => `Moved to ${to}: ${title}`,
+    notHere: "We can't find that here.",
+    sheet: {
+      kind: "Where does it go?",
+      title: "Title",
+      year: "Year (optional)",
+      owner: "Whose pick is it?",
+      save: "Add",
+      needTitle: "Add a title.",
+    },
   },
   books: {
     title: "Books",

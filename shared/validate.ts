@@ -42,6 +42,8 @@ export const STAGES_MAX = 12;
 export const STAGE_NAME_MAX = 40;
 export const MONTH_MIN = -36;
 export const MONTH_MAX = 12;
+export const YEAR_MIN = 1880;
+export const YEAR_MAX = 2200;
 
 const show = (v: unknown) => (typeof v === "string" ? JSON.stringify(v) : typeof v);
 
@@ -166,6 +168,7 @@ const expected: Record<string, string> = {
   longtext: `a single-line string of up to ${LONGTEXT_MAX} characters with a visible character and no control characters`,
   note: `a string of up to ${NOTE_MAX} characters with a visible character and no control characters except newline and tab`,
   int: "a non-negative integer",
+  year: `a year from ${YEAR_MIN} to ${YEAR_MAX}`,
   real: "a finite number",
   bool: "true or false",
   instant: "an RFC 3339 UTC instant such as 2026-10-06T05:00:00Z, without a fraction",
@@ -194,6 +197,7 @@ const problem = (type: Type, v: unknown): string | null => {
     : type === "longtext" ? isText(v, LONGTEXT_MAX, false)
     : type === "note" ? isText(v, NOTE_MAX, true)
     : type === "int" ? typeof v === "number" && Number.isSafeInteger(v) && v >= 0
+    : type === "year" ? typeof v === "number" && Number.isInteger(v) && v >= YEAR_MIN && v <= YEAR_MAX
     : type === "real" ? typeof v === "number" && Number.isFinite(v)
     : type === "bool" ? typeof v === "boolean"
     : type === "instant" ? typeof v === "string" && isInstant(v)
