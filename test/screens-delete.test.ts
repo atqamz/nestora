@@ -207,15 +207,7 @@ const BEFORE = ["0001_init.sql", "0002_feed.sql"];
 
 const PURGE = "0003_purge_deleted_posters.sql";
 
-const FOLLOW_UP = `UPDATE items
-SET data = json_remove(data, '$.cover', '$.tmdb', '$.tmdb_at'),
-    rev = (SELECT rev + 1 FROM sync_state WHERE id = 1),
-    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-WHERE deleted_at IS NOT NULL AND kind IN ('movie', 'series')
-  AND (json_type(data, '$.cover') IS NOT NULL OR json_type(data, '$.tmdb') IS NOT NULL OR json_type(data, '$.tmdb_at') IS NOT NULL);
-
-UPDATE sync_state SET rev = rev + 1 WHERE id = 1 AND EXISTS (SELECT 1 FROM items WHERE rev > (SELECT rev FROM sync_state WHERE id = 1));
-`;
+const AGAIN = "0004_purge_deleted_posters_again.sql";
 
 const old = () => {
   const sqlite = new DatabaseSync(":memory:");
@@ -323,7 +315,7 @@ test("a poster write that lands between the Worker's read and its batch does not
   assert.deepEqual(dataOf(server, id), { year: 1999 });
 });
 
-test("0003 alone leaves a delete made by the old Worker after it keeping its keys, and a later migration with the same statements purges it, bumps the revision once and then never", () => {
+test("0003 alone leaves a delete made by the old Worker after it keeping its keys, and 0004 purges it, bumps the revision once and then never", () => {
   const { sqlite, put } = old();
   sqlite.exec(migrations([PURGE])[0]);
   put("late-movie", "movie", true, { ...KEPT, ...KEYS });
@@ -333,7 +325,7 @@ test("0003 alone leaves a delete made by the old Worker after it keeping its key
   assert.deepEqual(JSON.parse(read(sqlite, "late-movie").data!), { ...KEPT, ...KEYS });
   assert.deepEqual(JSON.parse(read(sqlite, "late-series").data!), KEYS);
   const before = revOf(sqlite);
-  const sql = FOLLOW_UP;
+  const sql = migrations([AGAIN])[0];
   sqlite.exec(sql);
   assert.equal(revOf(sqlite), before + 1);
   assert.deepEqual(JSON.parse(read(sqlite, "late-movie").data!), KEPT);
@@ -351,11 +343,11 @@ test("0003 alone leaves a delete made by the old Worker after it keeping its key
   assert.deepEqual(sqlite.prepare("SELECT id, rev, updated_at FROM items ORDER BY id").all(), stamped);
 });
 
-test("the migrations are numbered without a gap, 0001 to 0003, and the Worker config reads them from the one folder", () => {
+test("the migrations are numbered without a gap, 0001 to 0004, and the Worker config reads them from the one folder", () => {
   const names = readdirSync(new URL("../migrations/", import.meta.url)).sort();
-  assert.deepEqual(names.map((name) => name.slice(0, 4)), ["0001", "0002", "0003"]);
-  assert.deepEqual(names.slice(2), [PURGE]);
-  assert.equal(FOLLOW_UP, migrations([PURGE])[0]);
+  assert.deepEqual(names.map((name) => name.slice(0, 4)), ["0001", "0002", "0003", "0004"]);
+  assert.deepEqual(names.slice(2), [PURGE, AGAIN]);
+  assert.equal(migrations([AGAIN])[0], migrations([PURGE])[0]);
   assert.equal((readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8").match(/"migrations_dir": "migrations"/g) ?? []).length, 2);
 });
 
