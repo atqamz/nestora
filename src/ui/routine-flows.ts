@@ -42,6 +42,10 @@ export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
     return result;
   };
 
+  const revive = (ids: readonly string[]) => actions.many(ids.map((id) => ({ op: "update" as const, table: "items" as const, id, change: { deleted_at: null } })));
+
+  const restore = (routine: ItemRow, rows: readonly ItemRow[]) => revive([routine.id, ...rows.map((action) => action.id)]);
+
   const remove = async (routine: ItemRow): Promise<Written> => {
     const ids = [routine.id, ...actionsOf(items, routine).map((action) => action.id)];
     const result = await actions.many(ids.map((id) => ({ op: "delete" as const, table: "items" as const, id })));
@@ -50,7 +54,7 @@ export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
       overlay.announce(text.routines.deleted(routine.title), {
         label: text.undo,
         run: () =>
-          void actions.many(ids.map((id) => ({ op: "update" as const, table: "items" as const, id, change: { deleted_at: null } }))).then((back) => {
+          void revive(ids).then((back) => {
             const message = failureOf(back);
             if (message.length > 0) overlay.announce(message.join(" "));
           }),
@@ -59,7 +63,7 @@ export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
     return result;
   };
 
-  return { toggle, plus, reset, pause, resume, save, remove };
+  return { toggle, plus, reset, pause, resume, save, remove, restore };
 };
 
 export type Flows = ReturnType<typeof routineFlows>;

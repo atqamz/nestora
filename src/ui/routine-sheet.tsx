@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Side } from "../../shared/api.ts";
 import { ACTION_KINDS, DAY_CODES, TIMETABLE } from "../../shared/routines.ts";
@@ -23,7 +23,7 @@ const copy = text.routines;
 
 const form = copy.form;
 
-type Props = { start: RoutineDraft; current: Current | null; me: Side; today: string; duplicate?: ItemRow; flows: Flows; onClose: () => void };
+type Props = { start: RoutineDraft; current: Current | null; me: Side; today: string; duplicate?: ItemRow; gone?: boolean; flows: Flows; onClose: () => void };
 
 const message = (problem: Problem) => (problem.code === "required" ? form.problem[problem.field as "title"] : problem.code === "order" ? form.problem.end : form.problem[problem.code]);
 
@@ -141,7 +141,7 @@ function ActionEditor({
   );
 }
 
-export function RoutineSheet({ start, current, me, today, duplicate, flows, onClose }: Props) {
+export function RoutineSheet({ start, current, me, today, duplicate, gone = false, flows, onClose }: Props) {
   const { label } = usePartner();
   const { busy, once } = useBusy();
   const [opened] = useState(current);
@@ -150,6 +150,8 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   const [failure, setFailure] = useState<string[]>([]);
   const [focus, setFocus] = useState<string[] | null>(null);
   const body = useRef<HTMLDivElement>(null);
+  const revived = useRef(false);
+  const notice = useId();
   const creating = opened === null;
   const locked = draft.private;
   const timetable = draft.moment === TIMETABLE;
@@ -168,6 +170,20 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
   useEffect(() => {
     body.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
   }, [problems]);
+
+  useEffect(() => {
+    if (gone || busy || !revived.current) return;
+    revived.current = false;
+    body.current?.querySelector<HTMLElement>("input")?.focus();
+  }, [gone, busy]);
+
+  const restore = () =>
+    once(async () => {
+      revived.current = true;
+      const result = await flows.restore(current!.routine, current!.actions);
+      if (!result.ok) revived.current = false;
+      setFailure(failureOf(result));
+    });
 
   const add = (kind: ActionKind) => {
     const added = blankAction(kind, crypto.randomUUID());
@@ -225,9 +241,19 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
       onClose={onClose}
       onSubmit={submit}
       foot={
-        <button type="submit" disabled={busy}>
-          {creating ? form.create : form.save}
-        </button>
+        <>
+          <p id={notice} className={gone ? "hint sheet-hint" : "visually-hidden"} role="status">
+            {gone ? copy.goneOpen : ""}
+          </p>
+          {gone && (
+            <button type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
+              {text.undo}
+            </button>
+          )}
+          <button type="submit" disabled={busy || gone}>
+            {creating ? form.create : form.save}
+          </button>
+        </>
       }
     >
       <div className="form rt-form" ref={body}>
@@ -325,7 +351,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, flows, onCl
           ))}
         </div>
         {!creating && (
-          <button type="button" className="danger rt-delete" disabled={busy} onClick={() => once(async () => setFailure(failureOf(await flows.remove(opened.routine))))}>
+          <button type="button" className="danger rt-delete" disabled={busy || gone} onClick={() => once(async () => setFailure(failureOf(await flows.remove(opened.routine))))}>
             {form.delete}
           </button>
         )}

@@ -770,6 +770,7 @@ export const text = {
     emptyHome: "No routines yet.",
     create: "Create a routine",
     missing: "This routine is not available",
+    goneOpen: "This routine was deleted. What you typed is still here.",
     back: "Routines",
     owner: { mine: (nickname: string | null) => heading(nickname, "Mine"), both: "Shared", theirs: (nickname: string | null) => heading(nickname, "Partner's") },
     moment: { morning: "Morning", on_demand: "On demand", evening: "Evening", timetable: "Timetable", other: "Other" },
