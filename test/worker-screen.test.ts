@@ -885,3 +885,12 @@ test("a stored entry is served only for its own kind and each id once, so a pois
   assert.deepEqual(hits.map((hit) => [hit.tmdb, hit.title]), [[5, "Good"], [7, "Other"]]);
   assert.equal(t.calls.length, 0);
 });
+
+test("a stored series entry is served for the series query with its own kind, and a movie hit in it is dropped", async () => {
+  const key = "https://lookup.invalid/screen/v1?kind=series&title=rumah";
+  const show = { kind: "series", tmdb: 5, title: "Good Show", original: null, year: 2001, cover: null };
+  const t = setup(movies);
+  await t.cache.store.put(new Request(key), Response.json({ hits: [show, { ...show, kind: "movie", tmdb: 6, title: "Wrong Kind" }], at: Date.now() }));
+  assert.deepEqual((await hitsOf(await t.get("kind=series&title=Rumah"))).map((hit) => [hit.kind, hit.tmdb]), [["series", 5]]);
+  assert.equal(t.calls.length, 0);
+});

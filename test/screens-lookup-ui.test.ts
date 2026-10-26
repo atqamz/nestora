@@ -201,3 +201,20 @@ test("without matches there is no list and no credit, and each state is spoken i
   }
   assert.equal(note(await lookupOf({ state: "busy", hits: [] }, "series")), "Searching for the series");
 });
+
+test("the rendered add sheet starts with To watch pressed, an empty lookup region under the year, and a plain Add button", async () => {
+  const html = (await markupOf("ui/screen-sheet.tsx", ({ ScreenSheet }) => createElement(ScreenSheet, { kind: "series", onClose: () => undefined }))).replace(/<link rel="preload"[^>]*\/>/g, "");
+  assert.match(html, /<button type="button" aria-pressed="true"><svg[^>]*>.*?<\/svg>To watch<\/button><button type="button" aria-pressed="false"><svg[^>]*>.*?<\/svg>Watched<\/button>/);
+  assert.match(html, /<input id="[^"]+" required="" type="text"[^>]*name="title" value=""\/>/);
+  assert.match(html, /name="year" value=""\/><\/div><div class="lookup"><p class="hint look-note" role="status"><\/p><\/div><fieldset class="field choice-field"><legend>Whose pick is it\?<\/legend>/);
+  assert.match(html, /<input type="radio" name="who" checked="" value="both"\/>/);
+  assert.match(html, /<button type="submit">Add<\/button>/);
+  assert.doesNotMatch(html, /Add as typed|<ul class="hits"|tmdb/);
+});
+
+test("the hook asks from two typed letters only, the detail's TMDB link shows only for a row with an id, and the poster is named in the detail", () => {
+  assert.match(read("hooks/use-lookup.ts"), /const ready = enabled && title\.trim\(\)\.length >= MIN_SCREEN_LETTERS;/);
+  assert.match(read("views/screen.tsx"), /\{tmdb !== null && \(\s*<p>\s*<a className="button secondary" href=\{tmdbPage\(kind, tmdb\)\}/);
+  assert.match(read("views/screen.tsx"), /<Cover book=\{row\} alt=\{text\.screen\.posterOf\(row\.title\)\} \/>/);
+  assert.equal(text.screen.posterOf("Spirited Away"), "Poster of Spirited Away");
+});

@@ -222,3 +222,13 @@ test("a title answer is remembered for the hour, an id answer with a hit too, bu
   assert.deepEqual(await third.screenById("movie", 5), { kind: "ok", value: null });
   assert.equal(gone.calls.length, 2);
 });
+
+test("a series search keeps the series hits the route returns and drops a movie hit", async () => {
+  const show = { ...hit, kind: "series", tmdb: 920001, title: "Rumah Kaca" };
+  const t = net(() => found(show, hit));
+  const out = await lookup(t.fetcher).screen({ kind: "series", title: "Rumah", year: null });
+  assert.deepEqual(out, { kind: "ok", value: [show] });
+  const byId = await lookup(net(() => found(show)).fetcher).screenById("series", 920001);
+  assert.deepEqual(byId, { kind: "ok", value: show });
+  assert.deepEqual(await lookup(net(() => found(hit)).fetcher).screenById("series", hit.tmdb), { kind: "ok", value: null });
+});
