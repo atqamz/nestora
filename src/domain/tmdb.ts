@@ -1,5 +1,5 @@
 import type { ItemRow } from "../../shared/tables.ts";
-import { isCover, YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
+import { isPoster, YEAR_MAX, YEAR_MIN } from "../../shared/validate.ts";
 import { TITLE_MAX, tidy } from "./lookup.ts";
 import { dict } from "./openlibrary.ts";
 import { fold } from "./search.ts";
@@ -57,7 +57,7 @@ const hitOf = (raw: unknown): ScreenHit | null => {
   if (typeof kind !== "string" || !isScreenKind(kind) || validId(tmdb) === null || name === null) return null;
   if (original !== null && text(original) === null) return null;
   if (year !== null && validYear(year) === null) return null;
-  if (cover !== null && !isCover(cover)) return null;
+  if (cover !== null && !isPoster(cover)) return null;
   return { kind, tmdb: tmdb as number, title: name, original: original as string | null, year: year as number | null, cover: cover as string | null };
 };
 
@@ -78,7 +78,7 @@ export const parseScreenHits = (body: unknown, kind: ScreenKind): ScreenHit[] =>
 export const hitSub = (hit: ScreenHit) => [hit.original, hit.year === null ? null : String(hit.year)].filter(Boolean).join(" · ");
 
 export const usesTmdb = (rows: readonly ItemRow[], kind: ScreenKind) =>
-  rows.some((row) => row.kind === kind && (isCover(row.data?.cover) || validId(row.data?.tmdb) !== null));
+  rows.some((row) => row.kind === kind && (isPoster(row.data?.cover) || validId(row.data?.tmdb) !== null));
 
 export const tmdbPage = (kind: ScreenKind, id: number) => `https://www.themoviedb.org/${kind === "movie" ? "movie" : "tv"}/${id}`;
 

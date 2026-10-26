@@ -112,6 +112,8 @@ test("a hit is refused for each bad field: kind, id, title, original, year and c
     { cover: "javascript:alert(1)" },
     { cover: "https://evil.example/a.jpg" },
     { cover: "https://image.tmdb.org/t/p/original/a.jpg" },
+    { cover: "https://covers.openlibrary.org/b/id/1-M.jpg" },
+    { cover: "https://books.google.com/books/content?id=a" },
     { cover: 5 },
     { cover: undefined },
   ];
@@ -205,5 +207,6 @@ test("a list shows TMDB when a row of its kind has a poster or an id, and not fo
   assert.equal(usesTmdb([row("movie", { cover: good.cover })], "series"), false);
   assert.equal(usesTmdb([row("movie", { year: 2001, original_title: "O" }), row("movie", null)], "movie"), false);
   assert.equal(usesTmdb([row("movie", { cover: "https://evil.example/a.jpg", tmdb: 0 })], "movie"), false);
+  assert.equal(usesTmdb([row("movie", { cover: "https://covers.openlibrary.org/b/id/1-M.jpg" })], "movie"), false);
   assert.equal(usesTmdb([], "movie"), false);
 });
