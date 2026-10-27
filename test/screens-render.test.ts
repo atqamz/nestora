@@ -36,11 +36,11 @@ const page = async (rows: ItemRow[], kind: "movie" | "series" = "movie", id?: st
 
 const posters = (html: string) => /<div class="posters">(.*?)<\/div><\/div>/.exec(html)?.[0] ?? "";
 
-test("a list with a row typed by hand offers Find posters with the count, in one polite status line, between the add button and the search", async () => {
+test("a list with a row typed by hand offers Find posters with the count, in one polite status line, after the lists and before the TMDB credit", async () => {
   const html = await page([typed("Pengabdi Setan")]);
   assert.equal(posters(html), '<div class="posters"><p class="hint imp-progress" role="status" tabindex="-1">1 poster needs a refresh</p><div class="imp-acts"><button type="button" class="secondary">Find posters</button></div></div>');
-  assert.ok(html.indexOf('class="bk-tools"') < html.indexOf('class="posters"'));
-  assert.ok(html.indexOf('class="posters"') < html.indexOf('role="search"'));
+  assert.ok(html.indexOf('role="search"') < html.indexOf('class="posters"'));
+  assert.ok(html.indexOf("Pengabdi Setan") < html.indexOf('class="posters"'));
   assert.equal(html.match(/role="status"/g)?.length, 1);
 });
 
@@ -152,13 +152,12 @@ test("a detail page offers Remove poster while the row holds a poster or an id, 
   assert.match(await page([show], "series", show.id), /Remove poster/);
 });
 
-test("Remove poster comes after the TMDB link and before the edit form, and nothing else is added to the detail", async () => {
+test("Remove poster comes after the TMDB link, and nothing else is added to the detail", async () => {
   const row = fetched("Seen", 5);
   const html = await page([row], "movie", row.id);
   assert.ok(html.indexOf("Open on TMDB") < html.indexOf("Remove poster"));
-  assert.ok(html.indexOf("Remove poster") < html.indexOf('id="sc-edit"'));
   assert.equal(html.split("Remove poster").length, 2);
-  assert.equal(html.match(/<h2/g)?.length, 3);
+  assert.equal(html.match(/<h2/g)?.length, 2);
   assert.equal(html.match(/<h2[^>]*>Collection</g)?.length, 1);
 });
 

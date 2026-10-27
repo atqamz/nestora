@@ -11,7 +11,7 @@ import { text } from "./text.ts";
 
 export function QuickAdd({ name }: { name: ListName }) {
   const items = useTable("items");
-  const { me, label } = usePartner();
+  const { me } = usePartner();
   const { busy, once } = useBusy();
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -27,7 +27,7 @@ export function QuickAdd({ name }: { name: ListName }) {
         title,
         status: firstStatus(name)!,
         sort: sortBefore(items.filter((item) => item.kind === name)),
-        ...(name === "guest" ? { who: String(data.get("who")) as "a" | "b" } : {}),
+        ...(name === "guest" ? { who: me ?? "a" } : {}),
       });
       if (result.ok) form.reset();
       setErrors(failureOf(result));
@@ -48,12 +48,6 @@ export function QuickAdd({ name }: { name: ListName }) {
         enterKeyHint="done"
         placeholder={text.quickAdd[name].placeholder}
       />
-      {name === "guest" && (
-        <select name="who" aria-label={text.quickAdd.side} defaultValue={me ?? "a"} key={me}>
-          <option value="a">{label("a")}</option>
-          <option value="b">{label("b")}</option>
-        </select>
-      )}
       <button type="submit" disabled={busy} aria-label={text.quickAdd[name].placeholder}>
         {text.add}
       </button>

@@ -15,11 +15,12 @@ import { useBookActions } from "../ui/book-actions.ts";
 import { Cover, Stars } from "../ui/book-bits.tsx";
 import { FillBook } from "../ui/book-lookup.tsx";
 import { CopySheet } from "../ui/copy-sheet.tsx";
+import { DetailTools } from "../ui/detail-tools.tsx";
+import { EditSheet } from "../ui/edit-sheet.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
-import { ItemForm } from "../ui/item-form.tsx";
-import { optionLabel } from "../ui/labels.ts";
+import { fieldLabel, optionLabel } from "../ui/labels.ts";
 import { Money } from "../ui/money.tsx";
 import { views } from "../ui/registry.ts";
 import { text } from "../ui/text.ts";
@@ -172,9 +173,33 @@ function Copy({ copy, book, places, onEdit }: { copy: ItemRow; book: ItemRow; pl
   );
 }
 
-function BookForm({ book, gone, onRemove, onRestore }: { book: ItemRow; gone: boolean; onRemove: () => Promise<Written>; onRestore: () => Promise<Written> }) {
+const MORE = ["data.language", "data.priority", "data.shop_url"] as const;
+
+function Details({ book }: { book: ItemRow }) {
+  const { label } = usePartner();
+  const rows = MORE.flatMap((field) => {
+    const value = word(book, field.slice(5));
+    return value === null ? [] : [{ field, name: fieldLabel("book", field), value: optionLabel("book", field, value, label) }];
+  });
+  if (rows.length === 0) return null;
+  return (
+    <section aria-labelledby="bk-details">
+      <h2 id="bk-details">{text.frame.details}</h2>
+      <dl className="bk-dl">
+        {rows.map(({ field, name, value }) => (
+          <div key={field}>
+            <dt>{name}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function BookEdit({ book, gone, onClose, onRestore }: { book: ItemRow; gone: boolean; onClose: () => void; onRestore: () => Promise<Written> }) {
   const [wish] = useState(book.status === "wish");
-  return <ItemForm name="book" row={book} gone={gone} only={wish ? views.book.fields : SHELF_FIELDS} onRemove={onRemove} onRestore={onRestore} />;
+  return <EditSheet name="book" row={book} gone={gone} title={text.books.edit} only={wish ? views.book.fields : SHELF_FIELDS} onClose={onClose} onRestore={onRestore} />;
 }
 
 export function BookDetail({ id }: { id: string }) {
@@ -183,6 +208,7 @@ export function BookDetail({ id }: { id: string }) {
   const { gotIt, removeBook, restoreBook } = useBookActions();
   const { busy, once } = useBusy();
   const [sheet, setSheet] = useState<"add" | ItemRow | null>(null);
+  const [editing, setEditing] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const found = items.find((row) => row.id === id && row.kind === "book");
   const { row: open, gone } = useOpenRow(found && { book: found, copies: copies.get(found.id) ?? [] });
@@ -217,6 +243,7 @@ export function BookDetail({ id }: { id: string }) {
           {rated !== null && <p className="hint">{text.books.ratedElsewhere(rated)}</p>}
         </div>
       </div>
+      <DetailTools title={book.title} gone={gone} onEdit={() => setEditing(true)} onRestore={() => restoreBook(book)} remove={() => removeBook(book, open.copies)} />
       {!gone && <FillBook key={book.id} book={book} />}
       {gone ? null : wish ? (
         <section aria-labelledby="bk-wish">
@@ -282,10 +309,8 @@ export function BookDetail({ id }: { id: string }) {
           {failure.join(" ")}
         </p>
       )}
-      <section aria-labelledby="bk-edit">
-        <h2 id="bk-edit">{text.books.edit}</h2>
-        <BookForm key={book.id} book={book} gone={gone} onRemove={() => removeBook(book, open.copies)} onRestore={() => restoreBook(book)} />
-      </section>
+      <Details book={book} />
+      {editing && <BookEdit book={book} gone={gone} onClose={() => setEditing(false)} onRestore={() => restoreBook(book)} />}
       {sheet !== null && !gone && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
     </>
   );

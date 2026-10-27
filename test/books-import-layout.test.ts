@@ -14,7 +14,7 @@ const rule = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace(/[.>*
 test("the import screen lives under the Books section at a route no book id can take", () => {
   assert.equal(screenOf("books"), "books");
   assert.match(read("views/books.tsx"), /id === "import"\) return <ImportBooks \/>/);
-  assert.match(read("views/books.tsx"), /href="#\/books\/import"/);
+  assert.match(read("views/books.tsx"), /icon: "upload", label: text\.books\.import\.open, run: go\("#\/books\/import"\)/);
   assert.match(read("ui/add-sheet.tsx"), /href="#\/books\/import"/);
 });
 

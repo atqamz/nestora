@@ -28,7 +28,8 @@ test("the three Library screens share one tab bar, the Books screen only for its
 
 test("each screen has one h1 and its sections are h2, and the Watched summary is not a heading", () => {
   const list = read("views/screens.tsx");
-  assert.equal(list.match(/<Title>/g)?.length, 1);
+  assert.equal(list.match(/<ListHead title=/g)?.length, 1);
+  assert.match(read("ui/list-head.tsx"), /<Title>\{title\}<\/Title>/);
   assert.match(list, /<h2 id="sc-watching">/);
   assert.match(list, /<h2 id="sc-want">/);
   assert.match(list, /<summary>\s*<span className="shelf-name">\{text\.screen\.watched\}<\/span>/);

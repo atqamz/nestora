@@ -162,7 +162,6 @@ export const text = {
     task: { label: "New task", placeholder: "Add a task" },
     vendor: { label: "New vendor", placeholder: "Add a vendor" },
     guest: { label: "New guest", placeholder: "Add a guest" },
-    side: "Side",
   },
   countdown: {
     unset: "Set the akad date",
@@ -576,6 +575,13 @@ export const text = {
     logo: "TMDB",
     credit: "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
     credits: "Credits",
+  },
+  frame: {
+    edit: "Edit",
+    editNamed: (title: string) => `Edit ${title}`,
+    moreNamed: (name: string) => `More actions for ${name}`,
+    goneRead: "This was deleted.",
+    details: "Details",
   },
   books: {
     title: "Books",

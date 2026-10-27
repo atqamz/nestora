@@ -68,10 +68,10 @@ test("every icon the app names exists in the icon file", () => {
 });
 
 test("Places is a map pin, To watch a bookmark, Import an upload arrow, and Home keeps the house", () => {
-  assert.match(read("src/views/books.tsx"), /<Icon name="pin" \/>\s*\{text\.books\.places\}/);
+  assert.match(read("src/views/books.tsx"), /icon: "pin", label: text\.books\.places/);
   assert.match(read("src/ui/where.tsx"), /<Icon name="pin" \/>\s*<span>\{label\}<\/span>/);
   assert.match(read("src/ui/screen-sheet.tsx"), /pick === "want" \? "bookmark" : "check"/);
-  for (const [file, shown] of [["src/views/books.tsx", "text.books.import.open"], ["src/ui/add-sheet.tsx", "text.books.import.open"], ["src/views/import.tsx", "busy ?"]]) {
+  for (const [file, shown] of [["src/ui/add-sheet.tsx", "text.books.import.open"], ["src/views/import.tsx", "busy ?"]]) {
     assert.match(read(file), new RegExp(`<Icon name="upload" />\\s*\\{${shown.replace(/[.?]/g, "\\$&")}`), file);
   }
   assert.match(read("src/views/settings.tsx"), /<Icon name="download" \/>\s*\{link\.label\}/);

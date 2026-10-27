@@ -72,8 +72,8 @@ test("Delete is off on a deleted row", () => {
 test("the open form keeps the fields it was opened with whichever way the partner turns the book", () => {
   const book = read("views/book.tsx");
   const SHELF = views.book.fields.filter((field) => !["data.shop"].includes(field));
-  assert.match(book, /function BookForm\(.*\) \{\s*const \[wish\] = useState\(book\.status === "wish"\);\s*return <ItemForm name="book" row=\{book\} gone=\{gone\} only=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
-  assert.match(book, /<BookForm key=\{book\.id\} book=\{book\} gone=\{gone\}/);
+  assert.match(book, /function BookEdit\(.*\) \{\s*const \[wish\] = useState\(book\.status === "wish"\);\s*return <EditSheet name="book" row=\{book\} gone=\{gone\} title=\{text\.books\.edit\} only=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
+  assert.match(book, /<BookEdit book=\{book\} gone=\{gone\}/);
   assert.doesNotMatch(book.slice(book.indexOf("export function BookDetail")), /only=/);
   assert.ok(views.book.fields.includes("data.shop") && !SHELF.includes("data.shop"));
 });

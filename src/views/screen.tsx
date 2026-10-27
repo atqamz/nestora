@@ -18,7 +18,8 @@ import { failureOf } from "../ui/failure.ts";
 import { Field } from "../ui/field.tsx";
 import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
-import { ItemForm } from "../ui/item-form.tsx";
+import { DetailTools } from "../ui/detail-tools.tsx";
+import { EditSheet } from "../ui/edit-sheet.tsx";
 import { views } from "../ui/registry.ts";
 import { moveScreen, moveWatched, removePoster, removeScreen } from "../ui/screen-save.ts";
 import { text } from "../ui/text.ts";
@@ -245,6 +246,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   const { me } = usePartner();
   const { row: live, elsewhere } = screenDetail(rows, kind, id);
   const { row, gone } = useOpenRow(live ?? undefined);
+  const [editing, setEditing] = useState(false);
   const words = kind === "movie" ? text.movies : text.series;
   const back = `#/${views[kind].route}`;
   if (!row && elsewhere) {
@@ -262,6 +264,7 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   if (!row) return <Gone name={kind} id={id} back={back} />;
   const { original, year, side, watched, watchedOn } = screenFacts(row, me);
   const tmdb = validId(row.data?.tmdb);
+  const revive = () => actions.update("items", row.id, revivePatch(row));
   return (
     <>
       <p className="trail">
@@ -283,6 +286,13 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
           )}
         </div>
       </div>
+      <DetailTools
+        title={row.title}
+        gone={gone}
+        onEdit={() => setEditing(true)}
+        onRestore={revive}
+        remove={() => removeScreen({ actions, go: (hash) => void (location.hash = hash) }, row, kind)}
+      />
       {!gone && <Status row={row} watchedOn={watchedOn} />}
       {!gone && watched && <Ratings row={row} />}
       {!gone && <Collection row={row} kind={kind} />}
@@ -300,29 +310,8 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
         </p>
       )}
       {!gone && hasPoster(row) && <PosterRemoval row={row} />}
-      <section aria-labelledby="sc-edit">
-        <h2 id="sc-edit">{text.screen.edit}</h2>
-        <ItemForm
-          key={row.id}
-          name={kind}
-          row={row}
-          gone={gone}
-          onRestore={() => actions.update("items", row.id, revivePatch(row))}
-          onRemove={() =>
-            removeScreen(
-              {
-                actions,
-                go: (hash) => {
-                  location.hash = hash;
-                },
-              },
-              row,
-              kind,
-            )
-          }
-        />
-      </section>
       {usesTmdb([row], kind) && <TmdbCredit />}
+      {editing && <EditSheet name={kind} row={row} gone={gone} title={text.screen.edit} onClose={() => setEditing(false)} onRestore={revive} />}
     </>
   );
 }
