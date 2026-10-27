@@ -162,6 +162,12 @@ test("the Start link shows only on an open card that has something to walk throu
   const some = mountBlock(t, parent, 1, 2, [step(parent, "Cleanse")]);
   assert.equal(start(some.view), 1);
   some.progress(2);
+  assert.equal(start(some.view), 1);
+  assert.equal(some.stateOf(), "settling");
+  mock.timers.tick(SETTLE_MS);
+  assert.equal(start(some.view), 0);
+  find(some.view.tree, (element) => element.props.className === "rt-fold")[0].props.onClick();
+  assert.equal(some.stateOf(), "kept");
   assert.equal(start(some.view), 0);
 });
 
@@ -343,6 +349,13 @@ test("a remote change after my own tap that did not reach the target, or failed,
   await settle();
   b.view.update({ action: target(parent, 5) });
   assert.equal(b.document.activeElement, b.document.body);
+  const next = flowsOf();
+  const c = mountAction(t, target(parent, 3), parent, next.flows);
+  c.button("rt-plus").props.onClick();
+  await settle();
+  assert.deepEqual(next.calls, ["plus"]);
+  c.view.update({ action: target(parent, 5) });
+  assert.equal(c.document.activeElement, c.document.body);
 });
 
 test("a hand-off to −1 is spent when it happens, so a later remote change to the target does not steal focus", async (t) => {
@@ -487,6 +500,104 @@ test("a folded card offers Open routine with the routine's title as its name", a
   } finally {
     mock.timers.reset();
   }
+});
+
+const placed = (view: { tree: unknown }, id: string) => {
+  const blocks = find(view.tree as never, (element) => element.type === TodayBlock);
+  const block = blocks.find((element) => element.key === id)!;
+  const parent = find(view.tree as never, (element) => [element.props.children].flat(Infinity).includes(block))[0];
+  const siblings = find(parent, (element) => element.type === TodayBlock);
+  return { order: blocks.map((element) => element.key), siblings: siblings.map((element) => element.key), labelled: find(parent, (element) => element.props.className === "rt-label").length, fold: (block.props as any).block.progress.done };
+};
+
+const restage = (view: { update: (next: object) => void }, items: ItemRow[]) => {
+  stage(items);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
+  try {
+    view.update({});
+  } finally {
+    mock.timers.reset();
+  }
+};
+
+test("unticking a step in a card of the Done today group reopens it in the same place of the tree, so it is not remounted and keeps focus", async () => {
+  const { done, open, need } = rows();
+  const cleanse = step(done, "Cleanse", { done_a: DAY });
+  const first = step(done, "Rinse", { done_a: DAY });
+  const items = [done, cleanse, first, open, step(open, "Dim the lights"), need, step(need, "Keys")];
+  const view = await today(items);
+  const before = placed(view, done.id);
+  assert.deepEqual(before.siblings, [done.id]);
+  assert.equal(before.labelled, 1);
+  assert.equal(before.fold, 2);
+  restage(view, [done, { ...cleanse, data: {} }, first, ...items.slice(3)]);
+  const after = placed(view, done.id);
+  assert.equal(after.fold, 1);
+  assert.deepEqual({ ...after, fold: 0 }, { ...before, fold: 0 });
+  view.unmount();
+});
+
+test("a partner unticking a step of a card in Done today moves nothing: same group, same order, same place in the tree", async () => {
+  const early = routine("Night checks", "evening");
+  const { done, open, need } = rows();
+  const lock = step(early, "Lock the door", { done_a: DAY });
+  const items = [done, step(done, "Cleanse", { done_a: DAY }), early, lock, step(early, "Lights", { done_a: DAY }), open, step(open, "Dim the lights"), need, step(need, "Keys")];
+  const view = await today(items);
+  const before = [done, early, open, need].map((row) => placed(view, row.id));
+  assert.deepEqual(before[1].siblings.length, 2);
+  restage(view, items.map((row) => (row.id === lock.id ? { ...row, data: {} } : row)));
+  const after = [done, early, open, need].map((row) => placed(view, row.id));
+  assert.deepEqual(after.map((place) => ({ ...place, fold: 0 })), before.map((place) => ({ ...place, fold: 0 })));
+  assert.equal(after[1].fold, 1);
+  view.unmount();
+});
+
+const textsOf = async (items: ItemRow[]) => {
+  stage(items);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
+  try {
+    const html = await markupOf("views/today.tsx", ({ Today: view }) => createElement(view));
+    return [...html.matchAll(/>([^<]+)</g)].map((found) => found[1]);
+  } finally {
+    mock.timers.reset();
+  }
+};
+
+test("Today's text nodes are exactly the titles, labels and counts, with no stray text in the folded row, the groups or the after row", async () => {
+  const { done, open, need } = rows();
+  assert.deepEqual(await textsOf([done, step(done, "Cleanse", { done_a: DAY }), open, step(open, "Dim the lights"), need, step(need, "Keys", { done_a: DAY })]), [
+    "Today · Mon, 26 Oct",
+    "1 of 2",
+    "Evening wind down",
+    "Evening",
+    "0 of 1",
+    "Mark Dim the lights as done",
+    "Dim the lights",
+    "Start",
+    "Done today",
+    "Morning care",
+    "Done",
+    "Mark Cleanse as not done",
+    "Cleanse",
+    "Open routine",
+    "When needed",
+    "1 of 1",
+    "Before going out",
+    "Done",
+    "Mark Keys as not done",
+    "Keys",
+    "Open routine",
+    "Start over",
+    "All routines",
+  ]);
+});
+
+test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
+  const open = routine("Evening wind down", "evening");
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "Start", "All routines"]);
+  assert.deepEqual(await textsOf([]), ["Today · Mon, 26 Oct", copy.emptyHome, copy.create]);
+  const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
+  assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Today · Mon, 26 Oct", copy.nothingToday, "All routines"]);
 });
 
 const routinesCss = sheet("views/routines.css");

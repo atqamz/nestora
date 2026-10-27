@@ -111,7 +111,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
               <RoutineAction key={action.id} routine={routine} action={action} flows={flows} me={me} today={day} active={actionOccursOn(routine, action, day)} />
             ))}
         </ul>
-        {!complete && pagesOf(actions).length > 0 && (
+        {!folding && pagesOf(actions).length > 0 && (
           <p className="rt-start">
             <a className="button secondary" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(routine.title)}>
               <Icon name="play" />

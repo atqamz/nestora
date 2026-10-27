@@ -59,7 +59,7 @@ test("on-demand routines stay out of the tally and out of All done, and keep the
   assert.equal(onDemand(block(0, 1, "morning")), false);
 });
 
-test("a routine that is finished the first time it is seen sits in the rested group, and one finished in view keeps its place", () => {
+test("a routine that is finished the first time it is seen sits in the rested group, one finished in view keeps its place, and one reopened in the group stays there for the day", () => {
   const first = block(3, 3, "morning", "first");
   const second = block(1, 3, "morning", "second");
   const first_ = see(unseen(DAY), [first, second], DAY);
@@ -69,11 +69,8 @@ test("a routine that is finished the first time it is seen sits in the rested gr
   assert.equal(see(first_, [first, later], DAY), first_);
   assert.deepEqual([...see(first_, [first, later], DAY).rested], [first.routine.id]);
   const open = { ...first, progress: { done: 1, total: 3 } };
-  const reopened = see(first_, [open, second], DAY);
-  assert.deepEqual([...reopened.rested], []);
-  assert.equal(reopened.known.size, 2);
-  assert.equal(see(reopened, [open, second], DAY), reopened);
-  assert.deepEqual([...see(reopened, [first, second], DAY).rested], []);
+  assert.equal(see(first_, [open, second], DAY), first_);
+  assert.deepEqual([...see(first_, [open, second], DAY).rested], [first.routine.id]);
   assert.equal(see(first_, [first, second], DAY), first_);
   const arrived = block(3, 3, "evening", "arrived");
   const grown = see(first_, [first, second, arrived], DAY);

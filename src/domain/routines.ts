@@ -70,13 +70,11 @@ export const unseen = (day: string): Seen => ({ day, known: new Set(), rested: n
 export const see = (seen: Seen, blocks: readonly Block[], day: string): Seen => {
   if (seen.day !== day) return see(unseen(day), blocks, day);
   const fresh = blocks.filter(({ routine }) => !seen.known.has(routine.id));
-  const reopened = new Set(blocks.filter(({ progress }) => !finished(progress)).map(({ routine }) => routine.id));
-  const kept = [...seen.rested].filter((id) => !reopened.has(id));
-  if (fresh.length === 0 && kept.length === seen.rested.size) return seen;
+  if (fresh.length === 0) return seen;
   return {
     day,
     known: new Set([...seen.known, ...fresh.map(({ routine }) => routine.id)]),
-    rested: new Set([...kept, ...fresh.filter(({ progress }) => finished(progress)).map(({ routine }) => routine.id)]),
+    rested: new Set([...seen.rested, ...fresh.filter(({ progress }) => finished(progress)).map(({ routine }) => routine.id)]),
   };
 };
 
