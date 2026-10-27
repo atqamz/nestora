@@ -135,6 +135,8 @@ test("Today draws a finished routine as one folded row with a check, Done and no
   const body = /aria-controls="([^"]+)"/.exec(finishedBlock)?.[1] ?? "";
   assert.notEqual(body, "");
   assert.equal(html.includes(`<div id="${body}" hidden="">`), true);
+  const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((found) => found[1]);
+  assert.equal(new Set(ids).size, ids.length);
   assert.match(finishedBlock, /<span class="rt-tick" aria-hidden="true"><svg/);
   assert.match(finishedBlock, /<span class="rt-state">Done<\/span>/);
   assert.match(html, /<div id="[^"]+" hidden="">/);

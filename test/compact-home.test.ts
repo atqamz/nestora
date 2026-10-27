@@ -275,6 +275,7 @@ test("a tap on a row below the open one collapses the open one only when the pag
   const second = scrolled.tap(bag.id);
   assert.equal(second.after, second.before);
   assert.deepEqual(openIds(deep), [bag.id]);
+  assert.deepEqual(scrolled.calls, [{ top: -244, behavior: "instant" }]);
   deep.unmount();
   forget();
   const short = mountToday(all, 3);
@@ -327,12 +328,21 @@ test("the next tap applies the same rule to every row that is still open", () =>
   assert.deepEqual(openIds(view), [bag.id]);
 });
 
-test("closing the tapped row itself is never undone, even when the page shortens under it", () => {
-  const { all, morning } = home();
+test("closing the tapped row itself is never undone, even when the page shortens under it, and leaves the other open rows alone", () => {
+  const { all, morning, bag } = home();
   const view = mountToday(all, 3);
   const page = settled(view, morning.id, {}, "bottom");
   page.tap(morning.id);
   assert.deepEqual(openIds(view), []);
+  view.unmount();
+  forget();
+  const both = mountToday(all, 3);
+  const two = settled(both, bag.id, {}, 0);
+  two.tap(bag.id);
+  assert.deepEqual(openIds(both).sort(), [morning.id, bag.id].sort());
+  two.scrollTo(300);
+  two.tap(bag.id);
+  assert.deepEqual(openIds(both), [morning.id]);
 });
 
 test("a stale hold is spent: a fold after the tap does not scroll the page by a drift measured against the old node", () => {
