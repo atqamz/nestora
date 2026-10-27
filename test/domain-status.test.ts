@@ -8,7 +8,7 @@ import type { Health } from "../src/domain/status.ts";
 import { exportQuery, views } from "../src/ui/registry.ts";
 import type { ViewName } from "../src/ui/registry.ts";
 
-const healthy: Health = { storage: "ok", link: "online", rejected: 0, pending: 0 };
+const healthy: Health = { storage: "ok", link: "online", rejected: 0, pending: 0, paused: false };
 
 const state = (ready: boolean, me: "a" | null, link: "online" | "offline" | "expired" | "mismatch") => ({ ready, me, link });
 
@@ -37,10 +37,10 @@ test("the badge shows the worst state first: storage, login, rejected, offline, 
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "offline" }), "offline");
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "offline", rejected: 1 }), "rejected");
   assert.equal(badgeFor({ ...healthy, pending: 2, link: "expired", rejected: 1 }), "login");
-  assert.equal(badgeFor({ storage: "failed", link: "expired", rejected: 1, pending: 2 }), "storage");
+  assert.equal(badgeFor({ ...healthy, storage: "failed", link: "expired", rejected: 1, pending: 2 }), "storage");
   assert.equal(badgeFor({ ...healthy, storage: "failed" }), "storage");
   assert.equal(badgeFor({ ...healthy, link: "mismatch", pending: 2, rejected: 1 }), "mismatch");
-  assert.equal(badgeFor({ storage: "failed", link: "mismatch", rejected: 0, pending: 0 }), "storage");
+  assert.equal(badgeFor({ ...healthy, storage: "failed", link: "mismatch" }), "storage");
   assert.equal(badgeFor({ ...healthy, link: "offline" }), "offline");
 });
 

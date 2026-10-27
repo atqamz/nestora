@@ -20,6 +20,7 @@
   align-items: center;
   gap: var(--s2);
   min-width: 0;
+  overflow-wrap: anywhere;
   padding: 0.4375rem var(--s3) 0.4375rem 0.4375rem;
   border-radius: 999px;
   background: var(--surface);
