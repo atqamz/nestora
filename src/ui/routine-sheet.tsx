@@ -403,6 +403,7 @@ export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flow
             type: "text",
             required: true,
             choice: true,
+            first: true,
             value: days,
             options: PRESETS.map((n) => ({ value: String(n), label: copy.pausePreset[n] })),
             onChange: (value) => setUntil(addDays(day, Number(value))),

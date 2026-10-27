@@ -27,7 +27,6 @@ export const lately = (items: readonly ItemRow[], entries: readonly BudgetEntryR
     .flatMap((row): Activity[] => {
       if (row.updated_by !== "a" && row.updated_by !== "b") return [];
       const verb = verbOf(row);
-      if (verb === "added" && row.data !== null && "import_batch" in row.data) return [];
       return [{ id: row.id, by: row.updated_by, verb, title: row.title, at: row.updated_at }];
     })
     .sort((a, b) => compare(b.at, a.at) || compare(a.id, b.id))

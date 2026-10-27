@@ -12,6 +12,7 @@ export type Control = {
   required?: boolean;
   options?: readonly { value: string; label: string; icon?: ReactNode }[] | null;
   choice?: true;
+  first?: true;
   locked?: boolean;
   blank?: string;
   blankIcon?: ReactNode;
@@ -64,10 +65,11 @@ export function Field({ control, error }: { control: Control; error?: string }) 
       <fieldset className="field choice-field" aria-describedby={described}>
         <legend>{label}</legend>
         <div className="choices">
-          {all.map((option) => (
+          {all.map((option, index) => (
             <label key={option.value}>
               <input
                 type="radio"
+                data-first={control.first && index === 0 ? "" : undefined}
                 name={name}
                 value={option.value}
                 aria-disabled={locked || undefined}

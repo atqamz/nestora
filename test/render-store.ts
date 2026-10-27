@@ -4,6 +4,10 @@ export const stage = (items: unknown[], settings: unknown[] = [], budget_entries
   snapshot.rows = { items, budget_entries, settings } as never;
 };
 
+export const settle = (dated: boolean) => {
+  snapshot.dated = dated;
+};
+
 export const useSnapshot = () => snapshot;
 
 export const useTable = (table: keyof typeof snapshot.rows) => snapshot.rows[table];

@@ -11,7 +11,7 @@ import { entry, item } from "./domain-rows.ts";
 import { dom, mount } from "./hooks.ts";
 import * as plain from "./mount.ts";
 import { load, markupOf } from "./render.ts";
-import { stage } from "./render-store.ts";
+import { settle, stage } from "./render-store.ts";
 
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -30,6 +30,7 @@ const markup = (module: string, name: string, props: Record<string, unknown> = {
 
 afterEach(() => {
   stage([]);
+  settle(true);
   mock.timers.reset();
 });
 
@@ -336,4 +337,76 @@ test("a segmented control of three options trims its side padding on a phone so 
   const three = (width: number) => cascade(sheet("ui/ui.css"), ".choices:has(> label:nth-child(3):last-child) label", width).get("padding-inline");
   assert.equal(three(20), "var(--s1)");
   assert.equal(three(26), undefined);
+});
+
+const hrefs = (tree: unknown) => plain.find(tree as never, (props) => typeof props.href === "string").map((link) => link.props.href);
+
+test("the first-run card waits for this session's first sync, so a stale local snapshot never paints it", async () => {
+  const { FirstRun } = await load("views/first-run.tsx");
+  stage([], []);
+  settle(false);
+  const view = plain.mount<Record<string, never>>(FirstRun, {});
+  assert.equal(view.tree, null);
+  settle(true);
+  view.update({});
+  assert.deepEqual(hrefs(view.tree), ["#/settings/names", "#/settings/akad"]);
+});
+
+test("a household that finished setup before this phone synced never sees the card", async () => {
+  const { FirstRun } = await load("views/first-run.tsx");
+  stage([], []);
+  settle(false);
+  const view = plain.mount<Record<string, never>>(FirstRun, {});
+  stage([], [...NICKS, DATE]);
+  settle(true);
+  view.update({});
+  assert.equal(view.tree, null);
+});
+
+test("a partner finishing setup while Home is open leaves the card as it was, and the next visit finds it gone", async () => {
+  const { FirstRun } = await load("views/first-run.tsx");
+  stage([], [NICKS[0]]);
+  const view = plain.mount<Record<string, never>>(FirstRun, {});
+  assert.deepEqual(hrefs(view.tree), ["#/settings/names", "#/settings/akad"]);
+  stage([], [...NICKS, DATE]);
+  view.update({});
+  assert.deepEqual(hrefs(view.tree), ["#/settings/names", "#/settings/akad"]);
+  stage([], [...NICKS, DATE]);
+  assert.equal(plain.mount<Record<string, never>>(FirstRun, {}).tree, null);
+});
+
+test("the Pause sheet's initial focus marks its first preset, and no other choice control claims it", async () => {
+  const html = await markup("ui/routine-sheet.tsx", "PauseSheet", { routine: item({ kind: "routine", title: "Morning care" }), flows: {}, onClose: () => undefined });
+  const marked = [...html.matchAll(/<input[^>]*data-first=""[^>]*>/g)].map((found) => found[0]);
+  assert.equal(marked.length, 1);
+  assert.match(marked[0], /type="radio"[^>]*value="1"|value="1"[^>]*type="radio"/);
+  assert.ok(html.indexOf('data-first=""') < html.indexOf('type="date"'));
+  assert.match(read("ui/modal.tsx"), /\[data-first\], \.sheet-body input:not\(\[type=radio\]\)/);
+  const claims = ["ui/field.tsx", "ui/routine-sheet.tsx", "ui/add-sheet.tsx", "ui/item-form.tsx", "ui/copy-sheet.tsx", "ui/book-sheet.tsx", "ui/screen-sheet.tsx"].flatMap((path) => [...read(path).matchAll(/first: true/g)].map(() => path));
+  assert.deepEqual(claims, ["ui/routine-sheet.tsx"]);
+});
+
+test("the person glyph, the card's gap, the routine's Edit word and the live status line are pinned", async () => {
+  assert.match(read("ui/icons.tsx"), /person: \(\s*<>\s*<circle cx="12" cy="8" r="3.5" \/>\s*<path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" \/>\s*<\/>\s*\)/);
+  assert.equal(cascade(sheet("views/routines.css"), ".first-run", 20).get("margin-bottom"), "var(--s5)");
+  assert.match(read("views/routine.tsx"), /<Icon name="edit" \/>\s*\{text\.edit\}\s*<\/button>/);
+  for (const name of ["SignIn", "Denied"]) assert.doesNotMatch(await markup("views/entry.tsx", name), /role="status"/, name);
+  assert.match(await markup("views/entry.tsx", "Entry", { title: "T", body: "B", live: true, children: null }), /<p role="status">B<\/p>/);
+});
+
+test("Settings sends the names link to the side whose nickname is blank, spaces included", async () => {
+  const document = dom() as unknown as Record<string, unknown>;
+  const focused: string[] = [];
+  document.getElementById = (id: string) => ({ querySelector: () => ({ focus: () => void focused.push(id) }) });
+  const { Settings } = await load("views/settings.tsx");
+  stage([], [NICKS[0], setting("partner_b_label", "   ")]);
+  mount(Settings, { row: "names" }, document as never);
+  assert.deepEqual(focused, ["set-b"]);
+});
+
+test("a choice control marks no first radio unless it asks to", async () => {
+  const field = (extra: Record<string, unknown>) =>
+    markup("ui/field.tsx", "Field", { control: { name: "who", label: "Who", type: "text", required: true, choice: true, value: "a", options: [{ value: "a", label: "A" }, { value: "b", label: "B" }], ...extra } });
+  assert.doesNotMatch(await field({}), /data-first/);
+  assert.equal([...(await field({ first: true })).matchAll(/data-first/g)].length, 1);
 });

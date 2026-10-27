@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useSettings } from "../hooks/use-plan.ts";
+import { useSnapshot } from "../hooks/use-store.ts";
 import { Icon } from "../ui/icons.tsx";
 import { text } from "../ui/text.ts";
 
@@ -22,14 +24,17 @@ function Step({ href, title, note }: { href: string; title: string; note: string
 
 export function FirstRun() {
   const { ceremonyDate, partnerA, partnerB } = useSettings();
-  const named = Boolean(partnerA?.trim() && partnerB?.trim());
-  if (named && ceremonyDate !== null) return null;
+  const { dated } = useSnapshot();
+  const first = useRef<{ names: boolean; date: boolean } | null>(null);
+  if (dated) first.current ??= { names: !(partnerA?.trim() && partnerB?.trim()), date: ceremonyDate === null };
+  const { names, date } = first.current ?? { names: false, date: false };
+  if (!names && !date) return null;
   return (
     <section className="group first-run" aria-labelledby="first-run">
       <h2 id="first-run">{copy.title}</h2>
       <ul className="rows">
-        {!named && <Step href="#/settings/names" title={copy.names} note={copy.namesNote} />}
-        {ceremonyDate === null && <Step href="#/settings/akad" title={copy.date} note={copy.dateNote} />}
+        {names && <Step href="#/settings/names" title={copy.names} note={copy.namesNote} />}
+        {date && <Step href="#/settings/akad" title={copy.date} note={copy.dateNote} />}
       </ul>
     </section>
   );
