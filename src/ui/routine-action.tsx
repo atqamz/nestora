@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { count, isDone, keyFor } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
@@ -10,6 +10,7 @@ import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
 import type { Flows } from "./routine-flows.ts";
 import { daysLine } from "./routine-label.ts";
+import { Spoken } from "./spoken.tsx";
 import { Times } from "./timetable.tsx";
 import { text } from "./text.ts";
 
@@ -22,6 +23,7 @@ const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string"
 export function RoutineAction({ routine, action, flows, me, today, active, full }: Props) {
   const { label } = usePartner();
   const { once } = useBusy();
+  const titleId = useId();
   const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const side = keyFor(routine.who, me);
@@ -29,6 +31,12 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
   const unit = word(action, "unit");
   const link = word(action, "url");
   const only = daysLine(action.data?.days);
+  const onlySaid = daysLine(action.data?.days, true);
+  const onlyMeta = only !== null && onlySaid !== null && (
+    <span>
+      <Spoken shown={copy.daysOnly(only)} said={copy.daysOnly(onlySaid)} />
+    </span>
+  );
   const run = (work: () => Promise<Parameters<typeof failureOf>[0]>) => once(async () => setFailure(failureOf(await work())));
   const done = isDone(action, side, today);
   const reached = done && action.kind === "counter";
@@ -61,7 +69,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
               )}
               {word(action, "where") && <span>{word(action, "where")}</span>}
               {action.kind === "day_type" && <span>{copy.form.kind.day_type}</span>}
-              {only && <span>{copy.daysOnly(only)}</span>}
+              {onlyMeta}
             </span>
           </span>
         </div>
@@ -87,7 +95,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
         </span>
       )}
       {action.kind === "counter" && <span>{copy.count(taken, action.qty, unit)}</span>}
-      {only && <span>{copy.daysOnly(only)}</span>}
+      {onlyMeta}
       {!active && <span>{copy.notToday}</span>}
       {other !== null && (theirs || (action.kind === "counter" && count(action, other, today) > 0)) && (
         <span className="rt-other">
@@ -107,13 +115,12 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
           </span>
         ) : (
           <label className="check">
-            <input type="checkbox" checked={done} disabled={!active} aria-disabled={locked || undefined} onChange={guard(() => run(() => flows.toggle(routine, action)))} />
+            <input type="checkbox" checked={done} disabled={!active} aria-labelledby={titleId} aria-disabled={locked || undefined} onChange={guard(() => run(() => flows.toggle(routine, action)))} />
             <Icon name="check" />
-            <span className="visually-hidden">{done ? text.reopen(action.title) : text.complete(action.title)}</span>
           </label>
         )}
         <span className="row-b">
-          <span className="title">{action.title}</span>
+          <span id={titleId} className="title">{action.title}</span>
           {meta}
           {full && action.note && <span className="hint rt-note">{action.note}</span>}
         </span>

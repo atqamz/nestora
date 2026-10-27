@@ -154,7 +154,7 @@ test("Today counts only scheduled routines and shows on-demand ones in a closed 
   const all = [routine("Morning care", "morning"), routine("Before going out", "on_demand")];
   const done = await render([all[0], step(all[0], "Cleanse", { done_a: DAY }), all[1], step(all[1], "Keys")]);
   assert.match(done, /<span class="rt-tally">All done<\/span>/);
-  assert.match(done, /<span class="rt-sub">On demand · 0 of 1<\/span>/);
+  assert.match(done, /<span id="[^"]+" class="rt-sub">On demand · 0 of 1<\/span>/);
   assert.equal(done.includes("<details open=\"\"><summary><h2"), false);
 });
 
@@ -328,7 +328,7 @@ test("Today puts one compact Step by step link in the header row of a routine wi
     step(timed, "Dry the face"),
     item({ kind: "timer", status: null, parent_id: timed.id, title: "Mask", data: { minutes: 10 } }),
   ]);
-  const head = (title: string) => new RegExp(`<div class="rt-head"><h3><button [^>]*><span class="rt-name">${title}<span class="rt-sub">.*?</div>`, "s").exec(html)?.[0] ?? "";
+  const head = (title: string) => new RegExp(`<div class="rt-head"><h3><button [^>]*><span class="rt-name"><span id="[^"]+">${title}</span><span id="[^"]+" class="rt-sub">.*?</div>`, "s").exec(html)?.[0] ?? "";
   assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg><span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span><\/a><a class="rt-open" href="#\/routines\/[0-9a-f-]+" aria-label="Open routine: Skincare">Open routine<\/a><\/div>$/s);
   assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 1);
   assert.equal(html.includes("rt-start"), false);

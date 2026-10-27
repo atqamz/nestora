@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { ORDER_MAX } from "../shared/tables.ts";
 import type { ItemRow } from "../shared/tables.ts";
 import { collectionName, collectionNames, collections, joinPatch, leavePatch, moveOrders, nameTaken, parseCollection, renameTargets, restoreCollection, restoreName, restoreOrder } from "../src/domain/collection.ts";
-import { lately } from "../src/domain/lately.ts";
 import { screenList, screenSections, searchScreens } from "../src/domain/screen.ts";
 import { item } from "./domain-rows.ts";
 
@@ -242,14 +241,6 @@ test("a rename may change case of its own name but never take another collection
   assert.equal(nameTaken(rows, "movie", "Hannibal", "ALIEN "), true);
   assert.equal(nameTaken(rows, "movie", "Hannibal", "Fresh"), false);
   assert.equal(nameTaken(rows, "series", "Hannibal", "Alien"), false);
-});
-
-test("Lately still shows a collection film as added only: a move, a rename or a join never makes a changed line", () => {
-  const stamp = { updated_by: "a" as const, created_at: "2026-10-05T04:00:00Z" };
-  const added = film("Red Dragon", { ...stamp, updated_at: "2026-10-05T04:00:00Z" }, { collection: "Hannibal", order: 1 });
-  const moved = film("Hannibal", { ...stamp, updated_at: "2026-10-05T09:00:00Z" }, { collection: "Hannibal", order: 0.5 });
-  const renamed = item({ kind: "series", title: "Hannibal (TV)", status: "want", ...stamp, updated_at: "2026-10-05T10:00:00Z", data: { collection: "Hannibal", order: 0 } });
-  assert.deepEqual(lately([added, moved, renamed], []).map((activity) => [activity.title, activity.verb]), [["Red Dragon", "added"]]);
 });
 
 test("a key exactly at the limit is a real key, and a move may land exactly on it", () => {

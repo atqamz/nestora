@@ -36,6 +36,8 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
   const card = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const body = useId();
+  const nameId = useId();
+  const subId = useId();
   const focus = useRef<"toggle" | null>(null);
   if (!complete && fold !== "open") {
     setFold("open");
@@ -98,6 +100,8 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
             aria-expanded={expanded}
             aria-controls={body}
             aria-label={folding ? copy.finished(name) : undefined}
+            aria-labelledby={folding ? undefined : nameId}
+            aria-describedby={folding ? undefined : subId}
             onClick={() => onToggle(toggle.current)}
           >
             {folding ? (
@@ -110,8 +114,10 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
               </>
             ) : (
               <span className="rt-name">
-                {name}
-                <span className="rt-sub">{sub}</span>
+                <span id={nameId}>{name}</span>
+                <span id={subId} className="rt-sub">
+                  {sub}
+                </span>
               </span>
             )}
           </button>

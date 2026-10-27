@@ -140,15 +140,17 @@ export function FeedSection({ side, zone }: { side: Side; zone: string }) {
       )}
       {status?.active === true && <p className="hint">{copy.rotateHint}</p>}
       <p className="hint feed-secret">{copy.secret}</p>
-      <h3>{copy.how}</h3>
-      <ol className="feed-steps">
-        {copy.google.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
-      <p className="hint">{copy.googleNote}</p>
-      <p className="hint">{copy.apple}</p>
-      <p className="hint">{copy.delay}</p>
+      <details className="stages">
+        <summary>{copy.how}</summary>
+        <ol className="feed-steps">
+          {copy.google.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p className="hint">{copy.googleNote}</p>
+        <p className="hint">{copy.apple}</p>
+        <p className="hint">{copy.delay}</p>
+      </details>
     </section>
   );
 }

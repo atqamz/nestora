@@ -64,7 +64,7 @@ function Page({ section, id, sub }: { section: string; id?: string; sub?: string
     case "series":
       return <Screens kind="series" id={id} />;
     case "settings":
-      return <Settings />;
+      return <Settings row={id} />;
     case "sync":
       return <Sync />;
     case null:

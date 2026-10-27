@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 import { tintThemeColor } from "../ui/theme-color.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
@@ -15,7 +16,7 @@ function GoogleMark() {
   );
 }
 
-function Entry({ title, body, action, note }: { title: string; body: string; action: string; note?: string }) {
+export function Entry({ title, body, live, note, children }: { title: string; body: string; live?: true; note?: string; children: ReactNode }) {
   useEffect(() => tintThemeColor([...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]), []);
 
   useEffect(() => {
@@ -35,17 +36,29 @@ function Entry({ title, body, action, note }: { title: string; body: string; act
       <div className="entry-body">
         <span className="entry-brand">{text.appName}</span>
         <Title>{title}</Title>
-        <p>{body}</p>
-        <a className="button entry-action" href={LOGIN_URL}>
-          <GoogleMark />
-          {action}
-        </a>
+        <p role={live ? "status" : undefined}>{body}</p>
+        {children}
         {note && <p className="entry-note">{note}</p>}
       </div>
     </main>
   );
 }
 
-export const SignIn = () => <Entry title={text.signIn.title} body={text.signIn.body} action={text.signIn.action} note={text.signIn.note} />;
+const Login = ({ action }: { action: string }) => (
+  <a className="button entry-action" href={LOGIN_URL}>
+    <GoogleMark />
+    {action}
+  </a>
+);
 
-export const Denied = () => <Entry title={text.denied.title} body={text.denied.body} action={text.denied.action} />;
+export const SignIn = () => (
+  <Entry title={text.signIn.title} body={text.signIn.body} note={text.signIn.note}>
+    <Login action={text.signIn.action} />
+  </Entry>
+);
+
+export const Denied = () => (
+  <Entry title={text.denied.title} body={text.denied.body}>
+    <Login action={text.denied.action} />
+  </Entry>
+);

@@ -8,12 +8,12 @@ const copy = text.routines;
 
 export const momentLabel = (key: string | null) => (key === null ? copy.moment.other : Object.hasOwn(copy.moment, key) ? copy.moment[key as keyof typeof copy.moment] : key);
 
-export const daysLine = (days: unknown) =>
-  typeof days === "string" ? days.split(",").map((code) => copy.days[code as DayCode]).join(" ") : null;
+export const daysLine = (days: unknown, spoken = false) =>
+  typeof days === "string" ? days.split(",").map((code) => copy[spoken ? "dayNames" : "days"][code as DayCode]).join(spoken ? ", " : " ") : null;
 
-export const scheduleLine = (routine: ItemRow, today: string) => {
+export const scheduleLine = (routine: ItemRow, today: string, spoken = false) => {
   const data = routine.data ?? {};
-  const days = daysLine(data.days) ?? copy.everyDay;
+  const days = daysLine(data.days, spoken) ?? copy.everyDay;
   const every = Number(data.every_weeks ?? 1);
   return every > 1 ? `${days} · ${copy.everyWeeks(every, typeof data.from === "string" ? formatDay(data.from, today) : null)}` : days;
 };

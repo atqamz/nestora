@@ -24,9 +24,11 @@ section {
 }
 
 .hint {
+  max-width: 65ch;
   margin: 0;
   color: var(--ink-2);
   font-size: var(--fs-meta);
+  text-wrap: pretty;
 }
 
 .hint + .rows {
@@ -486,6 +488,12 @@ fieldset.field {
 
 .av[data-side="b"] {
   background: var(--tint-b);
+}
+
+.av svg {
+  width: var(--av-icon, var(--icon-s));
+  height: var(--av-icon, var(--icon-s));
+  stroke-width: var(--stroke-s);
 }
 
 .av img {

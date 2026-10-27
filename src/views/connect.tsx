@@ -1,18 +1,15 @@
 import { useBusy } from "../hooks/use-busy.ts";
 import { actions } from "../hooks/use-store.ts";
 import { text } from "../ui/text.ts";
+import { Entry } from "./entry.tsx";
 
 export function Connect() {
   const { busy, once } = useBusy();
   return (
-    <main className="recovery">
-      <h1>{text.connect.title}</h1>
-      <p role="status">{text.connect.body}</p>
-      <div className="form-actions">
-        <button type="button" disabled={busy} onClick={() => once(() => actions.sync())}>
-          {text.connect.retry}
-        </button>
-      </div>
-    </main>
+    <Entry title={text.connect.title} body={text.connect.body} live>
+      <button type="button" className="entry-action" disabled={busy} onClick={() => once(() => actions.sync())}>
+        {text.connect.retry}
+      </button>
+    </Entry>
   );
 }

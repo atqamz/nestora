@@ -8,6 +8,7 @@ import { Capture } from "../ui/capture.tsx";
 import { formatDay } from "../ui/format.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
+import { FirstRun } from "./first-run.tsx";
 import { Them } from "./them.tsx";
 import { Today } from "./today.tsx";
 import { LateLine, Week } from "./week.tsx";
@@ -36,6 +37,7 @@ export function Home() {
   return (
     <>
       <Title name={text.nav.home}>{text.routines.today(formatDay(day, day))}</Title>
+      <FirstRun />
       <Capture />
       <LateLine />
       <Today />

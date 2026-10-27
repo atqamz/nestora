@@ -162,7 +162,6 @@ export function Journey() {
                   <Avatar side={activity.by} size={28} />
                   <p>
                     <b>{label(activity.by)}</b> {text.lately.verb[activity.verb]} {activity.title}
-                    {activity.to !== null && ` ${text.lately.to} ${activity.to}`}
                     <span>{formatStamp(activity.at, timezone)}</span>
                   </p>
                 </li>

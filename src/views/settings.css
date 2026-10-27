@@ -56,6 +56,7 @@
 .setl-two {
   --av: 2.75rem;
   --av-text: 0.875rem;
+  --av-icon: var(--icon-l);
 }
 
 .setl > li.set-edit {
@@ -179,11 +180,6 @@
   margin-top: var(--s7);
 }
 
-.feed > h3 {
-  margin: var(--s5) 0 var(--s2);
-  font-size: 1rem;
-}
-
 .feed > p,
 .feed-status,
 .feed-steps {
@@ -192,6 +188,14 @@
 
 .feed-status {
   font-weight: 550;
+}
+
+.feed .stages {
+  margin-top: var(--s4);
+}
+
+.feed .stages p {
+  margin-top: var(--s2);
 }
 
 .feed-steps {

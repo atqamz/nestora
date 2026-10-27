@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zoneSupported } from "../domain/dates.ts";
 import { hijriChoices, hijriOf } from "../domain/hijri.ts";
 import { DEFAULT_ZONE, settingKeys } from "../domain/settings.ts";
@@ -44,7 +44,7 @@ const store = (key: string, check?: (value: string) => string | null) => async (
   return null;
 };
 
-export function Settings() {
+export function Settings({ row }: { row?: string }) {
   const settings = useSettings();
   const { me } = useSnapshot();
   const { locked, hold } = useWriteLock();
@@ -54,6 +54,12 @@ export function Settings() {
   const sides = me === "b" ? (["b", "a"] as const) : (["a", "b"] as const);
   const keys = { a: settingKeys.partnerA, b: settingKeys.partnerB };
   const nicknames = { a: settings.partnerA, b: settings.partnerB };
+  const target = row === "akad" ? "set-akad" : row === "names" ? `set-${sides.find((side) => !nicknames[side]?.trim()) ?? sides[0]}` : null;
+
+  useEffect(() => {
+    const active = document.activeElement;
+    if (target !== null && (active === document.body || active?.tagName === "H1")) document.getElementById(target)?.querySelector("button")?.focus();
+  }, [row]);
 
   const chooseOffset = async (value: string) => {
     if (locked) return hold();
@@ -69,6 +75,7 @@ export function Settings() {
         <h2>{text.settings.day}</h2>
         <ul className="setl">
           <SettingRow
+            id="set-akad"
             field={{ name: settingKeys.ceremonyDate, label: text.settings.ceremonyDate, type: "date", value: settings.ceremonyDate }}
             kicker={text.settings.ceremonyShort}
             shown={settings.ceremonyDate === null ? text.settings.notSet : formatLong(settings.ceremonyDate)}
@@ -121,6 +128,7 @@ export function Settings() {
           {sides.map((side) => (
             <SettingRow
               key={side}
+              id={`set-${side}`}
               lead={<Avatar side={side} size={44} />}
               field={{ name: keys[side], label: side === me ? text.settings.yourNickname : text.settings.theirNickname, type: "text", value: nicknames[side], words: true }}
               kicker={side === me ? text.settings.yourNickname : text.settings.theirNickname}

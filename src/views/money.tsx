@@ -161,25 +161,27 @@ export function MoneyView({ id }: { id?: string }) {
       <Title>{text.nav.money}</Title>
       <MarriageTabs screen="money" />
       <Summary budget={budget} />
-      <section aria-labelledby="to-pay">
-        <div className="sec-h">
-          <h2 id="to-pay">
-            {text.money.toPay} <span className="tally">{open.length}</span>
-          </h2>
-          {queue.length > 0 && <OwnerFilter value={owner} onChange={setOwner} owners={open.map(({ payment }) => payment.who)} />}
-        </div>
-        {queue.length === 0 ? (
-          <p className="empty">{text.money.nothingToPay}</p>
-        ) : shown.length === 0 ? (
-          <p className="empty">{text.owner.empty}</p>
-        ) : (
-          <ul className="rows">
-            {shown.map(({ payment, line }) => (
-              <PaymentLine key={payment.id} payment={payment} line={line.title} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {budget.count > 0 && (
+        <section aria-labelledby="to-pay">
+          <div className="sec-h">
+            <h2 id="to-pay">
+              {text.money.toPay} <span className="tally">{open.length}</span>
+            </h2>
+            {queue.length > 0 && <OwnerFilter value={owner} onChange={setOwner} owners={open.map(({ payment }) => payment.who)} />}
+          </div>
+          {queue.length === 0 ? (
+            <p className="empty">{text.money.nothingToPay}</p>
+          ) : shown.length === 0 ? (
+            <p className="empty">{text.owner.empty}</p>
+          ) : (
+            <ul className="rows">
+              {shown.map(({ payment, line }) => (
+                <PaymentLine key={payment.id} payment={payment} line={line.title} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       <section aria-labelledby="by-event">
         <h2 id="by-event">{text.money.byEvent}</h2>
         <form className="quick-add budget-add" noValidate={locked} onSubmit={add}>

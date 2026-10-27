@@ -63,13 +63,14 @@ test("the times are drawn short and read in words: from 09:30 to 10:30, from 18:
   assert.match(read("ui/routine-action.tsx"), /<Times start=\{word\(action, "start_time"\) \?\? ""\} end=\{word\(action, "end_time"\)\} \/>/);
 });
 
-test("a slot says now and next in words, and a finished one is said to be finished to a screen reader and struck through for the eye", () => {
+test("a slot says now and next in words, and a finished one is said to be finished to a screen reader and set in a lighter weight for the eye", () => {
   const view = read("ui/timetable.tsx");
   assert.match(view, /\{mark\?\.tag && <span className="rt-tag">\{copy\.them\[mark\.tag\]\}<\/span>\}/);
   assert.match(view, /\{mark\?\.state === "done" && <span className="visually-hidden">\{copy\.them\.done\}<\/span>\}/);
   assert.match(view, /data-state=\{mark\?\.state\} data-tag=\{mark\?\.tag \?\? undefined\}/);
   assert.deepEqual([copy.them.now, copy.them.next, copy.them.done, copy.them.title("Sam")], ["Now", "Next", "Finished", "Sam today"]);
-  assert.match(rule('.rt-slot[data-state="done"] .rt-slot-b'), /text-decoration:\s*line-through/);
+  assert.match(rule('.rt-slot[data-state="done"] .rt-slot-t'), /font-weight:\s*400/);
+  assert.doesNotMatch(css, /line-through/);
   assert.match(rule('.rt-slot[data-tag]'), /box-shadow:\s*inset var\(--route-w\) 0 0 var\(--signal\)/);
 });
 

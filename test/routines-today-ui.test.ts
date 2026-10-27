@@ -676,18 +676,15 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
     "Evening wind down",
     "Evening · 0 of 1",
     "Open routine",
-    "Mark Dim the lights as done",
     "Dim the lights",
     "Done today · 1",
     "Morning care",
     "Done",
-    "Mark Cleanse as not done",
     "Cleanse",
     "When needed",
     "1 of 1",
     "Before going out",
     "Done",
-    "Mark Keys as not done",
     "Keys",
     "All routines",
   ]);
@@ -695,8 +692,8 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
 
 test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
   const open = routine("Evening wind down", "evening");
-  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Routines", "0 of 1", "Evening wind down", "Evening · 0 of 1", "Open routine", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
-  assert.deepEqual(await textsOf([]), ["Routines", copy.emptyHome, copy.create]);
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Routines", "0 of 1", "Evening wind down", "Evening · 0 of 1", "Open routine", "Dim the lights", "All routines"]);
+  assert.deepEqual(await textsOf([]), ["Routines", copy.emptyHome, copy.starter]);
   const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
   assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Routines", copy.nothingToday, "All routines"]);
 });

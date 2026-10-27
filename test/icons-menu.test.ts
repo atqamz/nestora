@@ -121,7 +121,7 @@ test("the three icon sizes are rem tokens, and every icon rule resolves to its o
       assert.equal(final.get("stroke-width"), stroke === null ? undefined : `var(--stroke-${stroke})`, `${selector} stroke at ${rem}rem`);
     }
   }
-  const kept = [".check svg", ".start-box svg", ".stars svg"];
+  const kept = [".check svg", ".start-box svg", ".stars svg", ".av svg"];
   const named = new Set(SIZED.map(([selector]) => selector));
   for (const rule of allRules)
     for (const selector of rule.selectors)
@@ -316,7 +316,7 @@ test("the routine detail shows one filled button and two outlined ones in one to
     assert.equal(filled.length, 1);
     assert.match(filled[0], /^<a class="button rt-lead"/);
     assert.match(tools, /<span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span>/);
-    assert.match(tools, /<button type="button" class="secondary" data-replaces="#\/routines\/[^"]+\/start">/);
+    assert.match(tools, /<button type="button" class="secondary" aria-label="Edit Morning care" data-replaces="#\/routines\/[^"]+\/start">/);
   } finally {
     mock.timers.reset();
   }

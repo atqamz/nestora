@@ -144,7 +144,7 @@ test("the detail and the Today block lead into Start, and the strip shows on bot
   const detail = read("views/routine.tsx");
   assert.match(detail, /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\)/);
   assert.match(detail, /\{offer !== null && \(\s*<a className="button rt-lead" href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}>/);
-  assert.match(detail, /<button type="button" className="secondary" data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\} onClick=\{\(\) => setSheet\("edit"\)\}>/);
+  assert.match(detail, /<button type="button" className="secondary" aria-label=\{text\.editNamed\(routine\.title\)\} data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\} onClick=\{\(\) => setSheet\("edit"\)\}>/);
   assert.match(detail, /\{strip !== null && <RoutineWeek strip=\{strip\} \/>\}/);
   const today = read("views/today-block.tsx");
   assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}/);

@@ -51,6 +51,14 @@
   margin-top: var(--s4);
 }
 
+.rt-pause .choices label {
+  padding-inline: var(--s1);
+}
+
+.first-run {
+  margin-bottom: var(--s5);
+}
+
 .rt-row {
   gap: 0 var(--s2);
   padding: 0;
@@ -320,8 +328,8 @@
   color: var(--ink-2);
 }
 
-.rt-slot[data-state="done"] .rt-slot-b {
-  text-decoration: line-through;
+.rt-slot[data-state="done"] .rt-slot-t {
+  font-weight: 400;
 }
 
 .rt-slot[data-tag] {

@@ -94,7 +94,7 @@ main.entry {
   font-size: var(--fs-meta);
 }
 
-a.entry-action {
+.entry-action {
   gap: var(--s3);
   width: 100%;
   min-height: 3.5rem;
