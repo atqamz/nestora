@@ -7,11 +7,13 @@ import type { Page } from "../domain/routine-start.ts";
 import { actionsOf } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useWakeLock } from "../hooks/use-wake-lock.ts";
 import { timers } from "../store/browser.ts";
 import { chime } from "../ui/chime.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
+import { PausedNote } from "../ui/paused-note.tsx";
 import { cameFrom } from "../ui/place.ts";
 import type { Flows } from "../ui/routine-flows.ts";
 import { press } from "../ui/press.ts";
@@ -39,6 +41,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const [failure, setFailure] = useState<string[]>([]);
   const wake = useWakeLock();
   const { once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const root = useRef<HTMLElement>(null);
   const moved = useRef(false);
   const since = useRef(performance.now());
@@ -100,17 +103,20 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     me,
     side,
     day,
+    locked,
     say: setMessage,
-    tick: (action: ItemRow) => void write(() => flows.toggle(routine, action)),
-    plus: (action: ItemRow) => void write(() => flows.plus(routine, action)),
+    tick: (action: ItemRow) => (locked ? hold() : void write(() => flows.toggle(routine, action))),
+    plus: (action: ItemRow) => (locked ? hold() : void write(() => flows.plus(routine, action))),
     done: (action: ItemRow, after?: () => void) =>
-      void write(
-        () => flows.toggle(routine, action),
-        () => {
-          after?.();
-          go(at + 1);
-        },
-      ),
+      locked
+        ? hold()
+        : void write(
+            () => flows.toggle(routine, action),
+            () => {
+              after?.();
+              go(at + 1);
+            },
+          ),
     next: () => go(at + 1),
   };
 
@@ -190,6 +196,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
           </>
         )}
       </div>
+      <PausedNote />
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}

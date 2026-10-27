@@ -279,6 +279,6 @@ test("the offer is held while ticking, so a tap never moves the rows below it, a
   view.update({ now: "start", day: "2026-10-28" });
   view.update({ now: null });
   assert.equal(offer(), "start");
-  assert.match(read("views/today-block.tsx"), /const offer = useHeld\(offerOf\(routine, actions, side, day\), folding \|\| complete, day\);/);
+  assert.match(read("views/today-block.tsx"), /const offer = useHeld\(offerOf\(routine, actions, side, day\), folding, day\);/);
   assert.match(read("views/routine.tsx"), /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\), !today \|\| finished\(\{ done, total \}\), day\);/);
 });

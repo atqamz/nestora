@@ -10,6 +10,7 @@ import { useNow } from "../hooks/use-now.ts";
 import { timers } from "../store/browser.ts";
 import { chime } from "./chime.ts";
 import { Icon } from "./icons.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { text } from "./text.ts";
 
 const copy = text.routines;
@@ -21,6 +22,7 @@ export type Moves = {
   me: Side;
   side: Side;
   day: string;
+  locked: boolean;
   say: (message: string) => void;
   tick: (action: ItemRow) => void;
   plus: (action: ItemRow) => void;
@@ -32,7 +34,7 @@ type Props = Moves & { page: ItemRow[]; last: boolean };
 
 const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string" ? (row.data[key] as string) : null);
 
-function Timing({ action, minutes, finished, last, routine, me, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean; last: boolean }) {
+function Timing({ action, minutes, finished, last, routine, me, locked, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean; last: boolean }) {
   const [timer, setTimer] = useState(() => timers.read(me, routine.id, action.id));
   const now = useNow(timer !== null);
   const current = phase(timer, now);
@@ -91,7 +93,7 @@ function Timing({ action, minutes, finished, last, routine, me, say, done, next 
             <button type="button" className="start-main" data-primary onClick={go}>
               {start.timer.start(minutes)}
             </button>
-            <button type="button" className="secondary start-alt" onClick={() => done(action)}>
+            <button type="button" className="secondary start-alt" {...lockedProps(locked)} onClick={() => done(action)}>
               {complete}
             </button>
           </div>
@@ -116,7 +118,7 @@ function Timing({ action, minutes, finished, last, routine, me, say, done, next 
             <button type="button" className="secondary start-alt" onClick={() => set(null)}>
               {start.timer.cancel}
             </button>
-            <button type="button" className="start-main" onClick={() => done(action, () => set(null))}>
+            <button type="button" className="start-main" {...lockedProps(locked)} onClick={() => done(action, () => set(null))}>
               {complete}
             </button>
           </div>
@@ -126,7 +128,7 @@ function Timing({ action, minutes, finished, last, routine, me, say, done, next 
         <>
           <p className="start-over">{start.timer.ended}</p>
           <div className="start-do">
-            <button type="button" className="start-main" data-primary onClick={() => done(action, () => set(null))}>
+            <button type="button" className="start-main" data-primary {...lockedProps(locked)} onClick={() => done(action, () => set(null))}>
               {complete}
             </button>
             <button type="button" className="secondary start-alt" onClick={() => set(extend(timer!, Date.now()))}>
@@ -143,7 +145,7 @@ function Timing({ action, minutes, finished, last, routine, me, say, done, next 
 }
 
 export function StartPage(props: Props) {
-  const { page, routine, side, day, last, tick, plus, done, next } = props;
+  const { page, routine, side, day, last, locked, tick, plus, done, next } = props;
   const forward = last ? start.finish : start.next;
   const complete = last ? start.finish : start.done;
   const [action] = page;
@@ -158,7 +160,7 @@ export function StartPage(props: Props) {
             <li key={item.id}>
               <label className="start-tick" data-done={isDone(item, side, day) || undefined}>
                 <span className="start-box">
-                  <input type="checkbox" checked={isDone(item, side, day)} onChange={() => tick(item)} />
+                  <input type="checkbox" checked={isDone(item, side, day)} {...lockedProps(locked)} onChange={() => tick(item)} />
                   <Icon name="check" />
                 </span>
                 <span className="start-tick-t">
@@ -205,7 +207,7 @@ export function StartPage(props: Props) {
           {copy.count(count(action, side, day), action.qty, unit)}
         </p>
         <div className="start-do">
-          <button type="button" className={lead === "plus" ? "start-main" : "secondary start-alt"} data-primary={lead === "plus" || undefined} aria-label={copy.plus(action.title)} onClick={() => plus(action)}>
+          <button type="button" className={lead === "plus" ? "start-main" : "secondary start-alt"} data-primary={lead === "plus" || undefined} aria-label={copy.plus(action.title)} {...lockedProps(locked)} onClick={() => plus(action)}>
             {copy.plusLabel}
           </button>
           <button type="button" className={lead === "next" ? "start-main" : "secondary start-alt"} data-primary={lead === "next" || undefined} onClick={next}>
@@ -245,7 +247,7 @@ export function StartPage(props: Props) {
         </p>
       )}
       <div className="start-do">
-        <button type="button" className="start-main" data-primary onClick={() => (lead === "next" ? next() : done(action))}>
+        <button type="button" className="start-main" data-primary {...(lead === "next" ? {} : lockedProps(locked))} onClick={() => (lead === "next" ? next() : done(action))}>
           {lead === "next" ? forward : complete}
         </button>
         {open}
