@@ -4,7 +4,6 @@ import { wishSections } from "../domain/wish.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { useRoutineDay } from "../hooks/use-routines.ts";
 import { BookRow } from "../ui/book-row.tsx";
-import { Capture } from "../ui/capture.tsx";
 import { formatDay } from "../ui/format.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
@@ -38,7 +37,6 @@ export function Home() {
     <>
       <Title name={text.nav.home}>{text.routines.today(formatDay(day, day))}</Title>
       <FirstRun />
-      <Capture />
       <LateLine />
       <Today />
       <Them />

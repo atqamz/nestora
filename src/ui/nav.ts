@@ -1,3 +1,5 @@
+import type { Kind } from "../domain/draft.ts";
+import type { Onward } from "./overlay.ts";
 import { screenOf } from "./routes.ts";
 import type { Screen } from "./routes.ts";
 import { text } from "./text.ts";
@@ -36,3 +38,7 @@ export const navEntries = (kind: "tabs" | "rail"): (Item | "add")[] => {
   const list = navItems(kind);
   return kind === "rail" ? ["add", ...list] : [...list.slice(0, 2), "add", ...list.slice(2)];
 };
+
+const STARTS: Partial<Record<Screen, Kind | Onward>> = { routines: "routine", movies: "movie", series: "series", books: "book" };
+
+export const addStartsAs = (section: string) => STARTS[screenOf(section) ?? "home"] ?? null;

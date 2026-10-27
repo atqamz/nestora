@@ -71,9 +71,9 @@ test("the global Add sheet has no routine chip and the Settings exports list no 
   assert.match(read("views/settings.tsx"), /label: text\.settings\.exportAll, query: "format=json"/);
 });
 
-test("Home shows the Today block between the capture box and the due list, and the route is wired", () => {
+test("Home shows the Today block under the Late line and above the due list, and the route is wired", () => {
   const home = read("views/home.tsx");
-  assert.match(home, /<Capture \/>\s*<LateLine \/>\s*<Today \/>\s*<Them \/>\s*<h2 className="visually-hidden">\{text\.week\.heading\}<\/h2>\s*<Week \/>/);
+  assert.match(home, /<LateLine \/>\s*<Today \/>\s*<Them \/>\s*<h2 className="visually-hidden">\{text\.week\.heading\}<\/h2>\s*<Week \/>/);
   assert.match(read("main.tsx"), /case "routines":\s*return <Routines id=\{id\} sub=\{sub\} \/>;/);
   assert.match(read("main.tsx"), /import "\.\/views\/routines\.css";/);
 });

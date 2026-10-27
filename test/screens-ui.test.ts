@@ -81,7 +81,7 @@ test("the add sheet needs only a title, defaults the pick to both, and offers To
   assert.match(sheet, /START\.map\(\(pick\)/);
   assert.match(sheet, /name: "title", label: text\.screen\.sheet\.title, type: "text", required: true/);
   assert.doesNotMatch(sheet, /name: "year"[^\n]*required/);
-  assert.doesNotMatch(read("ui/add-sheet.tsx"), /movie|series/);
+  assert.doesNotMatch(read("ui/add-sheet.tsx"), /ScreenSheet|saveScreen/);
 });
 
 test("rows and detail reuse the book layout classes, which keep a 44 px target, shrink and wrap", () => {

@@ -1,17 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { overlay, withSeed } from "../src/ui/overlay.ts";
+import { overlay } from "../src/ui/overlay.ts";
 import { text } from "../src/ui/text.ts";
 
 const sheet = readFileSync(new URL("../src/ui/add-sheet.tsx", import.meta.url), "utf8");
-
-test("a seed from the Add something row is added after the kept text, and nothing is lost either way", () => {
-  assert.equal(withSeed("", ""), "");
-  assert.equal(withSeed("", " pay deposit "), "pay deposit");
-  assert.equal(withSeed("Book the hall ", ""), "Book the hall");
-  assert.equal(withSeed(" Book the hall ", " friday "), "Book the hall friday");
-});
 
 test("the unsent draft is kept in memory until it is replaced or cleared", () => {
   assert.equal(overlay.keptDraft(), null);

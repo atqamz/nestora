@@ -70,7 +70,7 @@ test("the form searches only while no result is accepted for the title, and drop
 });
 
 test("both Add sheets share the one form, so the global sheet's book chip gets the lookup too", () => {
-  assert.match(read("ui/add-sheet.tsx"), /useBookForm\("wish", draft\.title, setInput, kind === "book"\)/);
+  assert.match(read("ui/add-sheet.tsx"), /useBookForm\("wish", draft\.title, setInput, kind === "book" && onward === null\)/);
   assert.match(read("ui/book-sheet.tsx"), /useBookForm\(start, title, setTitle\)/);
   assert.match(read("ui/book-sheet.tsx"), /<BookLookup form=\{form\} \/>/);
 });

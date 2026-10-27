@@ -20,7 +20,8 @@ import type { Control } from "./field.tsx";
 import { formatDay, formatMoney } from "./format.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
-import { overlay, useOverlay, withSeed } from "./overlay.ts";
+import { overlay, useOverlay } from "./overlay.ts";
+import type { Onward } from "./overlay.ts";
 import { PausedNote, lockedProps } from "./paused-note.tsx";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
@@ -29,7 +30,11 @@ type Owner = "a" | "b" | "both" | "none";
 
 const KINDS: readonly Kind[] = ["task", "planned", "payment", "guest", "vendor", "book"];
 
-const KIND_ICON: Record<Kind, IconName> = { task: "task", planned: "money", payment: "receipt", guest: "people", vendor: "shop", book: "book" };
+const ONWARD: readonly Onward[] = ["routine", "movie", "series"];
+
+const isOnward = (pick: Kind | Onward | null): pick is Onward => ONWARD.some((name) => name === pick);
+
+const KIND_ICON: Record<Kind | Onward, IconName> = { task: "task", planned: "money", payment: "receipt", guest: "people", vendor: "shop", book: "book", routine: "clock", movie: "play", series: "copy" };
 
 const DETAIL_ICON: Record<Detail, IconName> = { amount: "receipt", due: "calendar", line: "money", group: "flag", phone: "call", qty: "people" };
 
@@ -39,7 +44,7 @@ const OWNER_KINDS: readonly Kind[] = ["task", "payment", "guest"];
 
 const without = <T,>(set: ReadonlySet<T>, value: T) => new Set([...set].filter((entry) => entry !== value));
 
-function AddForm({ seed }: { seed: string }) {
+function AddForm({ preset }: { preset: Kind | Onward | null }) {
   const settings = useSettings();
   const today = useToday();
   const { me, label } = usePartner();
@@ -51,8 +56,9 @@ function AddForm({ seed }: { seed: string }) {
   const form = useRef<HTMLFormElement>(null);
 
   const [start] = useState(overlay.keptDraft);
-  const [input, setInput] = useState(() => withSeed(start?.input ?? "", seed));
-  const [kindPick, setKindPick] = useState<Kind | null>(start?.kindPick ?? null);
+  const [input, setInput] = useState(start?.input ?? "");
+  const [tapped, setTapped] = useState<Kind | null>(start?.kindPick ?? null);
+  const pick = tapped ?? preset;
   const [ignore, setIgnore] = useState<ReadonlySet<Parsed>>(new Set(start?.ignore));
   const [edits, setEdits] = useState<Partial<Record<Detail, string>>>((start?.edits ?? {}) as Partial<Record<Detail, string>>);
   const [ownerPick, setOwnerPick] = useState<Owner | null>((start?.ownerPick ?? null) as Owner | null);
@@ -73,12 +79,15 @@ function AddForm({ seed }: { seed: string }) {
     [entries, items],
   );
 
+  const onward = isOnward(pick) ? pick : null;
+  const kindPick = isOnward(pick) ? null : pick;
+
   const { draft, kind } = useMemo(
     () => draftFor(input, { today, me, nicknames: { a: settings.partnerA, b: settings.partnerB }, lines }, ignore, kindPick),
     [input, today, me, settings.partnerA, settings.partnerB, lines, ignore, kindPick],
   );
 
-  const book = useBookForm("wish", draft.title, setInput, kind === "book");
+  const book = useBookForm("wish", draft.title, setInput, kind === "book" && onward === null);
 
   const phase = useMemo(() => {
     if (settings.ceremonyDate === null) return "";
@@ -234,9 +243,12 @@ function AddForm({ seed }: { seed: string }) {
     }
   };
 
+  const handOff = (name: Onward) => overlay.handOff({ kind: name, title: input.trim() });
+
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (locked) return;
+    if (onward !== null) return handOff(onward);
     setAttempt((count) => count + 1);
     if (kind === "book") book.reveal();
     const first = (Object.keys(problems) as (Detail | "title")[]).find((name) => name !== "title");
@@ -254,11 +266,11 @@ function AddForm({ seed }: { seed: string }) {
     });
   };
 
-  const pristine = input === "" && Object.keys(edits).length === 0 && kindPick === null && ownerPick === null;
+  const pristine = input === "" && Object.keys(edits).length === 0 && tapped === null && ownerPick === null;
 
   useEffect(() => {
-    overlay.keepDraft(pristine ? null : { input, kindPick, ignore: [...ignore], edits: edits as Record<string, string>, ownerPick });
-  }, [pristine, input, kindPick, ignore, edits, ownerPick]);
+    overlay.keepDraft(pristine ? null : { input, kindPick: tapped, ignore: [...ignore], edits: edits as Record<string, string>, ownerPick });
+  }, [pristine, input, tapped, ignore, edits, ownerPick]);
 
   const read = draft.title !== "" && draft.title !== input.trim().replace(/\s+/g, " ");
   const fieldName = (detail: Detail) => (detail === "group" ? text.sheet.group[kind as keyof typeof text.sheet.group] : text.sheet.detail[detail]);
@@ -270,7 +282,7 @@ function AddForm({ seed }: { seed: string }) {
   const editing = open === null || open === "owner" ? null : control(open);
 
   return (
-    <form ref={form} className="sheet-form" noValidate onSubmit={save} data-pristine={pristine || undefined}>
+    <form ref={form} className="sheet-form add-form" noValidate onSubmit={save} data-pristine={pristine || undefined}>
       <div className="sheet-head">
         <h2 id="sheet-title">{text.sheet.title}</h2>
         <button type="button" className="ib" aria-label={text.sheet.close} onClick={overlay.closeAdd}>
@@ -281,15 +293,21 @@ function AddForm({ seed }: { seed: string }) {
         <PausedNote />
         <div role="group" aria-label={text.sheet.kind} className="kinds">
           {KINDS.map((name) => (
-            <button key={name} type="button" aria-pressed={kind === name} onClick={() => setKindPick(name)}>
+            <button key={name} type="button" aria-pressed={onward === null && kind === name} onClick={() => setTapped(name)}>
               <Icon name={KIND_ICON[name]} />
               {text.sheet.kinds[name]}
+            </button>
+          ))}
+          {ONWARD.map((name) => (
+            <button key={name} type="button" aria-pressed={onward === name} {...lockedProps(locked)} onClick={locked ? undefined : () => handOff(name)}>
+              <Icon name={KIND_ICON[name]} />
+              {text.sheet.onward[name].kind}
             </button>
           ))}
         </div>
         <div className="cap">
           <label htmlFor={`${ids}-first`} className="visually-hidden">
-            {text.sheet.first[kind]}
+            {onward ? text.sheet.onward[onward].first : text.sheet.first[kind]}
           </label>
           <input
             id={`${ids}-first`}
@@ -300,7 +318,7 @@ function AddForm({ seed }: { seed: string }) {
             autoComplete="off"
             autoCapitalize={kind === "guest" || kind === "vendor" ? "words" : "sentences"}
             enterKeyHint="done"
-            placeholder={text.sheet.placeholder[kind]}
+            placeholder={onward ? text.sheet.onward[onward].placeholder : text.sheet.placeholder[kind]}
             aria-invalid={shown.title ? true : undefined}
             aria-describedby={shown.title ? `${ids}-title-error` : undefined}
             onChange={(event) => setInput(event.target.value)}
@@ -312,17 +330,17 @@ function AddForm({ seed }: { seed: string }) {
           )}
         </div>
         <p className="visually-hidden" role="status">
-          {text.sheet.kinds[kind]}
+          {onward ? text.sheet.onward[onward].kind : text.sheet.kinds[kind]}
         </p>
-        {read && <p className="saved-as">{text.sheet.savedAs(draft.title)}</p>}
-        {kind === "book" && <BookFields form={book} />}
-        {kind === "book" && (
+        {onward === null && read && <p className="saved-as">{text.sheet.savedAs(draft.title)}</p>}
+        {onward === null && kind === "book" && <BookFields form={book} />}
+        {onward === null && kind === "book" && (
           <a className="button secondary imp-link" href="#/books/import">
             <Icon name="upload" />
             {text.books.import.open}
           </a>
         )}
-        {kind !== "book" && (
+        {onward === null && kind !== "book" && (
           <ul className="chips" aria-label={text.sheet.chips}>
             {chips.map((chip) => (
               <li key={chip.key}>
@@ -334,7 +352,7 @@ function AddForm({ seed }: { seed: string }) {
             ))}
           </ul>
         )}
-        {open === "owner" && parsedOwner !== null && (
+        {onward === null && open === "owner" && parsedOwner !== null && (
           <div className="editor">
             <p className="hint">{text.sheet.ownerRead(label(parsedOwner))}</p>
             <button type="button" className="secondary" onClick={() => putBack("owner")}>
@@ -342,7 +360,7 @@ function AddForm({ seed }: { seed: string }) {
             </button>
           </div>
         )}
-        {editing && (
+        {onward === null && editing && (
           <div className="editor">
             <Field key={editing.name} control={editing} error={shown[open as Detail]} />
             {open !== null && open !== "owner" && canPutBack(open) && (
@@ -352,7 +370,7 @@ function AddForm({ seed }: { seed: string }) {
             )}
           </div>
         )}
-        {OWNER_KINDS.includes(kind) && <Field control={ownerControl} />}
+        {onward === null && OWNER_KINDS.includes(kind) && <Field control={ownerControl} />}
         {failure.length > 0 && (
           <p className="error" role="alert">
             {failure.join(" ")}
@@ -361,9 +379,9 @@ function AddForm({ seed }: { seed: string }) {
       </div>
       <div className="sheet-foot">
         <button type="submit" disabled={busy} {...lockedProps(locked)}>
-          {kind === "book" ? book.saveLabel : text.sheet.save[kind]}
+          {onward ? text.sheet.onward.next : kind === "book" ? book.saveLabel : text.sheet.save[kind]}
         </button>
-        <p className="hint sheet-hint">{kind === "book" ? text.sheet.hintBook : text.sheet.hint}</p>
+        <p className="hint sheet-hint">{onward ? text.sheet.onward[onward].hint : kind === "book" ? text.sheet.hintBook : text.sheet.hint}</p>
       </div>
     </form>
   );
@@ -372,7 +390,7 @@ function AddForm({ seed }: { seed: string }) {
 const chipEmpty = (key: Detail | "owner", values: Record<Detail, string>) => key !== "owner" && values[key].trim() === "";
 
 export function AddSheet() {
-  const { adding, seed, session } = useOverlay();
+  const { adding, preset, session } = useOverlay();
   const dialog = useRef<HTMLDialogElement>(null);
 
   useSheet(dialog, adding, overlay.closeAdd);
@@ -394,12 +412,13 @@ export function AddSheet() {
         if (event.target !== event.currentTarget) return;
         overlay.closeAdd();
         overlay.returnFocus();
+        overlay.landOnward();
       }}
       onClick={(event) => {
         if (event.target === event.currentTarget && event.currentTarget.querySelector("[data-pristine]")) overlay.closeAdd();
       }}
     >
-      {adding && <AddForm key={session} seed={seed} />}
+      {adding && <AddForm key={session} preset={preset} />}
     </dialog>
   );
 }

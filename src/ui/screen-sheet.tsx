@@ -23,14 +23,14 @@ import { collectionProblem, saveScreen, screenProblems } from "./screen-save.ts"
 import type { ScreenInput } from "./screen-save.ts";
 import { text } from "./text.ts";
 
-export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () => void }) {
+export function ScreenSheet({ kind, title: seed = "", onAdded, onClose }: { kind: ScreenKind; title?: string; onAdded?: () => void; onClose: () => void }) {
   const items = useTable("items");
   const { label } = usePartner();
   const stamp = useStamp();
   const tmdbDay = useTmdbDay();
   const { busy, once } = useBusy();
   const { locked } = useWriteLock();
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(seed);
   const [year, setYear] = useState("");
   const [status, setStatus] = useState<ScreenInput["status"]>("want");
   const [collection, setCollection] = useState("");
@@ -72,6 +72,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       setFailure(failureOf(result));
       if (!result.ok) return;
       overlay.announce(text.screen.added(title.trim()));
+      onAdded?.();
       onClose();
     });
   };

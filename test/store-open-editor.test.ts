@@ -195,5 +195,5 @@ test("the other editors keep a snapshot of their own and no live row reaches a f
   assert.equal(row.match(/setDraft\(String\(field\.value/g)?.length, 1);
   const add = read("ui/add-sheet.tsx");
   assert.match(add, /const \[start\] = useState\(overlay\.keptDraft\);/);
-  assert.match(add, /const \[input, setInput\] = useState\(\(\) => withSeed\(start\?\.input \?\? "", seed\)\);/);
+  assert.match(add, /const \[input, setInput\] = useState\(start\?\.input \?\? ""\);/);
 });
