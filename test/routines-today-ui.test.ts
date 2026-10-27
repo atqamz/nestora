@@ -500,8 +500,8 @@ const NORMAL = [18.51, 20, 24.375];
 test("the folded row at large text drops Done, shrinks the tick box to the disc and its gap, and lets the name column shrink without a horizontal scroll", () => {
   for (const rem of LARGE) {
     assert.equal(at(".rt-block h3 .rt-state", rem).get("display"), "none", `${rem}rem`);
-    assert.equal(at(".rt-block h3 .rt-tick", rem).get("width"), "24px", `${rem}rem`);
-    assert.equal(at(".rt-block h3 .rt-tick", rem).get("height"), "24px", `${rem}rem`);
+    assert.equal(at(".rt-block h3 .rt-tick", rem).get("width"), "var(--icon-l)", `${rem}rem`);
+    assert.equal(at(".rt-block h3 .rt-tick", rem).get("height"), "var(--icon-l)", `${rem}rem`);
     assert.equal(at(".rt-block h3 .rt-fold", rem).get("gap"), "var(--s1)", `${rem}rem`);
     assert.equal(at(".rt-block h3 .rt-name", rem).get("min-width"), "0", `${rem}rem`);
     assert.equal(at(".rt-block h3 .rt-name", rem).get("max-width"), undefined, `${rem}rem`);

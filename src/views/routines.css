@@ -872,8 +872,8 @@
   }
 
   .rt-block h3 .rt-tick {
-    width: 24px;
-    height: 24px;
+    width: var(--icon-l);
+    height: var(--icon-l);
   }
 
   .rt-block h3 .rt-state {
