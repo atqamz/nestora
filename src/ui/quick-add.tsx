@@ -9,7 +9,7 @@ import { firstStatus } from "./registry.ts";
 import type { ListName } from "./registry.ts";
 import { text } from "./text.ts";
 
-export function QuickAdd({ name }: { name: ListName }) {
+export function QuickAdd({ name, onAdded }: { name: ListName; onAdded?: () => void }) {
   const items = useTable("items");
   const { me } = usePartner();
   const { busy, once } = useBusy();
@@ -29,7 +29,10 @@ export function QuickAdd({ name }: { name: ListName }) {
         sort: sortBefore(items.filter((item) => item.kind === name)),
         ...(name === "guest" ? { who: me ?? "a" } : {}),
       });
-      if (result.ok) form.reset();
+      if (result.ok) {
+        form.reset();
+        onAdded?.();
+      }
       setErrors(failureOf(result));
     });
   };

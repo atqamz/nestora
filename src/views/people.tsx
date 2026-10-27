@@ -108,7 +108,7 @@ export function People({ route, id }: { route: string; id?: string }) {
           {kind === "guest" && <OwnerSelect value={owner} onChange={setOwner} owners={guests.map((row) => row.who)} />}
         </div>
       )}
-      <QuickAdd name={kind} />
+      <QuickAdd name={kind} onAdded={() => setOwner((shown) => (owns(me ?? "a", shown, me) ? shown : "everyone"))} />
       {own.length === 0 ? (
         <p className="empty">{text.empty[kind]}</p>
       ) : visible.length === 0 ? (

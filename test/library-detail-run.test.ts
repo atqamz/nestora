@@ -114,7 +114,8 @@ test("choosing Watched on a movie that is not watched yet stamps today from the 
 for (const [kind, route] of [["movie", "/movies"], ["series", "/series"]] as const) {
   test(`Delete in More removes the ${kind}, leaves for its list and toasts with Undo that revives it`, async (t) => {
     const { removed, calls } = around(t);
-    const row = movie({ kind });
+    const poster = { cover: "https://image.tmdb.org/t/p/w185/x.jpg", tmdb: 910001, tmdb_at: "2026-10-01" };
+    const row = movie({ kind, data: poster });
     const view = screenView(row, kind);
     const del = menuOf(view);
     assert.deepEqual([del.id, del.danger, del.icon], ["delete", true, "trash"]);
@@ -123,7 +124,7 @@ for (const [kind, route] of [["movie", "/movies"], ["series", "/series"]] as con
     assert.deepEqual([removed, page.hash, overlay.getSnapshot().toast?.message], [[`items:${row.id}`], route, `Deleted ${row.title}`]);
     overlay.getSnapshot().toast?.action?.run();
     await settle();
-    assert.deepEqual(calls, [["items", row.id, { deleted_at: null }]]);
+    assert.deepEqual(calls, [["items", row.id, { deleted_at: null, data: poster }]]);
   });
 }
 
@@ -136,7 +137,7 @@ test("Delete on a book takes its copies along and Undo restores the book through
   menuOf(view).run();
   await settle();
   assert.deepEqual(many, [[{ op: "delete", table: "items", id: row.id }, { op: "delete", table: "items", id: copy.id }]]);
-  assert.deepEqual([page.hash, overlay.getSnapshot().toast?.message], ["/books", text.books.deleted(row.title)]);
+  assert.deepEqual([page.hash, overlay.getSnapshot().toast?.message], ["/books", `Deleted ${row.title}`]);
   overlay.getSnapshot().toast?.action?.run();
   await settle();
   assert.deepEqual(calls, [["restore", row.id, {}]]);
@@ -205,7 +206,7 @@ test("a deleted movie or book shows its notice and Undo in the frame, and Undo w
   await undo.props.onClick();
   await settle();
   assert.equal(calls.length, 1);
-  assert.deepEqual([calls[0][0], calls[0][1], calls[0][2].deleted_at], ["items", row.id, null]);
+  assert.deepEqual(calls[0], ["items", row.id, { deleted_at: null, data: { cover: "https://image.tmdb.org/t/p/w185/x.jpg", tmdb: 910001, tmdb_at: "2026-10-01" } }]);
 });
 
 test("a shop link on a wish book reads as its host and keeps the whole URL as its target", async () => {
