@@ -24,6 +24,10 @@ html:has(dialog[open]) {
   flex-direction: column;
 }
 
+.add-sheet:has(.add-form) {
+  min-height: min(42.5rem, calc(var(--vv-h, 100dvh) - var(--safe-t) - var(--s5)));
+}
+
 .add-sheet::backdrop {
   background: color-mix(in oklch, var(--scrim, CanvasText) 50%, transparent);
 }
@@ -101,7 +105,7 @@ html:has(dialog[open]) {
 
 .kinds {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: var(--s2);
   margin: var(--s2) 0 var(--s4);
 }
@@ -109,7 +113,7 @@ html:has(dialog[open]) {
 .kinds button {
   min-width: 0;
   min-height: var(--target-min);
-  padding: 0 var(--s3);
+  padding: 0 var(--s2);
   border: 1.5px solid var(--line);
   border-radius: 0.75rem;
   background: none;
@@ -332,6 +336,10 @@ html:has(dialog[open]) {
     max-height: min(46rem, calc(var(--vv-h, 100dvh) - var(--s9)));
     margin: auto;
     border-radius: 1.5rem;
+  }
+
+  .add-sheet:has(.add-form) {
+    min-height: min(42.5rem, calc(var(--vv-h, 100dvh) - var(--s9)));
   }
 
   .toast {

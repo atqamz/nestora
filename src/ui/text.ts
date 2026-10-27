@@ -469,6 +469,12 @@ export const text = {
     hint: "Only the first line is needed. Dates, amounts and names are read from it. Tap a chip to fix one. What you type is kept until you add it.",
     hintBook: "Only the title is needed. What you type is kept until you add it.",
     added: (title: string) => `Added: ${title}`,
+    onward: {
+      next: "Continue",
+      routine: { kind: "Routine", first: "Routine name", placeholder: "Evening wind-down", hint: "Opens the new routine form with this name. What you type is kept until you add it." },
+      movie: { kind: "Movie", first: "Movie title", placeholder: "Midnight Ferry", hint: "Opens the movie form with this title. What you type is kept until you add it." },
+      series: { kind: "Series", first: "Series title", placeholder: "Harbour Lights", hint: "Opens the series form with this title. What you type is kept until you add it." },
+    },
   },
   movies: {
     title: "Movies",

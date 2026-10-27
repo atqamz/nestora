@@ -106,6 +106,7 @@ const around = (t: Test, paused: boolean) => {
     snapshot.paused = false;
     for (const key of ["FormData", "location", "document", "HTMLElement", "window", "innerWidth", "innerHeight", "addEventListener", "removeEventListener"]) delete globals[key];
     overlay.dismissToast();
+    overlay.keepDraft(null);
     for (const key of ["create", "update", "remove", "restore", "many", "setSetting"]) delete stub[key];
     stage([]);
   });
@@ -344,9 +345,22 @@ add("add book sheet Save", "ui/book-sheet.tsx", () => ({ ...sheetOf(mount<Record
 add("add movie sheet Save", "ui/screen-sheet.tsx", () => ({ ...sheetOf(mount<Record<string, any>>(ScreenSheet, { kind: "movie", onClose: () => undefined })), before: typed("title", "Midnight Ferry") }));
 
 add("Add sheet Save", "ui/add-sheet.tsx", () => {
-  overlay.openAdd("Pick the music");
+  overlay.keepDraft({ input: "Pick the music", kindPick: null, ignore: [], edits: {}, ownerPick: null });
+  overlay.openAdd();
   const view = part(mount<Record<string, any>>(AddSheet, {}), "AddForm");
   return { view, pick: form, mark: submitter, fire: "onSubmit" as const, silent: true as const };
+});
+
+add("Add sheet hand-off chip", "ui/add-sheet.tsx", () => {
+  overlay.openAdd();
+  const view = part(mount<Record<string, any>>(AddSheet, {}), "AddForm");
+  return { view, pick: (props) => props.type === "button" && Array.isArray(props.children) && props.children[1] === text.sheet.onward.movie.kind, fire: "onClick" as const, silent: true as const, lookup: true as const };
+});
+
+add("Add sheet Continue", "ui/add-sheet.tsx", () => {
+  overlay.openAdd("series");
+  const view = part(mount<Record<string, any>>(AddSheet, {}), "AddForm");
+  return { view, pick: form, mark: submitter, fire: "onSubmit" as const, silent: true as const, lookup: true as const };
 });
 
 const picker = () => {
@@ -486,7 +500,8 @@ test("a sheet that submits carries one quiet paused note at the top of its scrol
 
 test("the Add sheet keeps its footer note and its typed work while paused: nothing in its state is reset by the tap", async (t) => {
   around(t, true);
-  overlay.openAdd("Pick the music");
+  overlay.keepDraft({ input: "Pick the music", kindPick: null, ignore: [], edits: {}, ownerPick: null });
+  overlay.openAdd();
   const view = part(mount<Record<string, any>>(AddSheet, {}), "AddForm");
   const noteIn = (className: string) => find(find(view.tree as never, (props) => props.className === className)[0], (_, type) => (type as { name?: string }).name === "PausedNote").length;
   assert.deepEqual([noteIn("sheet-body"), noteIn("sheet-foot")], [1, 0]);

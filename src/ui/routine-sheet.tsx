@@ -25,7 +25,7 @@ const copy = text.routines;
 
 const form = copy.form;
 
-type Props = { start: RoutineDraft; current: Current | null; me: Side; today: string; duplicate?: ItemRow; gone?: boolean; flows: Flows; onClose: () => void };
+type Props = { start: RoutineDraft; current: Current | null; me: Side; today: string; duplicate?: ItemRow; gone?: boolean; flows: Flows; onAdded?: () => void; onClose: () => void };
 
 const message = (problem: Problem) => (problem.code === "required" ? form.problem[problem.field as "title"] : problem.code === "order" ? form.problem.end : form.problem[problem.code]);
 
@@ -143,7 +143,7 @@ function ActionEditor({
   );
 }
 
-export function RoutineSheet({ start, current, me, today, duplicate, gone = false, flows, onClose }: Props) {
+export function RoutineSheet({ start, current, me, today, duplicate, gone = false, flows, onAdded, onClose }: Props) {
   const { label } = usePartner();
   const { busy, once } = useBusy();
   const { locked: held } = useWriteLock();
@@ -226,7 +226,10 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
       }
       setProblems([]);
       const result = await flows.save(plan.steps, creating ? plan.id : null);
-      if (result.ok) return onClose();
+      if (result.ok) {
+        onAdded?.();
+        return onClose();
+      }
       const named = !result.ok && result.step !== undefined ? plan.names[result.step] : undefined;
       setFailure(failureOf(result).map((error) => (named ? form.problemAt(named, error) : error)));
     });

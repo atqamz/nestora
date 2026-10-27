@@ -17,17 +17,20 @@ export type BookDraft = {
   placePick: string | null;
 };
 
-export const withSeed = (kept: string, seed: string) => [kept.trim(), seed.trim()].filter((part) => part !== "").join(" ");
+export type Onward = "routine" | "movie" | "series";
+
+export type Compose = { kind: Onward; title: string };
 
 export type ToastAction = { label: string; run: () => void };
 
-type State = { adding: boolean; seed: string; session: number; toast: { id: number; message: string; action?: ToastAction; top?: true } | null };
+type State = { adding: boolean; preset: Kind | Onward | null; compose: Compose | null; session: number; toast: { id: number; message: string; action?: ToastAction; top?: true } | null };
 
 const TOAST_MS = 6000;
 const TOAST_ACTION_MS = 12000;
 
-let state: State = { adding: false, seed: "", session: 0, toast: null };
+let state: State = { adding: false, preset: null, compose: null, session: 0, toast: null };
 let opener: HTMLElement | null = null;
+let onward: Compose | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let toasts = 0;
 let kept: SheetDraft | null = null;
@@ -45,11 +48,22 @@ export const overlay = {
     return () => void listeners.delete(listener);
   },
   getSnapshot: () => state,
-  openAdd: (seed = "") => {
+  openAdd: (preset: Kind | Onward | null = null) => {
     opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    set({ adding: true, seed, session: state.session + 1 });
+    onward = null;
+    set({ adding: true, preset, session: state.session + 1 });
   },
   closeAdd: () => set({ adding: false }),
+  handOff: (next: Compose) => {
+    onward = next;
+    set({ adding: false });
+  },
+  landOnward: () => {
+    const next = onward;
+    onward = null;
+    if (next) set({ compose: next });
+  },
+  closeCompose: () => set({ compose: null }),
   keepDraft: (draft: SheetDraft | null) => {
     kept = draft;
   },
