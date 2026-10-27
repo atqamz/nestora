@@ -72,7 +72,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
     if (fold === "folded" || fold === "open") focus.current = null;
   }, [fold]);
   const folding = fold === "folded" || fold === "kept";
-  const offer = useHeld(offerOf(routine, actions, side, day), folding || complete, day);
+  const offer = useHeld(offerOf(routine, actions, side, day), folding, day);
   const go = offer === "continue" ? copy.start.resume : copy.start.open;
   const strip = weekStrip(routine, actionsOf(items, routine), day, side);
   const again = () => {

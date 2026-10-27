@@ -154,7 +154,7 @@ test("only the folded state hides the card's body", (t) => {
   assert.deepEqual([stateOf(), hidden()], ["kept", false]);
 });
 
-test("the Step by step link sits in the header row of an open card that has a timer or four open steps, stays until the fold, and does not come back stale", (t) => {
+test("the Step by step link sits in the header row of an open card that has a timer or four open steps, stays through the settle with what it showed, goes at the fold, and does not come back stale", (t) => {
   const parent = routine("Morning care");
   const steps = ["Cleanse", "Tone", "Serum", "Cream", "Mist"].map((title) => step(parent, title));
   const ticked = (count: number) => steps.map((row, index) => (index < count ? { ...row, data: { done_a: DAY } } : row));
@@ -174,7 +174,7 @@ test("the Step by step link sits in the header row of an open card that has a ti
   assert.deepEqual(word(some.view), [copy.start.resume]);
   some.view.update({ block: block(parent, 5, 5, ticked(5)) });
   assert.equal(some.stateOf(), "settling");
-  assert.equal(go(some.view).length, 0);
+  assert.deepEqual(word(some.view), [copy.start.resume]);
   mock.timers.tick(SETTLE_MS);
   assert.equal(some.stateOf(), "folded");
   assert.equal(go(some.view).length, 0);

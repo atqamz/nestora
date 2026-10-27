@@ -1645,14 +1645,15 @@ test("the Start link, then a folded row, then the stand-in: the most exact match
   assert.equal(world.focus, world.heading);
 });
 
-test("a routine that moved out of view is still found by its stand-in and brought into view", async () => {
+test("a routine that moved out of view is still found by its stand-in, and the page stays where it was", async () => {
   const place = await opened("#/");
   const own = standIn(ROUTINE, START, 5000);
   world.links = [own];
   world.tabbable = [];
   place.landPlace("move");
   assert.equal(world.focus, own);
-  assert.deepEqual(own.options, { preventScroll: false });
+  assert.deepEqual(own.options, { preventScroll: true });
+  assert.equal(world.y, 1500);
 });
 
 test("Start opened from the routine goes back to the routine, and a Start with no screen of the app before it is not a place to go back to", async () => {

@@ -116,7 +116,7 @@ const aim = ({ from, row, tab: byTab }: Landing, heading: HTMLElement | null) =>
     if (!target) continue;
     const shown = seen(target);
     if (!shown && !(target === link && (link.hasAttribute("data-opens") || link.hasAttribute("data-replaces")))) continue;
-    target.focus({ preventScroll: shown });
+    target.focus({ preventScroll: shown || (target === link && link.hasAttribute("data-replaces")) });
     if (document.activeElement === target) return;
   }
   if (!byTab) Array.from(document.querySelectorAll<HTMLElement>(TABBABLE)).find(seen)?.focus({ preventScroll: true });

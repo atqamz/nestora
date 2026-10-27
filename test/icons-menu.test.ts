@@ -321,3 +321,17 @@ test("the routine detail shows one filled button and two outlined ones in one to
     mock.timers.reset();
   }
 });
+
+test("the routine detail keeps the Start box at its widest wording once a step is ticked", async () => {
+  const mineRoutine = item({ kind: "routine", status: null, who: "a", title: "Morning care", group_key: "morning", data: {} });
+  const step = (title: string, data: Record<string, unknown> | null = null) => item({ kind: "step", status: null, parent_id: mineRoutine.id, title, data });
+  const rows = [mineRoutine, step("Cleanse", { done_a: "2026-10-26" }), ...["Tone", "Serum", "Cream", "Mist"].map((title) => step(title))];
+  stage(rows);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
+  try {
+    const html = await markupOf("views/routines.tsx", ({ Routines }) => createElement(Routines, { id: mineRoutine.id }));
+    assert.match(html, /<span class="rt-word" data-wide="Step by step"><span>Continue<\/span><\/span>/);
+  } finally {
+    mock.timers.reset();
+  }
+});
