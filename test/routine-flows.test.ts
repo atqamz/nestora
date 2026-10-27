@@ -124,7 +124,7 @@ test("yesterday's tick does not count today, so ticking again marks today and th
   assert.deepEqual(w.row(step).data, { done_a: "2026-10-26" });
 });
 
-test("a counter adds one per tap and a reset clears the count and the day, and a text line cannot be ticked", async (t) => {
+test("a counter adds one per tap and a minus takes one off until the day clears, and a text line cannot be ticked", async (t) => {
   const w = await world(t);
   const routine = await w.make(draftWith("a", "counter", "text"));
   const [counter, line] = ids(w.rows(), routine);
@@ -132,7 +132,12 @@ test("a counter adds one per tap and a reset clears the count and the day, and a
   await w.flows().plus(w.row(routine), w.row(counter));
   await w.flows().plus(w.row(routine), w.row(counter));
   assert.deepEqual(w.row(counter).data, { done_a: "2026-10-26", value_a: 3 });
-  await w.flows().reset(w.row(routine), w.row(counter));
+  await w.flows().minus(w.row(routine), w.row(counter));
+  assert.deepEqual(w.row(counter).data, { done_a: "2026-10-26", value_a: 2 });
+  await w.flows().minus(w.row(routine), w.row(counter));
+  await w.flows().minus(w.row(routine), w.row(counter));
+  assert.deepEqual(w.row(counter).data, {});
+  await w.flows().minus(w.row(routine), w.row(counter));
   assert.deepEqual(w.row(counter).data, {});
   const before = w.store.getSnapshot().pending;
   assert.deepEqual(await w.flows().toggle(w.row(routine), w.row(line)), { ok: true, id: "" });
@@ -210,7 +215,7 @@ test("while the side is unconfirmed every write answers paused and changes nothi
   const paused = { ok: false, errors: [], paused: true };
   assert.deepEqual(await flows.toggle(routine, step), paused);
   assert.deepEqual(await flows.plus(routine, step), paused);
-  assert.deepEqual(await flows.reset(routine, step), paused);
+  assert.deepEqual(await flows.clear(routine, [step]), paused);
   assert.deepEqual(await flows.resume(routine), paused);
   assert.deepEqual(await flows.pause(routine, "2026-11-02"), paused);
   assert.deepEqual(await flows.save(draft.steps, draft.id), paused);
@@ -225,7 +230,7 @@ test("without a confirmed side nothing is written", async (t) => {
   const [step] = ids(w.rows(), routine);
   const blind = routineFlows({ items: w.rows(), actions: w.store, me: null, day: routineDay(NOW), go: () => undefined });
   const before = w.store.getSnapshot().pending;
-  for (const result of [await blind.toggle(w.row(routine), w.row(step)), await blind.plus(w.row(routine), w.row(step)), await blind.reset(w.row(routine), w.row(step))]) {
+  for (const result of [await blind.toggle(w.row(routine), w.row(step)), await blind.plus(w.row(routine), w.row(step)), await blind.minus(w.row(routine), w.row(step)), await blind.clear(w.row(routine), [w.row(step)])]) {
     assert.deepEqual(result, { ok: false, errors: [], paused: true });
   }
   assert.equal(w.store.getSnapshot().pending, before);

@@ -97,6 +97,8 @@ const SIZED: [string, "s" | "m" | "l" | typeof BAR, "s" | "m" | "l" | null][] = 
   [".entry-action svg", "m", null],
   [".stop-h svg", "s", "s"],
   [".rt-link svg", "s", "s"],
+  [".rt-tick svg", "l", "s"],
+  [".rt-count.rt-reached svg", "l", "s"],
   [".rt-week-d svg", "s", "s"],
   [".out svg", "m", null],
   [".tabs :is(a, .tab-add) svg", BAR, "l"],
@@ -141,9 +143,10 @@ test("the Icon component carries the icon class the size tokens hang on", async 
 test("every menu item has a glyph, and Pause, Resume and Start each keep their own", () => {
   const handlers = { open: () => undefined, resume: () => undefined, remove: () => undefined };
   assert.deepEqual(routineMenu({ away: false, ...handlers }).map((entry) => [entry.id, entry.icon]), [["duplicate", "copy"], ["pause", "pause"], ["delete", "trash"]]);
+  assert.deepEqual(routineMenu({ away: false, ...handlers, resetCounts: () => undefined }).map((entry) => [entry.id, entry.icon]), [["duplicate", "copy"], ["pause", "pause"], ["reset", "reset"], ["delete", "trash"]]);
   assert.deepEqual(routineMenu({ away: true, ...handlers }).map((entry) => [entry.id, entry.icon]), [["duplicate", "copy"], ["pause", "resume"], ["delete", "trash"]]);
   assert.match(read("src/ui/menu.tsx"), /<Icon name=\{item\.icon\} \/>\s*\{item\.label\}/);
-  for (const file of ["src/views/routine.tsx", "src/views/today.tsx"]) assert.match(read(file), /<Icon name="play" \/>/, file);
+  for (const file of ["src/views/routine.tsx", "src/views/today-block.tsx"]) assert.match(read(file), /<Icon name="play" \/>/, file);
 });
 
 test("the verbs Start, Resume and Pause draw three different glyphs", async () => {

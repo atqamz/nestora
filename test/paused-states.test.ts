@@ -72,7 +72,12 @@ test("while paused a check and a counter button stay focusable but announce aria
   const plus = button(await rendered(true, counter), "Add one: Fish oil");
   assert.match(plus, /aria-disabled="true"/);
   assert.doesNotMatch(plus, /\sdisabled(=|\s|>)/);
-  assert.match(button(await rendered(true, counter), "Reset count: Fish oil"), /aria-disabled="true"/);
+  const counted = { ...counter, data: { unit: "pcs", done_a: "2026-10-27", value_a: 1 } };
+  const minus = button(await rendered(true, counted), "−1 Fish oil");
+  assert.match(minus, /aria-disabled="true"/);
+  assert.doesNotMatch(minus, /\sdisabled(=|\s|>)/);
+  assert.doesNotMatch(button(await rendered(false, counted), "−1 Fish oil"), /aria-disabled/);
+  assert.match(button(await rendered(false, counter), "−1 Fish oil"), /aria-disabled="true"/);
   assert.doesNotMatch(input(await rendered(false, check)), /aria-disabled/);
   assert.doesNotMatch(button(await rendered(false, counter), "Add one: Fish oil"), /aria-disabled/);
 });
@@ -124,4 +129,18 @@ test("a disabled or aria-disabled check is muted and, when open, dashed; the ban
   assert.match(css, /\.check input:disabled:not\(:checked\),\s*\.check input\[aria-disabled="true"\]:not\(:checked\) \{\s*border-style: dashed;/);
   assert.match(css, /\.notice:focus \{\s*outline: 2\.5px solid var\(--focus\);\s*outline-offset: 2px;/);
   assert.match(read("style.css"), /\.sync\[data-state="paused"\] a::before/);
+});
+
+test("Start over, Reset counts, −1 and +1 all go through the paused guard, and the menu item announces aria-disabled while paused", async () => {
+  assert.match(read("ui/routine-action.tsx"), /onClick=\{guard\(\(\) => taken > 0 && run\(\(\) => flows\.minus\(routine, action\)\)\)\}/);
+  assert.match(read("ui/routine-action.tsx"), /className="pill rt-plus" disabled=\{!active\} aria-disabled=\{locked \|\| undefined\}/);
+  assert.match(read("ui/routine-action.tsx"), /onClick=\{guard\(add\)\}/);
+  assert.match(read("views/today-block.tsx"), /aria-disabled=\{locked \|\| undefined\} onClick=\{guard\(again\)\}/);
+  assert.match(read("views/routine.tsx"), /resetCounts: counted\.length > 0 \? guard\(/);
+  assert.match(read("views/routine.tsx"), /^\s+locked,$/m);
+  assert.match(read("ui/menu.tsx"), /aria-disabled=\{item\.locked \|\| undefined\}/);
+  const { routineMenu } = await import("../src/ui/routine-menu.ts");
+  const handlers = { away: false, open: () => undefined, resume: () => undefined, remove: () => undefined, resetCounts: () => undefined };
+  assert.equal(routineMenu({ ...handlers, locked: true }).find((entry) => entry.id === "reset")?.locked, true);
+  assert.equal(routineMenu({ ...handlers, locked: false }).find((entry) => entry.id === "reset")?.locked, false);
 });

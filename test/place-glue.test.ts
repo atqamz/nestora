@@ -999,26 +999,26 @@ test("a screen that never shows a heading is given up on after ten seconds", asy
 test("the places of a private routine are never written, and still serve Back while the page is open", async () => {
   reset("#/routines");
   const place = await load();
-  place.startPlace(places(), (route) => route.startsWith("/routines/r6"));
-  page(["#/routines/r6"]);
+  place.startPlace(places(), (route) => route.startsWith("/routines/r_6"));
+  page(["#/routines/r_6"]);
   world.y = 800;
-  push("#/routines/r6");
-  page(["#/routines/r6/start"]);
+  push("#/routines/r_6");
+  page(["#/routines/r_6/start"]);
   place.landPlace("move");
   world.y = 300;
-  push("#/routines/r6/start");
+  push("#/routines/r_6/start");
   page([]);
   place.landPlace("move");
   push("#/routines");
   fire("pagehide");
   const kept = world.store.get("wp.place.a") ?? "";
-  assert.doesNotMatch(kept, /r6/);
+  assert.doesNotMatch(kept, /r_6/);
   assert.match(kept, /"\/routines"/);
   back();
-  page(["#/routines/r6/start"]);
+  page(["#/routines/r_6/start"]);
   place.landPlace("move");
   back();
-  page(["#/routines/r6"]);
+  page(["#/routines/r_6"]);
   place.landPlace("move");
   assert.equal(world.y, 300);
 });
@@ -1028,23 +1028,23 @@ test("one tab used by two partners: what the first one visited is gone once the 
   const kept = places("a");
   const place = await load();
   place.startPlace(kept);
-  page(["#/routines/r6"]);
+  page(["#/routines/r_6"]);
   world.y = 800;
-  push("#/routines/r6");
+  push("#/routines/r_6");
   page([]);
   place.landPlace("move");
-  push("#/routines/r6/start");
+  push("#/routines/r_6/start");
   fire("pagehide");
   assert.deepEqual([...world.store.keys()], ["wp.place.a"]);
-  assert.match(world.store.get("wp.place.a")!, /r6/);
+  assert.match(world.store.get("wp.place.a")!, /r_6/);
   kept.purge("b");
   push("#/tasks");
   fire("pagehide");
   assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
-  assert.doesNotMatch(world.store.get("wp.place.b")!, /r6/);
+  assert.doesNotMatch(world.store.get("wp.place.b")!, /r_6/);
   const second = await load();
   second.startPlace(places("b"));
-  assert.doesNotMatch(JSON.stringify([...world.store]), /r6/);
+  assert.doesNotMatch(JSON.stringify([...world.store]), /r_6/);
 });
 
 test("a memory read for a side the probe then contradicts is dropped, not carried over", async () => {
@@ -1062,7 +1062,7 @@ test("a memory read for a side the probe then contradicts is dropped, not carrie
   hinted.purge("b");
   push("#/books");
   assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
-  assert.doesNotMatch(world.store.get("wp.place.b")!, /r1|640/);
+  assert.doesNotMatch(world.store.get("wp.place.b")!, /routines\/r1|"y":640/);
 });
 
 test("with no side known nothing is written, and the memory is kept in the page until a side is confirmed", async () => {
@@ -1198,7 +1198,7 @@ const shared: Row = { id: SHARED, kind: "routine", who: "both", data: null };
 const snap = { ready: true, items: [mine, shared] as Row[] };
 const rule = (route: string) => hiddenRoute(route, snap.ready, snap.items);
 const dump = () => JSON.stringify([...world.store]);
-const gone = /aaaaaaaa/i;
+const gone = /aaaaaaaa-/i;
 
 const rig = async (hash: string, ready = true, items: Row[] = [mine, shared], side: "a" | "b" | null = "a") => {
   reset(hash);

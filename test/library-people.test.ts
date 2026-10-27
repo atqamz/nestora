@@ -71,7 +71,7 @@ test("the Books menu holds Places and Import as pin and upload items that naviga
   const source = read("views/books.tsx");
   assert.match(source, /\{ id: "places", icon: "pin", label: text\.books\.places, run: go\("#\/places"\) \}/);
   assert.match(source, /\{ id: "import", icon: "upload", label: text\.books\.import\.open, run: go\("#\/books\/import"\) \}/);
-  assert.match(read("domain/menu.ts"), /icon: "copy" \| "pause" \| "resume" \| "trash" \| "pin" \| "upload"/);
+  assert.match(read("domain/menu.ts"), /icon: "copy" \| "pause" \| "resume" \| "reset" \| "trash" \| "pin" \| "upload"/);
 });
 
 test("the Guests summary is one line with a single owner select beside it, and the quick add has no side select", async () => {

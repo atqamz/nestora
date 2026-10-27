@@ -53,9 +53,36 @@ export const todayBlocks = (rows: readonly ItemRow[], me: Side | null, day: stri
         })
         .sort((a, b) => byMoment(momentOf(a.routine), momentOf(b.routine)));
 
-export const allDone = (blocks: readonly Block[]) => blocks.some((block) => block.progress.total > 0) && blocks.every((block) => block.progress.done === block.progress.total);
+export const onDemand = (block: Block) => momentOf(block.routine) === "on_demand";
 
-export const tally = (blocks: readonly Block[]) => blocks.reduce((sum, { progress }) => ({ done: sum.done + progress.done, total: sum.total + progress.total }), { done: 0, total: 0 });
+export const finished = ({ done, total }: Block["progress"]) => total > 0 && done === total;
+
+export const sum = (blocks: readonly Block[]) => blocks.reduce((all, { progress }) => ({ done: all.done + progress.done, total: all.total + progress.total }), { done: 0, total: 0 });
+
+export const tally = (blocks: readonly Block[]) => sum(blocks.filter((block) => !onDemand(block)));
+
+export const allDone = (blocks: readonly Block[]) => finished(tally(blocks));
+
+export type Seen = { day: string; known: ReadonlySet<string>; rested: ReadonlySet<string> };
+
+export const unseen = (day: string): Seen => ({ day, known: new Set(), rested: new Set() });
+
+export const see = (seen: Seen, blocks: readonly Block[], day: string): Seen => {
+  if (seen.day !== day) return see(unseen(day), blocks, day);
+  const fresh = blocks.filter(({ routine }) => !seen.known.has(routine.id));
+  if (fresh.length === 0) return seen;
+  return {
+    day,
+    known: new Set([...seen.known, ...fresh.map(({ routine }) => routine.id)]),
+    rested: new Set([...seen.rested, ...fresh.filter(({ progress }) => finished(progress)).map(({ routine }) => routine.id)]),
+  };
+};
+
+export const sections = (blocks: readonly Block[], rested: ReadonlySet<string>) => ({
+  open: blocks.filter((block) => !onDemand(block) && !rested.has(block.routine.id)),
+  done: blocks.filter((block) => !onDemand(block) && rested.has(block.routine.id)),
+  needed: blocks.filter(onDemand),
+});
 
 export const runs = (actions: readonly ItemRow[]): Run[] => {
   const found: Run[] = [];

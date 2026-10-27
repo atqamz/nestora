@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { isDone, keyFor, mark, unmark } from "../../shared/routines.ts";
+import { isDone, keyFor, lower, mark, unmark } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { actionsOf } from "../domain/routines.ts";
 import type { Store, Written } from "../store/store.ts";
@@ -29,7 +29,17 @@ export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
 
   const plus = (routine: ItemRow, action: ItemRow) => write(routine, action, mark);
 
-  const reset = (routine: ItemRow, action: ItemRow) => write(routine, action, unmark);
+  const minus = (routine: ItemRow, action: ItemRow) => write(routine, action, lower);
+
+  const clear = (routine: ItemRow, rows: readonly ItemRow[]): Promise<Written> => {
+    if (me === null) return Promise.resolve(paused);
+    const side = keyFor(routine.who, me);
+    const steps = rows.flatMap((row) => {
+      const change = unmark(row, side);
+      return change === null ? [] : [{ op: "update" as const, table: "items" as const, id: row.id, change }];
+    });
+    return actions.many(steps);
+  };
 
   const pause = async (routine: ItemRow, until: string): Promise<Written> =>
     until <= day ? { ok: false, errors: [text.routines.pauseLater] } : actions.update("items", routine.id, { data: { paused_until: until } });
@@ -61,7 +71,7 @@ export const routineFlows = ({ items, actions, me, day, go }: Deps) => {
     return result;
   };
 
-  return { toggle, plus, reset, pause, resume, save, remove, restore };
+  return { toggle, plus, minus, clear, pause, resume, save, remove, restore };
 };
 
 export type Flows = ReturnType<typeof routineFlows>;

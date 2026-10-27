@@ -21,8 +21,9 @@ const install = () => {
   });
 };
 
-export const markupOf = async (module: string, render: (loaded: Record<string, any>) => ReactElement) => {
+export const load = async (module: string) => {
   install();
-  const loaded = (await import(new URL(`../src/${module}`, import.meta.url).href)) as Record<string, any>;
-  return renderToStaticMarkup(render(loaded));
+  return (await import(new URL(`../src/${module}`, import.meta.url).href)) as Record<string, any>;
 };
+
+export const markupOf = async (module: string, render: (loaded: Record<string, any>) => ReactElement) => renderToStaticMarkup(render(await load(module)));

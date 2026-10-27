@@ -89,7 +89,7 @@ test("focus moves to the new primary button on an advance, Escape exits, and a h
   assert.match(start, /const exit = \(\) => \{\s*timers\.keep\(me, routine\.id, null\);\s*location\.replace\(`#\/routines\/\$\{routine\.id\}`\);\s*\};/);
   assert.match(start, /onKeyDown=\{\(event\) => \{\s*if \(event\.repeat\) event\.preventDefault\(\);\s*\}\}/);
   assert.match(start, /setMessage\(clamped >= total \? "" : start\.announce\(/);
-  assert.match(read("ui/routine-action.tsx"), /className="rt-plus"[^>]*onKeyDown=\{\(event\) => event\.repeat && event\.preventDefault\(\)\}/);
+  assert.match(read("ui/routine-action.tsx"), /className="pill rt-plus"[^>]*onKeyDown=\{\(event\) => event\.repeat && event\.preventDefault\(\)\}/);
 });
 
 test("the wake lock is requested on entry and again when the page is shown, and released on unmount and on pagehide", () => {
@@ -137,9 +137,9 @@ test("the week strip is a list of seven days, today is marked by aria-current, a
 
 test("the detail and the Today block lead into Start, and the strip shows on both", () => {
   const detail = read("views/routine.tsx");
-  assert.match(detail, /\{today && !away && pagesOf\(todays\)\.length > 0 && \(\s*<a className="button" href=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
+  assert.match(detail, /\{today && !away && !finished\(\{ done, total \}\) && pagesOf\(todays\)\.length > 0 && \(\s*<a className="button" href=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
   assert.match(detail, /\{strip !== null && <RoutineWeek strip=\{strip\} \/>\}/);
-  const today = read("views/today.tsx");
+  const today = read("views/today-block.tsx");
   assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(routine\.title\)\}/);
   assert.match(today, /weekStrip\(routine, actionsOf\(items, routine\), day, side\)/);
   assert.match(today, /<RoutineWeek strip=\{strip\} compact \/>/);

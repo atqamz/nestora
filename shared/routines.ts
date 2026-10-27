@@ -179,3 +179,11 @@ export const unmark = (action: ItemRow, side: Side): { data: Record<string, null
   const [done, value] = KEYS[side];
   return { data: action.kind === "counter" ? { [done]: null, [value]: null } : { [done]: null } };
 };
+
+export const lower = (action: ItemRow, side: Side, today: string): { data: Record<string, unknown> } | null => {
+  if (action.kind !== "counter") return null;
+  const taken = count(action, side, today);
+  if (taken <= 1) return unmark(action, side);
+  const [done, value] = KEYS[side];
+  return { data: { [done]: today, [value]: taken - 1 } };
+};
