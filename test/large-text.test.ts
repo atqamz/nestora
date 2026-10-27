@@ -194,12 +194,10 @@ test("the header wraps and the gutters shrink on both sides once text is large r
   assert.equal(wide.get("padding-left"), undefined);
 });
 
-test("the capture button stacks under its field instead of squeezing the word Add", () => {
+test("the search field keeps its icon beside a field that may use the whole width at large text", () => {
   expects(".capture", LARGE, { display: "grid", "grid-template-columns": "auto minmax(0, 1fr)", "row-gap": "var(--s1)", padding: "0 var(--s1) var(--s1)" });
   expects(".capture svg", LARGE, { "margin-left": "var(--s2)" });
-  expects(".capture button", LARGE, { "grid-column": "1 / -1" });
   expects(".capture", PHONE, { "grid-template-columns": null, "row-gap": null });
-  expects(".capture button", PHONE, { "grid-column": null });
 });
 
 test("a choice cell is never narrower than one floor, shared by the three-option and four-option groups, so a status word stays whole", () => {

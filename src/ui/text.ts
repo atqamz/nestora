@@ -470,12 +470,6 @@ export const text = {
     hintBook: "Only the title is needed. What you type is kept until you add it.",
     added: (title: string) => `Added: ${title}`,
   },
-  capture: {
-    label: "Add something",
-    placeholder: "Add something",
-    go: "Add",
-    review: "Review and add",
-  },
   movies: {
     title: "Movies",
     noun: "movie",
