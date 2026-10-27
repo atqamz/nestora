@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { openFirst } from "../src/domain/routines.ts";
-import { glance, marks } from "../src/domain/timetable.ts";
+import { glance, glances, marks } from "../src/domain/timetable.ts";
 import type { Slot } from "../src/domain/timetable.ts";
 import { text } from "../src/ui/text.ts";
 import { cascade, sheet } from "./css.ts";
@@ -96,13 +96,48 @@ test("Home's partner block draws only the glance, and says so when nothing is le
       mock.timers.reset();
     }
   };
-  const noon = await draw(3);
+  const live = (markup: string) => markup.replace(/<(ul|p) class="[^"]*" data-idle="">.*?<\/\1>/gs, "");
+  const noon = live(await draw(3));
   assert.match(noon, /Deep work/);
   assert.match(noon, /Lunch/);
   assert.equal(noon.includes("Call"), false);
-  const late = await draw(14);
+  assert.match(await draw(3), /<div class="rt-glance">/);
+  assert.equal(noon.includes("Nothing more"), false);
+  const late = live(await draw(14));
   assert.equal(late.includes("Deep work"), false);
   assert.match(late, new RegExp(`<p class="empty">Nothing more in Partner&#x27;s timetable today\\.</p>`));
+  stage([week]);
+  assert.match(live(await markupOf("views/them.tsx", ({ Them }) => createElement(Them))), /<p class="empty">Nothing in Partner&#x27;s timetable today\.<\/p>/);
+});
+
+test("the partner's block keeps one layer per distinct glance of the day, so its height cannot follow the clock", () => {
+  const slots = [slot("Stand up", "08:00", "09:00"), slot("Deep work", "09:30", "10:00"), slot("Review", "10:00", "11:00"), slot("Lunch", "", null)];
+  const windows = glances(slots);
+  assert.deepEqual(
+    windows.map(({ from, near }) => [from, near.map((mark) => mark.slot.row.title)]),
+    [
+      [0, ["Stand up"]],
+      [480, ["Stand up", "Deep work"]],
+      [540, ["Deep work"]],
+      [570, ["Deep work", "Review"]],
+      [600, ["Review"]],
+      [660, ["Lunch"]],
+    ],
+  );
+  const sets = [slots, [slot("Long", "08:00", "12:00"), slot("Short", "09:00", "09:30"), slot("Blip", "10:00", "10:01"), slot("Late", "10:01", "11:00"), slot("Open end", "13:00", null)]];
+  for (const day of sets) {
+    const layers = glances(day);
+    assert.equal(new Set(layers.map(({ near }) => near.map((mark) => `${mark.slot.row.id}${mark.state}${mark.tag}`).join())).size, layers.length);
+    for (let minute = 0; minute < 1440; minute++) {
+      const live = layers.findLast((window) => window.from <= minute)!;
+      assert.deepEqual(
+        live.near.map((mark) => [mark.slot.row.id, mark.state, mark.tag]),
+        glance(marks(day, minute)).map((mark) => [mark.slot.row.id, mark.state, mark.tag]),
+        `minute ${minute}`,
+      );
+    }
+  }
+  assert.deepEqual(glances([]).map(({ from, near }) => [from, near.length]), [[0, 0]]);
 });
 
 const mountToday = (items: ItemRow[], utcHour: number) => {
@@ -506,4 +541,12 @@ test("the Late line is a full-width 44 px target in the late colours, and the ro
     assert.equal(cascade(css, ".rt-block h3 .rt-live", rem).get("color"), "var(--ink)");
   }
   assert.doesNotMatch(readFileSync(new URL("../src/views/routines.css", import.meta.url), "utf8"), /\.rt-late[^{]*\{[^}]*(transition|animation)/);
+});
+
+test("the glance layers share one grid cell and only the live one is visible, so the block is as tall as its tallest layer", () => {
+  for (const rem of [10, 18.5, 24]) {
+    assert.equal(cascade(css, ".rt-glance", rem).get("display"), "grid", `${rem}rem`);
+    assert.equal(cascade(css, ".rt-glance > *", rem).get("grid-area"), "1 / 1", `${rem}rem`);
+    assert.equal(cascade(css, ".rt-glance > [data-idle]", rem).get("visibility"), "hidden", `${rem}rem`);
+  }
 });

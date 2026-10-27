@@ -175,7 +175,7 @@ Authored inline SVG in `src/ui/icons.tsx`: 24 grid, 2 px stroke, round caps and 
 
 **Target** system, applied module by module by later work: routine rows still carry Pause and Duplicate, Delete still sits beside Cancel on some forms and no More menu exists yet. These rules decide where an action lives; a change that breaks one needs a reason in its PR.
 
-1. **The row is the object.** Tapping the title opens the detail. List screens show a trailing chevron; Home rows are for doing and have none.
+1. **The row is the object.** Tapping the title opens the detail. List screens show a trailing chevron; Home rows are for doing and have none. The Today row on Home toggles its steps in place and its detail opens from "Open routine".
 2. **One shape for "done".** Binary things use the circular check. Counters show the numeral below target and a check at target.
 3. **At most one trailing quick verb per row,** only while it applies, always a pill and never filled: "+1", "Take it", "Resume", "Open". Two buttons on a row is a bug.
 4. **One filled button per screen region,** and it is that screen's job (a routine's "Step by step", "Add a book", a sheet's submit). Two filled buttons in view means one is wrong.

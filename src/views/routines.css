@@ -268,6 +268,18 @@
   border-top: 1px solid var(--line);
 }
 
+.rt-glance {
+  display: grid;
+}
+
+.rt-glance > * {
+  grid-area: 1 / 1;
+}
+
+.rt-glance > [data-idle] {
+  visibility: hidden;
+}
+
 .rt-slot-t {
   flex: none;
   min-width: 5.5rem;
