@@ -5,8 +5,9 @@ import { actions, useSnapshot } from "../hooks/use-store.ts";
 import { AddSheet } from "./add-sheet.tsx";
 import { Pair } from "./avatar.tsx";
 import { sweepUndone } from "./book-import.ts";
+import { Compose } from "./compose.tsx";
 import { Icon } from "./icons.tsx";
-import { isCurrent, navEntries } from "./nav.ts";
+import { addStartsAs, isCurrent, navEntries } from "./nav.ts";
 import { overlay, useOverlay } from "./overlay.ts";
 import { sweepDay, sweepDeps, sweepExpired } from "./screen-save.ts";
 import { SyncBadge } from "./sync-badge.tsx";
@@ -17,7 +18,7 @@ function Nav({ className, section, locked }: { className: "tabs" | "rail"; secti
     <nav className={className} aria-label={text.nav.label}>
       {navEntries(className).map((entry) =>
         entry === "add" ? (
-          <button key="add" type="button" className={className === "tabs" ? "tab-add" : "rail-add"} aria-label={className === "tabs" ? text.add : undefined} disabled={locked} onClick={() => overlay.openAdd()}>
+          <button key="add" type="button" className={className === "tabs" ? "tab-add" : "rail-add"} aria-label={className === "tabs" ? text.add : undefined} disabled={locked} onClick={() => overlay.openAdd(addStartsAs(section))}>
             <Icon name="plus" />
             {className === "rail" && <span>{text.add}</span>}
           </button>
@@ -101,6 +102,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
         )}
       </div>
       {link !== "mismatch" && <AddSheet />}
+      {link !== "mismatch" && <Compose />}
     </div>
   );
 }

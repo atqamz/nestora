@@ -512,10 +512,11 @@ test("the Late heading can take focus", async () => {
   }
 });
 
-test("Home: the h1 is today's date and keeps Home as the page name, the Late line sits above Today and below the capture row", () => {
+test("Home: the h1 is today's date and keeps Home as the page name, the Late line is the first thing under it, above Today", () => {
   const source = read("views/home.tsx");
   assert.match(source, /<Title name=\{text\.nav\.home\}>\{text\.routines\.today\(formatDay\(day, day\)\)\}<\/Title>/);
-  assert.match(source, /<Capture \/>\s*<LateLine \/>\s*<Today \/>/);
+  assert.match(source, /<\/Title>\s*<LateLine \/>\s*<Today \/>/);
+  assert.doesNotMatch(source, /Capture/);
   assert.match(read("main.tsx"), /const heading = title\?\.dataset\.title \?\? title\?\.textContent;/);
   assert.equal(copy.today("Mon, 26 Oct"), "Today, Mon 26 Oct");
   assert.equal(copy.today("Sat, 30 Oct 2027"), "Today, Sat 30 Oct 2027");
