@@ -53,13 +53,13 @@ test("a new routine sheet never shows the notice", async () => {
   assert.equal(html.includes(text.routines.goneOpen), false);
 });
 
-const formOf = (gone: boolean) => markupOf("ui/item-form.tsx", ({ ItemForm }) => createElement(ItemForm, { name: "guest", row: item({ kind: "guest", title: "Pak Budi", status: "invited" }), gone }));
+const formOf = (gone: boolean) => markupOf("ui/item-form.tsx", ({ ItemForm }) => createElement(ItemForm, { name: "guest", row: item({ kind: "guest", title: "Pak Budi", status: "invited" }), gone, sheet: () => undefined }));
 
-test("a deleted row's form shows the notice and Undo, with Save and Delete off", async () => {
+test("a deleted row's form shows the notice and Undo, with Save off", async () => {
   const html = await formOf(true);
   assert.match(html, new RegExp(`<p id="([^"]+)" class="hint" role="status">${text.goneOpen}</p>`));
-  assert.match(html, new RegExp(`<button type="button" aria-describedby="[^"]+">${text.undo}</button><button type="submit" disabled="">`));
-  assert.ok(buttons(html).some((tag) => tag.includes("danger") && tag.includes('disabled=""')));
+  assert.match(html, new RegExp(`<button type="button" class="secondary" aria-describedby="[^"]+">${text.undo}</button>`));
+  assert.deepEqual(buttons(html).filter((tag) => tag.includes('type="submit"')), ['<button type="submit" disabled="">']);
 });
 
 test("a live row's form has an empty notice region and no Undo", async () => {

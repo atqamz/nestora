@@ -5,12 +5,10 @@ import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
-import type { Written } from "../hooks/use-store.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { failureOf, splitErrors } from "./failure.ts";
 import { Field } from "./field.tsx";
 import type { Control } from "./field.tsx";
-import { backHref } from "./item-flows.ts";
 import type { Row } from "./item-flows.ts";
 import { fieldLabel, optionLabel } from "./labels.ts";
 import { Modal } from "./modal.tsx";
@@ -23,15 +21,12 @@ type Value = string | number | boolean | null;
 const valueOf = (row: Row, field: string) =>
   (field.startsWith("data.") ? (row.data?.[field.slice(5)] ?? null) : (row[field as keyof Row] ?? null)) as Value;
 
-type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written>; sheet?: () => void };
+type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; sheet: () => void };
 
-export function ItemForm({ name, row, gone, only, onRemove, onRestore, sheet }: Props) {
+export function ItemForm({ name, row, gone, only, sheet }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
-  const form = useRef<HTMLFormElement>(null);
   const body = useRef<HTMLDivElement>(null);
-  const undo = useRef<HTMLButtonElement>(null);
-  const removed = useRef(false);
   const revived = useRef(false);
   const notice = useId();
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -104,8 +99,7 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore, sheet }: 
     if (Object.keys(data).length > 0) change.data = data;
     const result = await actions.update(view.table, row.id, change as never);
     if (result.ok) {
-      if (sheet) sheet();
-      else location.hash = backHref(name, row).slice(1);
+      sheet();
       return;
     }
     const { fields, rest } = splitErrors(failureOf(result), controls.map((control) => control.name));
@@ -116,16 +110,14 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore, sheet }: 
   const friendly = (control: Control, message: string) =>
     typeof control.type === "string" ? ((text.invalid as Record<string, string>)[control.type] ?? message) : message;
 
-  const root = () => form.current ?? body.current;
-
   useEffect(() => {
-    root()?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    body.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
   }, [errors]);
 
   const restore = () =>
     once(async () => {
       revived.current = true;
-      const result = await (onRestore ? onRestore() : actions.update(view.table, row.id, { deleted_at: null } as never));
+      const result = await actions.update(view.table, row.id, { deleted_at: null } as never);
       if (!result.ok) revived.current = false;
       setFailure(failureOf(result));
     });
@@ -133,86 +125,38 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore, sheet }: 
   useEffect(() => {
     if (gone || busy || !revived.current) return;
     revived.current = false;
-    root()?.querySelector<HTMLElement>("input, select, textarea")?.focus();
+    body.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
   }, [gone, busy]);
-
-  useEffect(() => {
-    if (!gone || busy || !removed.current) return;
-    removed.current = false;
-    undo.current?.focus();
-  }, [gone, busy]);
-
-  const remove = () =>
-    once(async () => {
-      removed.current = true;
-      const result = await (onRemove ? onRemove() : actions.remove(view.table, row.id));
-      if (!result.ok) removed.current = false;
-      setFailure(failureOf(result));
-    });
-
-  if (sheet) {
-    return (
-      <Modal
-        title={text.edit}
-        onClose={sheet}
-        onSubmit={save}
-        foot={
-          <button type="submit" disabled={busy || gone}>
-            {text.save}
-          </button>
-        }
-      >
-        <div className="form" ref={body}>
-          <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
-            {gone ? text.goneOpen : ""}
-          </p>
-          {gone && (
-            <button ref={undo} type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
-              {text.undo}
-            </button>
-          )}
-          {controls.map((control) => (
-            <Field key={control.name} control={control} error={errors[control.name]} />
-          ))}
-          {failure.length > 0 && (
-            <p className="error" role="alert">
-              {failure.join(" ")}
-            </p>
-          )}
-        </div>
-      </Modal>
-    );
-  }
 
   return (
-    <form ref={form} className="form" noValidate onSubmit={save}>
-      {controls.map((control) => (
-        <Field key={control.name} control={control} error={errors[control.name]} />
-      ))}
-      <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
-        {gone ? text.goneOpen : ""}
-      </p>
-      {failure.length > 0 && (
-        <p className="error" role="alert">
-          {failure.join(" ")}
-        </p>
-      )}
-      <div className="form-actions">
-        {gone && (
-          <button ref={undo} type="button" aria-describedby={notice} disabled={busy} onClick={restore}>
-            {text.undo}
-          </button>
-        )}
+    <Modal
+      title={text.edit}
+      onClose={sheet}
+      onSubmit={save}
+      foot={
         <button type="submit" disabled={busy || gone}>
           {text.save}
         </button>
-        <a className="button secondary" href={backHref(name, row)}>
-          {text.cancel}
-        </a>
-        <button type="button" className="danger" disabled={busy || gone} onClick={remove}>
-          {text.delete}
-        </button>
+      }
+    >
+      <div className="form" ref={body}>
+        <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
+          {gone ? text.goneOpen : ""}
+        </p>
+        {gone && (
+          <button type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
+            {text.undo}
+          </button>
+        )}
+        {controls.map((control) => (
+          <Field key={control.name} control={control} error={errors[control.name]} />
+        ))}
+        {failure.length > 0 && (
+          <p className="error" role="alert">
+            {failure.join(" ")}
+          </p>
+        )}
       </div>
-    </form>
+    </Modal>
   );
 }

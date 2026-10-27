@@ -56,17 +56,13 @@ test("the form's other choice controls take their options from the registry, nev
 test("a deleted row's form shows the notice in a region that was already mounted, and Undo points at it", () => {
   const form = read("ui/item-form.tsx");
   assert.match(form, /<p id=\{notice\} className=\{gone \? "hint" : "visually-hidden"\} role="status">\s*\{gone \? text\.goneOpen : ""\}\s*<\/p>/);
-  assert.match(form, /<button ref=\{undo\} type="button" aria-describedby=\{notice\}/);
+  assert.match(form, /<button type="button" className="secondary" aria-describedby=\{notice\}/);
 });
 
 test("Undo from an open form moves focus to the first field once the row is back, and only for the user's own Undo", () => {
   const form = read("ui/item-form.tsx");
-  assert.match(form, /revived\.current = true;\s*const result = await \(onRestore \? onRestore\(\) : actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
-  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*root\(\)\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
-});
-
-test("Delete is off on a deleted row", () => {
-  assert.match(read("ui/item-form.tsx"), /<button type="button" className="danger" disabled=\{busy \|\| gone\} onClick=\{remove\}>/);
+  assert.match(form, /revived\.current = true;\s*const result = await actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
+  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*body\.current\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
 });
 
 test("the open form keeps the fields it was opened with whichever way the partner turns the book", () => {

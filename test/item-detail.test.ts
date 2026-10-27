@@ -226,8 +226,8 @@ test("the screens share the frame and no longer mount the form inline", () => {
   assert.match(read("views/generic-item.tsx"), /name === "payment" \? \(line\?\.title \?\? text\.nav\.money\) : text\.tasks/);
   assert.match(read("views/money-line.tsx"), /wide=\{wide\}\s*back=\{\{ href: "#\/money", word: text\.nav\.money \}\}[\s\S]*details=\{false\}/);
   const form = read("ui/item-form.tsx");
-  assert.match(form, /if \(sheet\) sheet\(\);\s*else location\.hash = backHref\(name, row\)\.slice\(1\);/);
-  assert.match(form, /const root = \(\) => form\.current \?\? body\.current;/);
+  assert.match(form, /if \(result\.ok\) \{\s*sheet\(\);\s*return;\s*\}/);
+  assert.doesNotMatch(form, /<form\b|backHref|className="danger"|form-actions/);
   assert.match(form, /onClose=\{sheet\}/);
   assert.match(form, /<div className="form" ref=\{body\}>/);
   const frame = read("ui/item-detail.tsx");
