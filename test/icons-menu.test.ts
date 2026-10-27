@@ -2,7 +2,7 @@ import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { createElement } from "react";
-import { menuAnchor, menuHeight } from "../src/domain/menu.ts";
+import { menuAnchor, menuHeight, menuSpace } from "../src/domain/menu.ts";
 import { routineMenu } from "../src/ui/routine-menu.ts";
 import { item } from "./domain-rows.ts";
 import { markupOf } from "./render.ts";
@@ -193,7 +193,7 @@ test("the popover is anchored from the window width the scroll lock leaves, not 
 test("the popover is sized from the menu's own item count at the root text size", () => {
   const menu = read("src/ui/menu.tsx");
   assert.match(menu, /const rem = parseFloat\(getComputedStyle\(document\.documentElement\)\.fontSize\);/);
-  assert.match(menu, /menuHeight\(items\.length, rem\)/);
+  assert.match(menu, /menuSpace\(items\.length, rem\)/);
 });
 
 test("the menu height estimate follows the item height and the padding the stylesheet gives", () => {
@@ -201,7 +201,12 @@ test("the menu height estimate follows the item height and the padding the style
   const space = Number(/--s2: ([\d.]+)rem;/.exec(read("src/tokens.css"))![1]);
   const item = Number(/^([\d.]+)rem$/.exec(computed(".menu button", 20).get("min-height")!)![1]);
   assert.equal(menuHeight(1, rem) - menuHeight(0, rem), item * rem);
-  assert.equal(menuHeight(0, rem), 5 * space * rem);
+  const border = length(split(computed(".add-sheet.menu-sheet", 80).get("border")!)[0], {}, rem);
+  assert.equal(border, 1);
+  assert.equal(menuHeight(0, rem), 5 * space * rem + 2 * (border as number));
+  const tokens = Object.fromEntries([...read("src/tokens.css").matchAll(/(--s\d): ([\d.]+rem);/g)].map((entry) => [entry[1], entry[2]]));
+  const clamp = /calc\(var\(--menu-room\) - (var\(--s\d\)) - (var\(--s\d\))\)/.exec(computed(".add-sheet.menu-sheet", 80).get("max-height")!)!;
+  assert.equal(menuSpace(0, rem) - menuHeight(0, rem), (length(clamp[1], tokens, rem) as number) + (length(clamp[2], tokens, rem) as number));
   assert.equal(computed(".menu", 20).get("padding"), "var(--s2) 0");
   assert.equal(computed(".add-sheet.menu-sheet .sheet-body", 80).get("padding"), "var(--s2)");
   assert.equal(computed(".menu button.danger", 20).get("margin"), "var(--s2) 0 0");
@@ -222,14 +227,20 @@ const length = (value: string, vars: Record<string, string | undefined>, rem: nu
 const popover = (viewport: { width: number; height: number }, rem: number, count: number, at = button) => {
   const final = computed(".add-sheet.menu-sheet", viewport.width / rem);
   const tokens = Object.fromEntries([...read("src/tokens.css").matchAll(/(--s\d): ([\d.]+rem);/g)].map((entry) => [entry[1], entry[2]]));
-  const vars = { ...tokens, ...menuAnchor(at, viewport, menuHeight(count, rem)) };
+  const vars = { ...tokens, ...menuAnchor(at, viewport, menuSpace(count, rem)) };
   const [top, , bottom] = split(final.get("inset")!).map((entry) => length(entry, vars, rem));
-  const margin = length(split(final.get("margin")!)[0], vars, rem) as number;
-  const height = Math.min(menuHeight(count, rem), length(final.get("max-height")!, vars, rem) as number);
-  const from = top === "auto" ? viewport.height - (bottom as number) - margin - height : (top as number) + margin;
+  const margins = split(final.get("margin")!);
+  const marginTop = length(margins[0], vars, rem) as number;
+  const marginBottom = length(margins[margins.length >= 3 ? 2 : 0], vars, rem) as number;
+  const border = length(split(final.get("border")!)[0], vars, rem) as number;
+  const natural = menuHeight(count, rem);
+  const height = Math.min(natural, length(final.get("max-height")!, vars, rem) as number);
+  const from = top === "auto" ? viewport.height - (bottom as number) - marginBottom - height : (top as number) + marginTop;
   const gap = top === "auto" ? at.top - (from + height) : from - at.bottom;
-  return { from, to: from + height, height, gap, whole: height === menuHeight(count, rem) };
+  return { from, to: from + height, height, gap, border, below: top !== "auto", whole: height === natural };
 };
+
+const scale = (rem: number) => ({ top: (224 * rem) / 16, bottom: (272 * rem) / 16, right: (980 * rem) / 16 });
 
 test("the popover stays inside a short window and shows every item whenever one side has room for them", () => {
   for (const height of [250, 320, 400, 500, 900]) {
@@ -237,6 +248,27 @@ test("the popover stays inside a short window and shows every item whenever one 
     assert.ok(box.from >= 0 && box.to <= height, `${height}: ${box.from} to ${box.to}`);
     assert.ok(box.whole, `${height} shows all items`);
     assert.ok(box.gap >= 4, `${height}: ${box.gap} px between More and the popover`);
+  }
+});
+
+test("the popover has a one pixel border, and the menu is sized with it", () => {
+  assert.equal(popover({ width: 1280, height: 900 }, 16, 3).border, 1);
+});
+
+test("the popover shows every item in each window height where either side has room, and a 4 px gap to More, at 100 and 200 percent text", () => {
+  const tokens = Object.fromEntries([...read("src/tokens.css").matchAll(/(--s\d): ([\d.]+)rem;/g)].map((entry) => [entry[1], Number(entry[2])]));
+  for (const rem of [16, 32]) {
+    const at = scale(rem);
+    const margin = (tokens["--s4"] + tokens["--s1"]) * rem;
+    for (let height = (300 * rem) / 16; height <= (700 * rem) / 16; height++) {
+      const box = popover({ width: rem === 16 ? 1280 : 2100, height }, rem, 3, at);
+      const below = height - at.bottom;
+      const room = Math.max(below, at.top) - margin;
+      assert.equal(box.whole, room >= menuHeight(3, rem), `${rem} px text, window ${height}: ${box.height} px shown, ${room} px of room`);
+      assert.equal(box.below, below - margin >= menuHeight(3, rem) || at.top <= below, `${rem} px text, window ${height}: side`);
+      assert.ok(box.gap >= tokens["--s1"] * rem, `${rem} px text, window ${height}: gap ${box.gap}`);
+      assert.ok(box.from >= 0 && box.to <= height, `${rem} px text, window ${height}: ${box.from} to ${box.to}`);
+    }
   }
 });
 
