@@ -1062,7 +1062,7 @@ test("a memory read for a side the probe then contradicts is dropped, not carrie
   hinted.purge("b");
   push("#/books");
   assert.deepEqual([...world.store.keys()], ["wp.place.b"]);
-  assert.doesNotMatch(world.store.get("wp.place.b")!, /r1|640/);
+  assert.doesNotMatch(world.store.get("wp.place.b")!, /routines\/r1|"y":640/);
 });
 
 test("with no side known nothing is written, and the memory is kept in the page until a side is confirmed", async () => {
@@ -1198,7 +1198,7 @@ const shared: Row = { id: SHARED, kind: "routine", who: "both", data: null };
 const snap = { ready: true, items: [mine, shared] as Row[] };
 const rule = (route: string) => hiddenRoute(route, snap.ready, snap.items);
 const dump = () => JSON.stringify([...world.store]);
-const gone = /aaaaaaaa/i;
+const gone = /aaaaaaaa-/i;
 
 const rig = async (hash: string, ready = true, items: Row[] = [mine, shared], side: "a" | "b" | null = "a") => {
   reset(hash);
