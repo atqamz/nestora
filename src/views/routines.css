@@ -12,7 +12,8 @@
 }
 
 @media (max-width: 25.5rem) {
-  .rt-tools:has(> .rt-lead) > * > svg {
+  .rt-tools:has(> .rt-lead) > :not([aria-haspopup]) > svg,
+  .rt-tools:has(> .rt-lead) > [aria-haspopup] > .menu-word {
     display: none;
   }
 }

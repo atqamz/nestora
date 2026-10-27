@@ -217,14 +217,19 @@ test("the Start label sits in a one-cell grid with a hidden copy of the wider la
   });
 });
 
-test("the detail toolbar drops the glyphs of its three controls together when the row would not hold them, and keeps the natural widths that never stretch a control", () => {
-  const glyphs = ".rt-tools:has(> .rt-lead) > * > svg";
+test("the detail toolbar drops the glyphs of Start and Edit and the word of More when the row would not hold them, keeps the ellipsis, and keeps the natural widths that never stretch a control", () => {
+  const glyphs = ".rt-tools:has(> .rt-lead) > :not([aria-haspopup]) > svg";
+  const word = ".rt-tools:has(> .rt-lead) > [aria-haspopup] > .menu-word";
+  const ellipsis = ".rt-tools:has(> .rt-lead) > [aria-haspopup] > svg";
   eachScreen(({ px, zoom, width }) => {
-    assert.equal(cascade(routinesCss, glyphs, width).get("display"), px === 412 && zoom === 1 ? undefined : "none", `${px}px ${zoom}`);
+    const hidden = px === 412 && zoom === 1 ? undefined : "none";
+    assert.equal(cascade(routinesCss, glyphs, width).get("display"), hidden, `${px}px ${zoom}`);
+    assert.equal(cascade(routinesCss, word, width).get("display"), hidden, `${px}px ${zoom}`);
+    assert.equal(cascade(routinesCss, ellipsis, width).get("display"), undefined, `${px}px ${zoom}`);
     assert.equal(cascade(routinesCss, ".rt-tools > *", width).get("flex"), "0 1 auto", `${px}px ${zoom}`);
   });
-  for (const rem of [10, 18.5, 20, 25.5]) assert.equal(at(glyphs, rem).get("display"), "none", `${rem}rem`);
-  for (const rem of [25.51, 26, 40]) assert.equal(at(glyphs, rem).get("display"), undefined, `${rem}rem`);
+  for (const rem of [10, 18.5, 20, 25.5]) assert.deepEqual([at(glyphs, rem).get("display"), at(word, rem).get("display")], ["none", "none"], `${rem}rem`);
+  for (const rem of [25.51, 26, 40]) assert.deepEqual([at(glyphs, rem).get("display"), at(word, rem).get("display")], [undefined, undefined], `${rem}rem`);
   assert.equal(at(".rt-tools > .rt-lead", 20).get("flex"), undefined);
 });
 
