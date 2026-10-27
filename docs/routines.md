@@ -35,7 +35,7 @@ Research and design as of 24 October 2026. A decision document, no code. Every c
 - **Decision: no sixth slot.** Home gains a "Today" block under the countdown hero: the routines that apply today, each with its progress, and today's timetable blocks. "All routines" opens `#/routines`, the way "All tasks" opens `#/tasks` today **[verified, `src/views/home.tsx`]**. The Home nav item then covers `home`, `tasks` and `routines` **[verified, the `screens` list in `src/ui/nav.ts`]**.
 - **Why Home:** routines are the one daily-use area. Opening Nestora every morning for the checklist also keeps the wedding's "This week" in sight, which helps the weekly-use goal of `docs/features.md` §1.4 **[assumed]**.
 - *Trade-off:* Home gets longer. After the wedding, Money or People can give up their slot; that is the moment to reconsider a Routines tab.
-- **The (+) sheet** gets no routine chip: routines are created rarely, from `#/routines`.
+- **The (+) sheet** has a Routine chip (UX T9): it closes the Add sheet and opens the new-routine sheet with the typed text as the name. This replaces the first decision, no routine chip.
 
 ---
 

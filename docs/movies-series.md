@@ -282,7 +282,7 @@ A missing secret answers `failed`, not a new code: the client already says "type
 - **Tabs.** The Library nav item keeps opening `#/books`. List screens get tabs **Books · Movies · Series** (`<nav className="space-tabs" aria-label="Library">`). `MarriageTabs` becomes a one-line wrapper over a new `SpaceTabs({ tabs, label, screen })`, so no marriage view changes. The Library item's `screens` becomes `["books", "movies", "series"]`, so it stays current on all three. Detail pages carry no tabs, as marriage details do; they have a trail link back.
 - **Routes.** New words `movies` and `series` (`#/movies`, `#/movies/<id>`, `#/series`, `#/series/<id>`), and two `Screen` values. The route table stays a static table.
 - **No combined wishlist.** "To watch" is a section of each screen. A merged "what shall we watch tonight" list across both kinds costs a third screen and mixes two tab meanings; it is a client-side filter if the couple ask (open question 4). Books keep their own Shelf and Wishlist.
-- **No global add chip.** The global + sheet gets no Movie or Series chip: it would add two chips to a row of six, and the kind is unknown at capture time. Each screen has its own "Add a movie" or "Add a series" button.
+- **Global add chips (changed by UX T9).** The global + sheet has Movie and Series chips that close it and open the screen's own sheet with the typed text as the title, and + on the Movies or Series screen preselects that kind. Each screen keeps its own "Add a movie" or "Add a series" button.
 - **Home** is unchanged.
 
 ### 3.2 The screens

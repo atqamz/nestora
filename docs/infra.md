@@ -855,7 +855,6 @@ wp/
     ui/
       add-sheet.tsx
       avatar.tsx
-      capture.tsx
       contact.tsx
       due.tsx
       error-boundary.tsx

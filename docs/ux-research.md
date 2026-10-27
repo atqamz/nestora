@@ -6,6 +6,34 @@ Written 26 October 2026, against `main` at `01801e1`. Research only: no product 
 >
 > **Label.** **[verified]** = I read the code, or ran the probe described in [section 7](#7-appendix-how-the-review-was-done), on 26 October 2026. **[measured]** = a number from a probe against the scratch app. **[assumed]** = inference, or something that needs a real phone. Screenshot ids read `<width>-<text %>-<theme>-<state>`, for example `390-100-light-home` (390 px wide, 100 % text, light theme, Home).
 
+## Status
+
+Updated 28 October 2026. Thirteen of the fourteen tasks are merged to `main`; the review history of each is in its PR. From T4 on, later review rounds were verified by CI, executing tests and a scratch browser run instead of a final review of the merged head; each PR body says which round.
+
+| Task | PR | Merge on `main` | Deviation from the acceptance above |
+|---|---|---|---|
+| T1 PRODUCT.md, DESIGN.md | 62 | `a9bbcc3` | Rules not yet true in the code are marked **Target** in DESIGN.md. |
+| T2 Today finished state | 69 | `d95ec70` | After an untick the pressed checkbox shifts inside the card (-18 px at 100 %); "-1" stays at target as the undo, so a row below target shows two quiet pills; the "Done" word hides from 18.5rem. |
+| T3 Step by step | 74 | `5e81c18` | The offer also counts an open timer, not steps only; the held offer keeps its label after the open count drops below four. |
+| T4 Large text | 64 | `738e3b5` | `.row-b` uses 8ch, not 12ch; the sign-in screens keep their `vw` caps. |
+| T5 Icons, More menu | 68, 73 | `2d1340a`, `0549d2f` | The popover is placed again on resize and flips by the free margin (73); "Lost it, buy again" still uses the back chevron. |
+| T6 Routine list rows | 63 | `c0399c5` | None stated. |
+| T7 Back keeps your place | 65 | `3370fff` | Index-keyed `<details>` state, content that changes while away and the reload Tab jump are not fixed. |
+| T8 Compact Today | 76 | `6995bcc` | At 320 px and 200 % Home is 5.6 screens (target 4). Tab stops from the h1 to the first open step were 7 (8 with a late task; main 6) until T9 brought it to 5. The Late line sits between the capture row and Today, not above Today. |
+| T9 One Add | 77 | `b3ebfa6` | At 320x568, 100 % the Add sheet scrolls 286 px against main's 182. No Marriage preselect; the per-screen "Add a ..." buttons stay. |
+| T10 Detail frame, delete | 70 | `a00c57e` | `ItemForm` got a sheet branch instead of a new component. |
+| T11 Library and People | 72 | `7d2cee6` | First row at 390 px, 100 %: Movies and Series 291, Wishlist 355, shelf 364, Guests 411 (target 300). The per-side headcount is left out of the Guests summary. Movie and series Status stays a slot. |
+| T12 Paused states | 67, 75 | `effcf4f`, `57a624d` | "Not today" keeps native `disabled`. |
+| T13 App icon | | | Not done: waiting for the couple's pick among the candidates on the design page. |
+| T14 Words, first run | 78 | `f06ee59` | Skipped: builder words in the step editor, the "Earlier" fold and "Free now" line, the laptop Home column and Routines split, the owner default (question 11), the "Tonight" picker photo. |
+
+Follow-ups still open:
+
+- Done: the popover (T5), the paused guards except Feed create and revoke on Settings and Sync Discard, `ItemForm` cleanup (dead inline branch removed in 72).
+- The Modal StrictMode focus artifact: dev only, production runs the effect once.
+- The Add sheet body is a sliver at 320 px and 200 % text: a 4-line `sheet-hint` in a fixed foot takes most of the screen, and the Task sheet has the same pattern.
+- The `PRODUCT.md` claim "one Android, one iPhone" is unverified.
+
 ## 1. Summary
 
 Nestora is an Operate product used many times a day on two phones. Its foundation is sound: every control is a real element with a name, the only controls under 44 px are three kinds of small pill ("Open", "Take it", "Mark paid"), which extend their hit area, nothing overflows horizontally at 320 px, dark mode is complete, the detector finds no contrast problem in 28 rendered states, and the offline and sync states are calm and honest. What hurts is **shape, not polish**: the daily screen shows everything at once, finished work never looks finished, and the same job is done in different ways from module to module.
