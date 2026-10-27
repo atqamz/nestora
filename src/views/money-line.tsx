@@ -6,10 +6,9 @@ import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { failureOf } from "../ui/failure.ts";
-import { ItemForm } from "../ui/item-form.tsx";
+import { ItemDetail } from "../ui/item-detail.tsx";
 import { Money } from "../ui/money.tsx";
 import { PaymentLine } from "../ui/payment-line.tsx";
-import { DetailTitle } from "../ui/split.tsx";
 import { text } from "../ui/text.ts";
 import { Gone } from "./generic-item.tsx";
 
@@ -47,11 +46,19 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
   };
 
   return (
-    <>
-      <DetailTitle wide={wide}>{row.title}</DetailTitle>
-      <p className="kicker">
-        {text.money.lineKind} · {text.event[row.group_key as keyof typeof text.event] ?? row.group_key}
-      </p>
+    <ItemDetail
+      name="planned"
+      row={row}
+      gone={gone}
+      wide={wide}
+      back={{ href: "#/money", word: text.nav.money }}
+      head={
+        <p className="kicker">
+          {text.money.lineKind} · {text.event[row.group_key as keyof typeof text.event] ?? row.group_key}
+        </p>
+      }
+      details={false}
+    >
       <dl className="nums">
         <div>
           <dt>{text.budget.planned}</dt>
@@ -76,7 +83,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
           </div>
         )}
       </dl>
-      <section aria-labelledby="payments" inert={gone}>
+      <section aria-labelledby="payments">
         <Heading id="payments">{text.budget.payments}</Heading>
         {payments.length === 0 ? (
           <p className="empty">{text.empty.payments}</p>
@@ -113,15 +120,6 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
           </div>
         </form>
       </section>
-      <section aria-labelledby="line-edit">
-        <Heading id="line-edit">{text.budget.editLine}</Heading>
-        <ItemForm key={row.id} name="planned" row={row} gone={gone} />
-      </section>
-      {!wide && (
-        <p className="trail">
-          <a href="#/money">{text.back}</a>
-        </p>
-      )}
-    </>
+    </ItemDetail>
   );
 }
