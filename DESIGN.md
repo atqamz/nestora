@@ -141,7 +141,7 @@ Flat. Row groups sit on `--surface` with a 1 px `--line` ring and 1 px inset div
 
 ## Shapes
 
-Controls are gently rounded (`--r-control` 0.625rem); groups and cards 1rem (`--r-group`); pills, avatars, the FAB and checks are circular or capsule. Borders are 1 px; focus is a 2.5 px outline with 2 px offset, in `--focus`. Dashed borders mean "empty slot" (empty chips; the capture, search and quick-add inputs use them today, which **Target** replaces with solid).
+Controls are gently rounded (`--r-control` 0.625rem); groups and cards 1rem (`--r-group`); pills, avatars, the FAB and checks are circular or capsule. Borders are 1 px; focus is a 2.5 px outline with 2 px offset, in `--focus`. Dashed borders mean "empty slot" (empty chips, an avatar with no side); search fields and inputs are solid (**Target**: the quick-add inputs and the capture row still use dashed).
 
 ## Components
 
@@ -149,7 +149,7 @@ Controls are gently rounded (`--r-control` 0.625rem); groups and cards 1rem (`--
 - **Primary (filled):** `--accent` fill, `--on-accent` text, 3rem tall, 44 px minimum width, weight 650.
 - **Secondary (outlined):** transparent with a `--ink-2` border.
 - **Danger:** transparent with `--late` border and text.
-- **Disabled:** 60 % opacity; a control that cannot act today stays focusable with `aria-disabled`.
+- **Disabled:** 60 % opacity; a control that cannot act today stays focusable with `aria-disabled`. The exception is a routine step that is not scheduled today ("Not today"): its tick and counter pills take the native `disabled`.
 - **Paused:** every write control takes the disabled look while the store is held. A tap writes nothing and raises the toast with the first two sentences of the banner, keeping focus on the control, because focusing the banner scrolls the page to the top. The toast sits at the top of the screen when the tapped control is in its lower part, so it never covers the control or its focus ring, and a held key announces it once. In a sheet the top of the scrolling body carries the full sentence, since a modal dialog makes the banner and the toast inert and a note in the fixed footer would squeeze the fields at large text; the fields stay editable and only the submit is `aria-disabled`.
 - **Pill:** a 2rem capsule whose hit area is extended to 44 px; the one quick verb on a row.
 
@@ -169,11 +169,11 @@ A dark capsule above the bottom bar; with an Undo action it stays 12 s.
 Bottom bar: four labelled tabs and a centre 56 px "+"; active tab in `--ink` with a dot. Current page via `aria-current="page"`.
 
 ### Icons
-Authored inline SVG in `src/ui/icons.tsx`: 24 grid, 2 px stroke, round caps and joins, no fill, `aria-hidden`. No icon package, no icon font, never mix sets; new glyphs are copied from Lucide (ISC) with its notice. **Target:** three size tokens in `rem`, `--icon-s` 1rem (meta), `--icon-m` 1.25rem (rows, buttons, chips), `--icon-l` 1.5rem (navigation and "+"); they do not exist in `src/tokens.css` yet.
+Authored inline SVG in `src/ui/icons.tsx`: 24 grid, 2 px stroke, round caps and joins, no fill, `aria-hidden`. No icon package, no icon font, never mix sets; new glyphs are copied from Lucide (ISC) with its notice. Three size tokens in `rem` (`src/tokens.css`): `--icon-s` 1rem (meta), `--icon-m` 1.25rem (rows, buttons, chips), `--icon-l` 1.5rem (navigation and "+"). A person glyph stands in for an avatar until a nickname exists.
 
 ## The action system
 
-**Target** system, applied module by module by later work: routine rows still carry Pause and Duplicate, Delete still sits beside Cancel on some forms and no More menu exists yet. These rules decide where an action lives; a change that breaks one needs a reason in its PR.
+These rules decide where an action lives; a change that breaks one needs a reason in its PR. The routine detail and the item detail frame follow them (routine rows are one link plus at most one pill, and Pause, Duplicate and Delete sit in More). **Target**: the copy sheet and the places screen still carry their own Delete button.
 
 1. **The row is the object.** Tapping the title opens the detail. List screens show a trailing chevron; Home rows are for doing and have none. The Today row on Home toggles its steps in place and its detail opens from "Open routine".
 2. **One shape for "done".** Binary things use the circular check. Counters show the numeral below target and a check at target.
@@ -189,7 +189,7 @@ Authored inline SVG in `src/ui/icons.tsx`: 24 grid, 2 px stroke, round caps and 
 
 - Every control is a real element with a name; ticks are checkboxes; sheets are `<dialog>`.
 - Targets are at least `--target-min` (44 px) with no overlap; a smaller visual (pills, 24 px checks) extends its hit area.
-- Navigation moves focus to the `h1`; Back restores place (**Target**).
+- Navigation moves focus to the `h1`; Back restores place.
 - Reduced motion: no animation beyond colour changes, none at all under `prefers-reduced-motion`.
 - Contrast is AA in both themes; state is never colour alone.
 - Verify at 320 and 390 px, 100 and 200 % text, light and dark.
@@ -199,7 +199,7 @@ Authored inline SVG in `src/ui/icons.tsx`: 24 grid, 2 px stroke, round caps and 
 ### Do:
 - **Do** use tokens (`--s*`, `--fs-*`, `--r-*`, `--target-min`) and `rem`; add a token before a second literal.
 - **Do** keep typed work on every error and say the cause and the fix.
-- **Do** let finished work fold away and stay one tap away (**Target**).
+- **Do** let finished work fold away and stay one tap away.
 - **Do** show shared state and the partner's timetable, never the partner's private ticks or routines.
 
 ### Don't:
