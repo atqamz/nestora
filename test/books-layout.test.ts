@@ -52,10 +52,14 @@ test("long titles, authors and places can shrink and wrap, so no row pushes the 
   assert.match(rule(books, ".cover"), /flex:\s*none/);
 });
 
-test("the cover keeps a 2 to 3 ratio and uses only the existing tints", () => {
+test("the cover keeps a 2 to 3 ratio, is neutral by default and takes a partner tint only through data-tone", () => {
   assert.match(rule(books, ".cover"), /aspect-ratio:\s*2 \/ 3/);
-  assert.match(rule(books, ".cover"), /background:\s*var\(--tint-a\)/);
+  assert.match(rule(books, ".cover"), /background:\s*var\(--surface-2\)/);
+  assert.match(rule(books, ".cover"), /color:\s*var\(--ink-2\)/);
+  assert.match(rule(books, '.cover[data-tone="a"]'), /background:\s*var\(--tint-a\)/);
   assert.match(rule(books, '.cover[data-tone="b"]'), /background:\s*var\(--tint-b\)/);
+  assert.doesNotMatch(rule(books, ".cover"), /tint/);
+  assert.match(rule(books, ".cover[data-tone]"), /color:\s*var\(--on-tint\)/);
   assert.doesNotMatch(books, /#[0-9a-f]{3,8}\b|rgb\(|hsl\(|oklch\(/i);
 });
 

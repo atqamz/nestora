@@ -6,13 +6,13 @@ import { usesTmdb } from "../domain/tmdb.ts";
 import { useTable } from "../hooks/use-store.ts";
 import { CollectionSection } from "../ui/collection-section.tsx";
 import { Icon } from "../ui/icons.tsx";
+import { ListHead } from "../ui/list-head.tsx";
 import { ScreenPosters } from "../ui/screen-posters.tsx";
 import { ScreenRow } from "../ui/screen-row.tsx";
 import { ScreenSheet } from "../ui/screen-sheet.tsx";
 import { LibraryTabs } from "../ui/space-tabs.tsx";
 import { text } from "../ui/text.ts";
 import { TmdbCredit } from "../ui/tmdb-credit.tsx";
-import { Title } from "../ui/title.tsx";
 import { ScreenDetail } from "./screen.tsx";
 
 function ScreenList({ kind }: { kind: ScreenKind }) {
@@ -33,16 +33,9 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
   return (
     <>
       <LibraryTabs screen={kind === "movie" ? "movies" : "series"} />
-      <Title>{words.title}</Title>
-      <div className="bk-tools">
-        <button type="button" onClick={() => setAdding(true)}>
-          <Icon name="plus" />
-          {words.add}
-        </button>
-      </div>
-      <ScreenPosters kind={kind} rows={own} />
+      <ListHead title={words.title} add={words.add} onAdd={() => setAdding(true)} />
       {shown.mode !== "empty" && (
-        <form role="search" className="capture" onSubmit={(event) => event.preventDefault()}>
+        <form role="search" className="capture lib-find" onSubmit={(event) => event.preventDefault()}>
           <label className="visually-hidden" htmlFor={`find-${kind}`}>
             {words.search}
           </label>
@@ -104,6 +97,7 @@ function ScreenList({ kind }: { kind: ScreenKind }) {
           )}
         </>
       )}
+      <ScreenPosters kind={kind} rows={own} />
       {usesTmdb(items, kind) && <TmdbCredit />}
       {adding && <ScreenSheet kind={kind} onClose={() => setAdding(false)} />}
     </>

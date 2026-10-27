@@ -7,12 +7,12 @@ import { owns } from "../domain/owner.ts";
 import type { Owner } from "../domain/owner.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { useTable } from "../hooks/use-store.ts";
-import { Avatar, Who } from "../ui/avatar.tsx";
+import { Who } from "../ui/avatar.tsx";
 import { Contact } from "../ui/contact.tsx";
 import { optionLabel } from "../ui/labels.ts";
 import { MarriageTabs } from "../ui/marriage-tabs.tsx";
 import { Money } from "../ui/money.tsx";
-import { OwnerFilter } from "../ui/owner-filter.tsx";
+import { OwnerSelect } from "../ui/owner-select.tsx";
 import { QuickAdd } from "../ui/quick-add.tsx";
 import { statusRank, views } from "../ui/registry.ts";
 import { Split } from "../ui/split.tsx";
@@ -65,33 +65,6 @@ function PersonRow({ row, kind, selected }: { row: ItemRow; kind: Kind; selected
   );
 }
 
-function GuestSummary({ guests }: { guests: readonly ItemRow[] }) {
-  const { label } = usePartner();
-  const count = headcount(guests);
-  const all = total(count);
-  return (
-    <div className="summary">
-      <p className="sum">
-        <b>{text.contacts.invitations(guests.length)}</b> · <b>{text.people(all.people)}</b>
-      </p>
-      <ul className="sides">
-        {(["a", "b"] as const).map((side) => (
-          <li key={side}>
-            <Avatar side={side} />
-            {label(side)} <b>{text.people(count[side].people)}</b>
-          </li>
-        ))}
-        {count.none.guests > 0 && (
-          <li>
-            <Avatar side={null} />
-            {text.nobody} <b>{text.people(count.none.people)}</b>
-          </li>
-        )}
-      </ul>
-    </div>
-  );
-}
-
 const sorted = (rows: readonly ItemRow[], kind: Kind) =>
   [...rows].sort((a, b) => statusRank(kind, a.status) - statusRank(kind, b.status) || bySort(a, b));
 
@@ -119,18 +92,23 @@ export function People({ route, id }: { route: string; id?: string }) {
           {text.contacts.vendors} <b>{vendors.length}</b>
         </a>
       </div>
-      {own.length > 0 &&
-        (kind === "guest" ? (
-          <GuestSummary guests={guests} />
-        ) : (
-          <div className="summary">
-            <p className="sum">
-              <b>{text.contacts.vendorCount(vendors.length)}</b> · {text.contacts.booked(vendors.filter((row) => row.status === "confirmed").length)}
-            </p>
-          </div>
-        ))}
-      <QuickAdd name={kind} />
-      {kind === "guest" && guests.length > 0 && <OwnerFilter value={owner} onChange={setOwner} owners={guests.map((row) => row.who)} />}
+      {own.length > 0 && (
+        <div className="people-bar">
+          <p className="sum">
+            {kind === "guest" ? (
+              <>
+                <b>{text.contacts.invitations(visible.length)}</b> · <b>{text.people(total(headcount(visible)).people)}</b>
+              </>
+            ) : (
+              <>
+                <b>{text.contacts.vendorCount(vendors.length)}</b> · {text.contacts.booked(vendors.filter((row) => row.status === "confirmed").length)}
+              </>
+            )}
+          </p>
+          {kind === "guest" && <OwnerSelect value={owner} onChange={setOwner} owners={guests.map((row) => row.who)} />}
+        </div>
+      )}
+      <QuickAdd name={kind} onAdded={() => setOwner((shown) => (owns(me ?? "a", shown, me) ? shown : "everyone"))} />
       {own.length === 0 ? (
         <p className="empty">{text.empty[kind]}</p>
       ) : visible.length === 0 ? (

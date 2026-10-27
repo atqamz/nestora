@@ -215,8 +215,8 @@ test("the edit sheet has Save in its foot and no Cancel or Delete, and a deleted
   assert.match(gone, /<button type="submit" disabled="">Save<\/button>/);
 });
 
-test("the four screens share the frame and no longer mount the form inline", () => {
-  for (const file of ["views/generic-item.tsx", "views/person.tsx", "views/money-line.tsx"]) {
+test("the screens share the frame and no longer mount the form inline", () => {
+  for (const file of ["views/generic-item.tsx", "views/person.tsx", "views/money-line.tsx", "views/book.tsx", "views/screen.tsx"]) {
     const source = read(file);
     assert.match(source, /<ItemDetail\b/, file);
     assert.doesNotMatch(source, /<ItemForm\b/, file);
@@ -226,14 +226,14 @@ test("the four screens share the frame and no longer mount the form inline", () 
   assert.match(read("views/generic-item.tsx"), /name === "payment" \? \(line\?\.title \?\? text\.nav\.money\) : text\.tasks/);
   assert.match(read("views/money-line.tsx"), /wide=\{wide\}\s*back=\{\{ href: "#\/money", word: text\.nav\.money \}\}[\s\S]*details=\{false\}/);
   const form = read("ui/item-form.tsx");
-  assert.match(form, /if \(sheet\) sheet\(\);\s*else location\.hash = backHref\(name, row\)\.slice\(1\);/);
-  assert.match(form, /const root = \(\) => form\.current \?\? body\.current;/);
+  assert.match(form, /if \(result\.ok\) \{\s*sheet\(\);\s*return;\s*\}/);
+  assert.doesNotMatch(form, /<form\b|backHref|className="danger"|form-actions/);
   assert.match(form, /onClose=\{sheet\}/);
   assert.match(form, /<div className="form" ref=\{body\}>/);
   const frame = read("ui/item-detail.tsx");
   assert.match(frame, /className=\{gone && !editing \? "hint" : "visually-hidden"\} role="status">\s*\{gone && !editing \? text\.gone : ""\}/);
   assert.match(frame, /\{gone && !editing && \(\s*<p>\s*<button type="button" className="secondary" aria-describedby=\{notice\}/);
-  assert.match(frame, /revived\.current = true;\s*const result = await restoreItem\(actions, name, row\);\s*if \(!result\.ok\) revived\.current = false;/);
+  assert.match(frame, /revived\.current = true;\s*const result = await \(flows \? flows\.restore\(\) : restoreItem\(actions, name, row\)\);\s*if \(!result\.ok\) revived\.current = false;/);
   assert.match(frame, /if \(gone \|\| !revived\.current\) return;\s*revived\.current = false;\s*edit\.current\?\.focus\(\);/);
 });
 

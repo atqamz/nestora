@@ -15,10 +15,11 @@ import { BookRow } from "../ui/book-row.tsx";
 import { BookSheet } from "../ui/book-sheet.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
+import { ListHead } from "../ui/list-head.tsx";
+import { Menu } from "../ui/menu.tsx";
 import { Money } from "../ui/money.tsx";
 import { LibraryTabs } from "../ui/space-tabs.tsx";
 import { text } from "../ui/text.ts";
-import { Title } from "../ui/title.tsx";
 import { BookDetail } from "./book.tsx";
 import { ImportBooks } from "./import.tsx";
 import { Places } from "./places.tsx";
@@ -44,31 +45,30 @@ const sectionName = (where: Where) => {
 
 const OPEN_ALL = 30;
 
+const go = (hash: string) => () => {
+  location.hash = hash;
+};
+
 function Head({ mode, shelf, wishes, onAdd }: { mode: Mode; shelf: number; wishes: number; onAdd: () => void }) {
   return (
     <>
-      <Title>{text.books.title}</Title>
-      <div role="group" aria-label={text.books.switch} className="seg">
-        <a href="#/books" aria-current={mode === "shelf" ? "page" : undefined}>
-          {text.books.shelf} <b>{shelf}</b>
-        </a>
-        <a href="#/wishlist" aria-current={mode === "wish" ? "page" : undefined}>
-          {text.books.wishlist} <b>{wishes}</b>
-        </a>
-      </div>
-      <div className="bk-tools">
-        <button type="button" onClick={onAdd}>
-          <Icon name="plus" />
-          {mode === "shelf" ? text.books.add : text.books.addWish}
-        </button>
-        <a className="button secondary" href="#/places">
-          <Icon name="pin" />
-          {text.books.places}
-        </a>
-        <a className="button secondary" href="#/books/import">
-          <Icon name="upload" />
-          {text.books.import.open}
-        </a>
+      <ListHead title={text.books.title} add={mode === "shelf" ? text.books.add : text.books.addWish} onAdd={onAdd} />
+      <div className="lib-bar">
+        <div role="group" aria-label={text.books.switch} className="seg">
+          <a href="#/books" aria-current={mode === "shelf" ? "page" : undefined}>
+            {text.books.shelf} <b>{shelf}</b>
+          </a>
+          <a href="#/wishlist" aria-current={mode === "wish" ? "page" : undefined}>
+            {text.books.wishlist} <b>{wishes}</b>
+          </a>
+        </div>
+        <Menu
+          name={text.menu.moreNamed(text.books.title)}
+          items={[
+            { id: "places", icon: "pin", label: text.books.places, run: go("#/places") },
+            { id: "import", icon: "upload", label: text.books.import.open, run: go("#/books/import") },
+          ]}
+        />
       </div>
     </>
   );
@@ -76,7 +76,7 @@ function Head({ mode, shelf, wishes, onAdd }: { mode: Mode; shelf: number; wishe
 
 function Find({ mode, onChange, value }: { mode: Mode; value: string; onChange: (value: string) => void }) {
   return (
-    <form role="search" className="capture" onSubmit={(event) => event.preventDefault()}>
+    <form role="search" className="capture lib-find" onSubmit={(event) => event.preventDefault()}>
       <label className="visually-hidden" htmlFor={`find-${mode}`}>
         {mode === "shelf" ? text.books.search : text.books.searchWish}
       </label>

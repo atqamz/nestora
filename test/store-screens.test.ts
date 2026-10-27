@@ -130,7 +130,7 @@ test("removeScreen deletes, goes back to the list and offers an Undo that brings
   assert.deepEqual(went, ["/movies"]);
   assert.equal(rowOf(a, id), undefined);
   const toast = overlay.getSnapshot().toast!;
-  assert.equal(toast.message, "Deleted: Inception");
+  assert.equal(toast.message, "Deleted Inception");
   assert.equal(toast.action?.label, "Undo");
   toast.action!.run();
   await new Promise((resolve) => setTimeout(resolve, 20));

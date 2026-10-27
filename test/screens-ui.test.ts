@@ -28,12 +28,14 @@ test("the three Library screens share one tab bar, the Books screen only for its
 
 test("each screen has one h1 and its sections are h2, and the Watched summary is not a heading", () => {
   const list = read("views/screens.tsx");
-  assert.equal(list.match(/<Title>/g)?.length, 1);
+  assert.equal(list.match(/<ListHead title=/g)?.length, 1);
+  assert.match(read("ui/list-head.tsx"), /<Title>\{title\}<\/Title>/);
   assert.match(list, /<h2 id="sc-watching">/);
   assert.match(list, /<h2 id="sc-want">/);
   assert.match(list, /<summary>\s*<span className="shelf-name">\{text\.screen\.watched\}<\/span>/);
   assert.doesNotMatch(list, /<h[3-6][\s>]/);
-  assert.equal(read("views/screen.tsx").match(/<Title>/g)?.length, 1);
+  assert.doesNotMatch(read("views/screen.tsx"), /<Title>/);
+  assert.equal(read("ui/item-detail.tsx").match(/<Title>/g)?.length, 2);
   assert.doesNotMatch(read("views/screen.tsx"), /<h[3-6][\s>]/);
 });
 
@@ -83,7 +85,7 @@ test("the add sheet needs only a title, defaults the pick to both, and offers To
 });
 
 test("rows and detail reuse the book layout classes, which keep a 44 px target, shrink and wrap", () => {
-  const view = ["views/screens.tsx", "views/screen.tsx", "ui/screen-row.tsx"].map(read).join("\n");
+  const view = ["views/screens.tsx", "views/screen.tsx", "ui/screen-row.tsx", "ui/item-detail.tsx"].map(read).join("\n");
   for (const name of ["bk", "bk-link", "bk-text", "bk-by", "shelf-sec", "bk-head", "bk-id", "star", "rate", "seg"]) assert.match(view, new RegExp(`className="${name}[" ]`), name);
   assert.match(rule(books, ".bk-link"), /min-height:\s*var\(--target-min\)/);
   assert.match(rule(books, ".bk-link"), /min-width:\s*0/);
@@ -111,5 +113,5 @@ test("deleting a row goes back to its own list and offers Undo", () => {
   const save = read("ui/screen-save.ts");
   assert.match(save, /go\(`\/\$\{views\[kind\]\.route\}`\)/);
   assert.match(save, /label: text\.undo/);
-  assert.equal(text.screen.deleted("Inception"), "Deleted: Inception");
+  assert.equal(text.screen.deleted("Inception"), "Deleted Inception");
 });

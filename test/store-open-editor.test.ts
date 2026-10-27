@@ -157,10 +157,9 @@ test("an open form takes every value from its own snapshot, and a deleted row ke
   assert.doesNotMatch(form, /valueOf\(row,|value: row\.|\[row, siblings/);
   assert.match(form, /<button type="submit" disabled=\{busy \|\| gone\}>/);
   assert.match(form, /actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)/);
-  assert.match(form, /\{gone && \(\s*<button ref=\{undo\} type="button" aria-describedby=\{notice\} disabled=\{busy\} onClick=\{restore\}>\s*\{text\.undo\}\s*<\/button>\s*\)\}/);
-  assert.match(form, /if \(!gone \|\| busy \|\| !removed\.current\) return;\s*removed\.current = false;\s*undo\.current\?\.focus\(\);/);
+  assert.match(form, /\{gone && \(\s*<button type="button" className="secondary" aria-describedby=\{notice\} disabled=\{busy\} onClick=\{restore\}>\s*\{text\.undo\}\s*<\/button>\s*\)\}/);
+  assert.doesNotMatch(form, /removed|onRemove|onRestore|undo\.current/);
   assert.match(form, /\}, \[gone, busy\]\);/);
-  assert.match(form, /removed\.current = true;\s*const result = await \(onRemove \? onRemove\(\) : actions\.remove\(view\.table, row\.id\)\);\s*if \(!result\.ok\) removed\.current = false;/);
   assert.equal(text.goneOpen, "This item was deleted. What you typed is still here.");
 });
 
