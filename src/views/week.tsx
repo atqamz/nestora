@@ -3,6 +3,7 @@ import { thisWeek } from "../domain/week.ts";
 import type { WeekEntry } from "../domain/week.ts";
 import { useToday } from "../hooks/use-plan.ts";
 import { useTable } from "../hooks/use-store.ts";
+import { Icon } from "../ui/icons.tsx";
 import { ItemLine } from "../ui/item-line.tsx";
 import { PaymentLine } from "../ui/payment-line.tsx";
 import { text } from "../ui/text.ts";
@@ -11,7 +12,7 @@ function Entries({ id, heading, late, entries }: { id: string; heading: string; 
   if (entries.length === 0) return null;
   return (
     <section className="group" aria-labelledby={id}>
-      <h3 id={id} data-late={late}>
+      <h3 id={id} data-late={late} tabIndex={-1}>
         {heading} <span>{entries.length}</span>
       </h3>
       <ul className="rows">
@@ -27,11 +28,36 @@ function Entries({ id, heading, late, entries }: { id: string; heading: string; 
   );
 }
 
-export function Week() {
+const useWeek = () => {
   const items = useTable("items");
   const entries = useTable("budget_entries");
   const today = useToday();
-  const week = useMemo(() => thisWeek(items, entries, today), [items, entries, today]);
+  return useMemo(() => thisWeek(items, entries, today), [items, entries, today]);
+};
+
+export function LateLine() {
+  const { length } = useWeek().overdue;
+  if (length === 0) return null;
+  return (
+    <button
+      type="button"
+      className="rt-late"
+      aria-label={text.week.lateNamed(length)}
+      onClick={() => {
+        const group = document.getElementById("week-overdue");
+        group?.scrollIntoView({ block: "start", behavior: "instant" });
+        group?.focus({ preventScroll: true });
+      }}
+    >
+      <Icon name="late" />
+      <span>{text.week.lateLine(length)}</span>
+      <Icon name="down" />
+    </button>
+  );
+}
+
+export function Week() {
+  const week = useWeek();
   const empty = week.overdue.length + week.soon.length + week.undated.length === 0;
   return (
     <>

@@ -1,4 +1,4 @@
-import { test, mock } from "node:test";
+import { test, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
@@ -15,7 +15,16 @@ const copy = text.routines;
 
 const { TodayBlock, SETTLE_MS, QUIET_MS, SETTLE_CAP_MS } = await load("views/today-block.tsx");
 const { RoutineAction } = await load("ui/routine-action.tsx");
-const { Today } = await load("views/today.tsx");
+const { Today, forget } = await load("views/today.tsx");
+
+const mounted: { unmount: () => void }[] = [];
+
+beforeEach(() => forget());
+
+afterEach(() => {
+  for (const view of mounted.splice(0)) view.unmount();
+  mock.timers.reset();
+});
 
 const routine = (title: string, group_key = "morning") => item({ kind: "routine", status: null, who: "a", title, group_key, data: {} });
 
@@ -39,12 +48,34 @@ const flowsOf = () => {
   return { calls, flows };
 };
 
-const mountBlock = (t: { after: (fn: () => void) => void }, parent: ItemRow, done: number, total = 2, actions: ItemRow[] = []) => {
+const mountBlock = (t: { after: (fn: () => void) => void }, parent: ItemRow, done: number, total = 2, actions: ItemRow[] = [], start = done < total) => {
   const document = dom();
   mock.timers.reset();
   mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
   const { flows, calls } = flowsOf();
-  const view = mount(TodayBlock, { block: block(parent, done, total, actions), items: [], flows, me: "a", day: DAY }, document);
+  const shown = { expanded: start };
+  const folds: string[] = [];
+  const props = (next: number) => ({ block: block(parent, next, total, actions), expanded: shown.expanded });
+  const view = mount(
+    TodayBlock,
+    {
+      ...props(done),
+      items: [],
+      flows,
+      me: "a",
+      day: DAY,
+      onToggle: () => {
+        shown.expanded = !shown.expanded;
+        view.update({ expanded: shown.expanded });
+      },
+      onFold: () => {
+        folds.push("fold");
+        shown.expanded = false;
+        view.update({ expanded: false });
+      },
+    },
+    document,
+  );
   t.after(() => {
     view.unmount();
     mock.timers.reset();
@@ -53,7 +84,7 @@ const mountBlock = (t: { after: (fn: () => void) => void }, parent: ItemRow, don
   const stateOf = () => (view.tree as any).props["data-fold"] as string;
   const said = () => textOf(find(view.tree, (element) => element.props.role === "status"));
   const progress = (next: number) => view.update({ block: block(parent, next, total, actions) });
-  return { document, view, calls, flows, stateOf, said, progress, hidden };
+  return { document, view, calls, flows, stateOf, said, progress, hidden, folds };
 };
 
 test("the settle is 600 ms, the quiet time 500 ms and the cap 3 s", () => {
@@ -73,7 +104,7 @@ test("a finished card settles for 600 ms, folds, and says it is done once when f
   assert.equal(stateOf(), "folded");
   assert.equal(said(), copy.finished("Morning care"));
   assert.equal(document.activeElement, document.body);
-  assert.equal(view.node("rt-fold")?.kind, "button");
+  assert.equal(view.node("button")?.kind, "button");
 });
 
 test("the folded row takes focus and stays quiet when the last tick had focus inside the card", (t) => {
@@ -84,7 +115,7 @@ test("the folded row takes focus and stays quiet when the last tick had focus in
   progress(2);
   mock.timers.tick(SETTLE_MS);
   assert.equal(stateOf(), "folded");
-  assert.equal(document.activeElement, view.node("rt-fold"));
+  assert.equal(document.activeElement, view.node("button"));
   assert.equal(said(), "");
 });
 
@@ -96,7 +127,7 @@ test("a focus outside the card is left alone at the fold", (t) => {
   progress(2);
   mock.timers.tick(SETTLE_MS);
   assert.equal(document.activeElement, elsewhere);
-  assert.equal(view.node("rt-fold")?.kind, "button");
+  assert.equal(view.node("button")?.kind, "button");
 });
 
 test("unticking during the settle keeps the card open, and a tick, untick, tick folds only 600 ms after the last tick", (t) => {
@@ -140,6 +171,7 @@ test("a card that is unticked after the fold reopens, in place, with the announc
   assert.equal(stateOf(), "open");
   assert.equal(said(), "");
   assert.equal(find(view.tree, (element) => element.props.className === "rt-fold").length, 0);
+  assert.equal(find(view.tree, (element) => element.props.className === "rt-fold rt-live")[0].props["aria-expanded"], true);
 });
 
 test("only the folded state hides the card's body", (t) => {
@@ -233,12 +265,14 @@ test("the detail toolbar drops the glyphs of Start and Edit and the word of More
   assert.equal(at(".rt-tools > .rt-lead", 20).get("flex"), undefined);
 });
 
-test("a card's title link names the Start link it stands in for, so Back finds its routine when the offer is gone", (t) => {
+test("a card's header row names the Start link it stands in for, so Back finds its routine when the offer is gone", (t) => {
   const parent = routine("Morning care");
   const { view } = mountBlock(t, parent, 1);
-  const title = find(view.tree, (element) => element.props.href === `#/routines/${parent.id}` && element.type === "a" && element.props["data-replaces"] !== undefined);
-  assert.equal(title.length, 1);
-  assert.equal(title[0].props["data-replaces"], `#/routines/${parent.id}/start`);
+  const header = find(view.tree, (element) => element.type === "button" && element.props["data-replaces"] !== undefined);
+  assert.equal(header.length, 1);
+  assert.equal(header[0].props["data-replaces"], `#/routines/${parent.id}/start`);
+  const heading = find(view.tree, (element) => element.type === "h3");
+  assert.equal(find(heading[0], (element) => element.type === "a").length, 0);
 });
 
 test("an open card shows its progress only when there is something to count", (t) => {
@@ -328,10 +362,10 @@ test("the touch listeners live only while the card settles", (t) => {
   assert.deepEqual(listening(), [0, 0, 0]);
 });
 
-test("Start over clears the routine and hands focus to its title link once it opens again, but not when the write fails", async (t) => {
+test("Start over clears the routine and hands focus to its header row once it opens again, but not when the write fails", async (t) => {
   const parent = routine("Before going out", "on_demand");
   const run = async (result: unknown) => {
-    const { view, flows, calls, stateOf, progress, document } = mountBlock(t, parent, 2);
+    const { view, flows, calls, stateOf, progress, document } = mountBlock(t, parent, 2, 2, [], true);
     flows.clear = async () => {
       calls.push("clear");
       return result;
@@ -345,21 +379,21 @@ test("Start over clears the routine and hands focus to its title link once it op
   const good = await run(ok);
   assert.deepEqual(good.calls, ["clear"]);
   assert.equal(good.stateOf(), "open");
-  assert.equal(good.document.activeElement, good.view.node("a"));
+  assert.equal(good.document.activeElement, good.view.node("button"));
   mock.timers.reset();
   const bad = await run({ ok: false, errors: ["no"] });
   assert.equal(bad.stateOf(), "open");
-  assert.notEqual(bad.document.activeElement, bad.view.node("a"));
+  assert.notEqual(bad.document.activeElement, bad.view.node("button"));
 });
 
-test("a hand-off to the title link is spent when it happens, so a later reopen by a partner does not steal focus", async (t) => {
+test("a hand-off to the header row is spent when it happens, so a later reopen by a partner does not steal focus", async (t) => {
   const parent = routine("Before going out", "on_demand");
-  const { view, flows, stateOf, progress, document } = mountBlock(t, parent, 2);
+  const { view, flows, stateOf, progress, document } = mountBlock(t, parent, 2, 2, [], true);
   void flows;
   find(view.tree, (element) => element.props["aria-label"] === copy.againNamed("Before going out"))[0].props.onClick();
   await settle();
   progress(1);
-  assert.equal(document.activeElement, view.node("a"));
+  assert.equal(document.activeElement, view.node("button"));
   document.activeElement = document.body;
   progress(2);
   mock.timers.tick(SETTLE_MS);
@@ -508,6 +542,7 @@ const today = async (items: ItemRow[]) => {
   stage(items);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   const view = mount(Today, {}, document);
+  mounted.push(view);
   mock.timers.reset();
   return view;
 };
@@ -531,7 +566,7 @@ test("Today draws no Done today label and no 0 of 0 tally when there is nothing 
       mock.timers.reset();
     }
   })();
-  assert.equal(html.includes("rt-label"), false);
+  assert.equal(html.includes("rt-done"), false);
   assert.match(html, /<span class="rt-tally">0 of 1<\/span>/);
   const only = routine("Before going out", "on_demand");
   stage([only, step(only, "Keys")]);
@@ -539,7 +574,7 @@ test("Today draws no Done today label and no 0 of 0 tally when there is nothing 
   try {
     const alone = await markupOf("views/today.tsx", ({ Today: view }) => createElement(view));
     assert.equal(alone.includes("0 of 0"), false);
-    assert.equal(alone.includes("rt-label"), false);
+    assert.equal(alone.includes("rt-done"), false);
     assert.equal(alone.includes("All done"), false);
   } finally {
     mock.timers.reset();
@@ -559,14 +594,14 @@ test("Today has no When needed group, and no Done today label, when no routine b
   }
 });
 
-test("a folded card offers Open routine with the routine's title as its name", async () => {
+test("an open card offers Open routine with the routine's title as its name, and a collapsed one draws no body link", async () => {
   const { all } = rows();
   stage(all);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   try {
     const html = await markupOf("views/today.tsx", ({ Today: view }) => createElement(view));
-    assert.match(html, /<a href="#\/routines\/[^"]+" aria-label="Open routine: Morning care">Open routine<\/a>/);
-    assert.equal(html.includes("Open routine: Evening wind down"), false);
+    assert.match(html, /<a class="rt-open" href="#\/routines\/[^"]+" aria-label="Open routine: Evening wind down">Open routine<\/a>/);
+    assert.equal(html.includes("Open routine: Morning care"), false);
   } finally {
     mock.timers.reset();
   }
@@ -577,7 +612,7 @@ const placed = (view: { tree: unknown }, id: string) => {
   const block = blocks.find((element) => element.key === id)!;
   const parent = find(view.tree as never, (element) => [element.props.children].flat(Infinity).includes(block))[0];
   const siblings = find(parent, (element) => element.type === TodayBlock);
-  return { order: blocks.map((element) => element.key), siblings: siblings.map((element) => element.key), labelled: find(parent, (element) => element.props.className === "rt-label").length, fold: (block.props as any).block.progress.done };
+  return { order: blocks.map((element) => element.key), siblings: siblings.map((element) => element.key), group: parent.props.className ?? null, fold: (block.props as any).block.progress.done };
 };
 
 const restage = (view: { update: (next: object) => void }, items: ItemRow[]) => {
@@ -598,7 +633,7 @@ test("unticking a step in a card of the Done today group reopens it in the same 
   const view = await today(items);
   const before = placed(view, done.id);
   assert.deepEqual(before.siblings, [done.id]);
-  assert.equal(before.labelled, 1);
+  assert.equal(before.group, "rt-done");
   assert.equal(before.fold, 2);
   restage(view, [done, { ...cleanse, data: {} }, first, ...items.slice(3)]);
   const after = placed(view, done.id);
@@ -636,37 +671,34 @@ const textsOf = async (items: ItemRow[]) => {
 test("Today's text nodes are exactly the titles, labels and counts, with no stray text in the folded row, the groups or the after row", async () => {
   const { done, open, need } = rows();
   assert.deepEqual(await textsOf([done, step(done, "Cleanse", { done_a: DAY }), open, step(open, "Dim the lights"), need, step(need, "Keys", { done_a: DAY })]), [
-    "Today · Mon, 26 Oct",
+    "Routines",
     "1 of 2",
     "Evening wind down",
-    "Evening",
-    "0 of 1",
+    "Evening · 0 of 1",
+    "Open routine",
     "Mark Dim the lights as done",
     "Dim the lights",
-    "Done today",
+    "Done today · 1",
     "Morning care",
     "Done",
     "Mark Cleanse as not done",
     "Cleanse",
-    "Open routine",
     "When needed",
     "1 of 1",
     "Before going out",
     "Done",
     "Mark Keys as not done",
     "Keys",
-    "Open routine",
-    "Start over",
     "All routines",
   ]);
 });
 
 test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
   const open = routine("Evening wind down", "evening");
-  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
-  assert.deepEqual(await textsOf([]), ["Today · Mon, 26 Oct", copy.emptyHome, copy.create]);
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Routines", "0 of 1", "Evening wind down", "Evening · 0 of 1", "Open routine", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
+  assert.deepEqual(await textsOf([]), ["Routines", copy.emptyHome, copy.create]);
   const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
-  assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Today · Mon, 26 Oct", copy.nothingToday, "All routines"]);
+  assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Routines", copy.nothingToday, "All routines"]);
 });
 
 const routinesCss = sheet("views/routines.css");
@@ -725,11 +757,11 @@ test("the folded row's boxes: full width button, a name that grows and never spl
   }
 });
 
-test("the after row keeps a full-size target on its link and a quiet spacing around the Done today label", () => {
-  assert.equal(at(".rt-after a", 20).get("min-height"), "var(--target-min)");
-  assert.equal(at(".rt-after a", 20).get("align-items"), "center");
+test("the Open routine link keeps a full-size target, the after row a quiet spacing and a quiet spacing around the Done today group", () => {
+  assert.equal(at(".rt-open", 20).get("min-height"), "var(--target-min)");
+  assert.equal(at(".rt-open", 20).get("align-items"), "center");
   assert.equal(at(".rt-after", 20).get("margin"), "var(--s2) 0 var(--s3)");
-  assert.equal(at(".rt-label", 20).get("margin"), "var(--s5) 0 var(--s1)");
+  assert.equal(at(".rt-done", 20).get("margin-top"), "var(--s4)");
   assert.equal(at(".rt-count.rt-reached svg", 20).get("width"), "var(--icon-l)");
 });
 
@@ -742,12 +774,13 @@ const PINS: Record<string, Record<string, string>> = {
   ".rt-tick svg": { "box-sizing": "border-box", width: "var(--icon-l)", height: "var(--icon-l)", padding: "3px", "border-radius": "50%", background: "var(--route)", color: "var(--bg)", "stroke-width": "var(--stroke-s)" },
   ".rt-block h3 .rt-name": { flex: "1 1 0", "min-width": "0", margin: "0", "overflow-wrap": "break-word", color: "var(--ink-2)", "font-weight": "550", "text-wrap": "pretty" },
   ".rt-block h3 .rt-state": { flex: "none", "min-width": "0", margin: "0", "font-size": "var(--fs-meta)", "font-weight": "600" },
-  ".rt-label": { margin: "var(--s5) 0 var(--s1)", color: "var(--ink-2)", "font-size": "var(--fs-meta)", "font-weight": "700" },
+  ".rt-done": { "margin-top": "var(--s4)" },
   ".rt-needed": { "margin-top": "var(--s4)" },
+  ".rt-done > summary": { color: "var(--ink-2)", "font-size": "var(--fs-meta)", "font-weight": "700" },
   ".rt-needed > summary": { color: "var(--ink-2)", "font-size": "var(--fs-meta)", "font-weight": "700" },
   ".rt-after": { display: "flex", "flex-wrap": "wrap", "align-items": "center", "justify-content": "space-between", gap: "var(--s2) var(--s4)", margin: "var(--s2) 0 var(--s3)" },
   ".rt-today summary": { display: "flex", "flex-wrap": "wrap", "list-style": "none", "align-items": "center", "justify-content": "space-between", gap: "var(--s3)", "min-height": "var(--target-min)", cursor: "pointer" },
-  ".rt-after a": { display: "inline-flex", "align-items": "center", "min-height": "var(--target-min)" },
+  ".rt-open": { display: "inline-flex", flex: "none", "align-items": "center", "min-height": "var(--target-min)" },
 };
 
 test("every declaration of the folded row, the disc, the chevron, the label, the group and the after row is pinned above the large text step", () => {

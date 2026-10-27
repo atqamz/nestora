@@ -17,7 +17,10 @@ test("them today takes its rows from the filtered hook and the one pure function
   assert.match(them, /const \{ items, me \} = useRoutines\(\);/);
   assert.match(them, /themToday\(items, me, day\)/);
   assert.match(them, /const \{ day, elapsed \} = useRoutineClock\(\);/);
-  assert.match(them, /marks\(them\.slots, elapsed\)/);
+  assert.match(them, /glances\(them\.slots\)/);
+  assert.match(them, /useMemo\(\(\) => glances\(them\.slots\), \[them\.slots\]\)/);
+  assert.match(them, /<p key=\{window\.from\}[^>]*>[\s\S]*<ul key=\{window\.from\}/);
+  assert.match(them, /windows\.findLast\(\(window\) => window\.from <= elapsed\)/);
   assert.doesNotMatch(them, /useSnapshot\(|useTable\(|rows\.items|fetch *\(|indexedDB|XMLHttpRequest|localStorage|sessionStorage|sendBeacon|new Date|Date\.now|setInterval/);
   assert.match(them, /if \(me === null || them\.routines\.length === 0\) return null;/);
   assert.match(read("views/home.tsx"), /<Today \/>\s*<Them \/>/);

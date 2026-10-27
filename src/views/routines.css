@@ -210,24 +210,6 @@
   font-weight: 700;
 }
 
-.rt-block h3 a {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  min-height: var(--target-min);
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.rt-block h3 span {
-  display: inline-block;
-  min-width: 8ch;
-  margin-left: var(--s3);
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums lining-nums;
-  font-weight: 500;
-}
-
 .rt-tt {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
@@ -284,6 +266,18 @@
   min-height: var(--target-min);
   padding: var(--s2) 0;
   border-top: 1px solid var(--line);
+}
+
+.rt-glance {
+  display: grid;
+}
+
+.rt-glance > * {
+  grid-area: 1 / 1;
+}
+
+.rt-glance > [data-idle] {
+  visibility: hidden;
 }
 
 .rt-slot-t {
@@ -465,7 +459,7 @@
 }
 
 .rt-head h3 {
-  flex: 1 1 10rem;
+  flex: 1 1 14rem;
   min-width: 0;
 }
 
@@ -892,6 +886,50 @@
   text-wrap: pretty;
 }
 
+.rt-block h3 .rt-live {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.rt-block h3 .rt-live .rt-name {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.rt-block h3 .rt-sub {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
+}
+
+.rt-late {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: var(--target-min);
+  margin: 0 0 var(--s4);
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--late-bg);
+  color: var(--late);
+  font-weight: 650;
+  text-align: left;
+}
+
+.rt-late span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.rt-late svg {
+  flex: none;
+}
+
 .rt-block h3 .rt-state {
   flex: none;
   min-width: 0;
@@ -915,17 +953,12 @@
   }
 }
 
-.rt-label {
-  margin: var(--s5) 0 var(--s1);
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-  font-weight: 700;
-}
-
+.rt-done,
 .rt-needed {
   margin-top: var(--s4);
 }
 
+.rt-done > summary,
 .rt-needed > summary {
   color: var(--ink-2);
   font-size: var(--fs-meta);
@@ -941,8 +974,9 @@
   margin: var(--s2) 0 var(--s3);
 }
 
-.rt-after a {
+.rt-open {
   display: inline-flex;
+  flex: none;
   align-items: center;
   min-height: var(--target-min);
 }

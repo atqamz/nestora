@@ -2,13 +2,15 @@ import { useMemo } from "react";
 import { readingNow } from "../domain/reading.ts";
 import { wishSections } from "../domain/wish.ts";
 import { useLibrary } from "../hooks/use-books.ts";
+import { useRoutineDay } from "../hooks/use-routines.ts";
 import { BookRow } from "../ui/book-row.tsx";
 import { Capture } from "../ui/capture.tsx";
+import { formatDay } from "../ui/format.ts";
 import { text } from "../ui/text.ts";
 import { Title } from "../ui/title.tsx";
 import { Them } from "./them.tsx";
 import { Today } from "./today.tsx";
-import { Week } from "./week.tsx";
+import { LateLine, Week } from "./week.tsx";
 
 function NextUp() {
   const { items, places, copies } = useLibrary();
@@ -30,10 +32,12 @@ function NextUp() {
 }
 
 export function Home() {
+  const day = useRoutineDay();
   return (
     <>
-      <Title>{text.nav.home}</Title>
+      <Title name={text.nav.home}>{text.routines.today(formatDay(day, day))}</Title>
       <Capture />
+      <LateLine />
       <Today />
       <Them />
       <h2 className="visually-hidden">{text.week.heading}</h2>

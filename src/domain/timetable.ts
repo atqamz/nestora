@@ -60,11 +60,19 @@ export const stateOf = (slot: Slot, elapsed: number): State => {
   return slot.end !== null && minutes(slot.end) <= elapsed ? "done" : "now";
 };
 
+export const glance = (all: readonly Mark[]): Mark[] => {
+  const near = all.filter((mark) => mark.tag !== null);
+  return near.length > 0 ? near : all.filter((mark) => mark.state !== "done").slice(0, 2);
+};
+
 export const marks = (slots: readonly Slot[], elapsed: number): Mark[] => {
   const states = slots.map((slot) => stateOf(slot, elapsed));
   const next = slots.findIndex((slot, at) => states[at] === "later" && slot.start !== "");
   return slots.map((slot, at) => ({ slot, state: states[at], tag: states[at] === "now" ? "now" : at === next ? "next" : null }));
 };
+
+export const glances = (slots: readonly Slot[]): { from: number; near: Mark[] }[] =>
+  [...new Set([0, ...slots.flatMap((slot) => [slot.start, slot.end ?? ""]).map(minutes)])].sort((a, b) => a - b).map((from) => ({ from, near: glance(marks(slots, from)) }));
 
 const span = (block: Span) => (isTime(block.start) ? [minutes(block.start), isTime(block.end) && block.end > block.start ? minutes(block.end) : DAY_MINUTES] : null);
 
