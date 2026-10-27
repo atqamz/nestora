@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { BudgetEntryRow } from "../../shared/tables.ts";
 import { useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Who } from "./avatar.tsx";
 import { Due } from "./due.tsx";
 import { failureOf } from "./failure.ts";
@@ -12,6 +13,7 @@ import { text } from "./text.ts";
 
 export function PaymentLine({ payment, line }: { payment: BudgetEntryRow; line?: string }) {
   const stamp = useStamp();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const paid = payment.status === "paid";
 
@@ -53,7 +55,8 @@ export function PaymentLine({ payment, line }: { payment: BudgetEntryRow; line?:
             type="button"
             className="pill"
             aria-label={paid ? text.markUnpaidNamed(payment.title) : text.markPaidNamed(payment.title)}
-            onClick={toggle}
+            aria-disabled={locked || undefined}
+            onClick={guard(toggle)}
           >
             {paid ? text.markUnpaid : text.markPaid}
           </button>

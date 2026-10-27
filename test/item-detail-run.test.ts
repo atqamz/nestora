@@ -41,18 +41,21 @@ const fake = (result: unknown = ok) => {
 };
 
 const page = { hash: "" };
-const doc = { notices: 0, getElementById: (id: string) => ({ focus: () => void (id === "paused-notice" && doc.notices++) }) };
+const doc = {};
+
+let announced!: { mock: { callCount: () => number; restore: () => void } };
 
 const around = (t: { after: (fn: () => void) => void }, paused = false) => {
   const globals = globalThis as Record<string, unknown>;
   globals.location = page;
   globals.document = doc;
   page.hash = "";
-  doc.notices = 0;
+  announced = mock.method(overlay, "announce");
   snapshot.paused = paused;
   mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-27T05:00:00Z") });
   t.after(() => {
     mock.timers.reset();
+    announced.mock.restore();
     snapshot.paused = false;
     delete globals.location;
     delete globals.document;
@@ -174,7 +177,7 @@ test("a refused instant write shows its errors in an alert under the choices", a
   assert.deepEqual(alert.map((element) => textOf(element.props.children)), ["Title is too long."]);
 });
 
-test("while paused a tap on a choice, on Edit or on Delete only moves focus to the banner and writes nothing", async (t) => {
+test("while paused a tap on a choice, on Edit or on Delete only announces the pause and writes nothing", async (t) => {
   around(t, true);
   const { calls, removed } = fake();
   const view = open("task", item({ title: "Pick the music", status: "todo", who: "a" }));
@@ -182,7 +185,7 @@ test("while paused a tap on a choice, on Edit or on Delete only moves focus to t
   byLabel(view, text.editNamed("Pick the music")).props.onClick();
   menuOf(view).run();
   await settle();
-  assert.deepEqual([calls, removed, formOf(view), doc.notices], [[], [], undefined, 3]);
+  assert.deepEqual([calls, removed, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], undefined, 1, text.pausedTap]);
 });
 
 test("while paused Edit and the Delete menu item announce aria-disabled, live they carry none", async (t) => {

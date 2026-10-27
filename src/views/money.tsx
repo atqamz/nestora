@@ -9,6 +9,7 @@ import { sortBefore } from "../domain/order.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { failureOf } from "../ui/failure.ts";
 import { formatMoney } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
@@ -126,6 +127,7 @@ export function MoneyView({ id }: { id?: string }) {
   const [owner, setOwner] = useState<Owner>("everyone");
   const [errors, setErrors] = useState<string[]>([]);
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const kept = useRef(new Set<string>());
   const queue = toPay(budget, kept.current);
   for (const { payment } of queue) if (payment.status === "due") kept.current.add(payment.id);
@@ -134,6 +136,7 @@ export function MoneyView({ id }: { id?: string }) {
 
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     const form = event.currentTarget;
     const data = new FormData(form);
     const title = String(data.get("title") ?? "").trim();
@@ -179,7 +182,7 @@ export function MoneyView({ id }: { id?: string }) {
       </section>
       <section aria-labelledby="by-event">
         <h2 id="by-event">{text.money.byEvent}</h2>
-        <form className="quick-add budget-add" onSubmit={add}>
+        <form className="quick-add budget-add" noValidate={locked} onSubmit={add}>
           <label className="visually-hidden" htmlFor="budget-title">
             {text.budget.addLabel}
           </label>
@@ -192,7 +195,7 @@ export function MoneyView({ id }: { id?: string }) {
             ))}
           </select>
           <input name="amount" inputMode="numeric" autoComplete="off" aria-label={text.budget.amountLabel} placeholder={text.budget.amountPlaceholder} />
-          <button type="submit" disabled={busy} aria-label={text.budget.addPlaceholder}>
+          <button type="submit" disabled={busy} aria-disabled={locked || undefined} aria-label={text.budget.addPlaceholder}>
             {text.add}
           </button>
           {errors.length > 0 && (

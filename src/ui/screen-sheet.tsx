@@ -7,6 +7,7 @@ import type { ScreenKind } from "../domain/screen.ts";
 import { adopt, heldIds, heldPick, letGo } from "../domain/tmdb.ts";
 import type { Picked, ScreenHit } from "../domain/tmdb.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useScreenSearch } from "../hooks/use-lookup.ts";
 import { usePartner, useStamp, useTmdbDay } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
@@ -15,6 +16,7 @@ import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { overlay } from "./overlay.ts";
 import { ScreenLookup } from "./screen-lookup.tsx";
 import { collectionProblem, saveScreen, screenProblems } from "./screen-save.ts";
@@ -27,6 +29,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
   const stamp = useStamp();
   const tmdbDay = useTmdbDay();
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
   const [status, setStatus] = useState<ScreenInput["status"]>("want");
@@ -61,6 +64,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     setAttempt(true);
     if (problems.title !== undefined || problems.year !== undefined || collectionError !== undefined) return;
     return once(async () => {
@@ -78,7 +82,7 @@ export function ScreenSheet({ kind, onClose }: { kind: ScreenKind; onClose: () =
       onClose={onClose}
       onSubmit={save}
       foot={
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} {...lockedProps(locked)}>
           {search.hits.length > 0 ? text.screen.sheet.asTyped : text.screen.sheet.save}
         </button>
       }

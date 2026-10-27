@@ -9,12 +9,14 @@ import type { ActionDraft, ActionKind, Current, Problem, RoutineDraft, Who } fro
 import { MOMENTS } from "../domain/routines.ts";
 import { overlaps } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import type { Flows } from "./routine-flows.ts";
 import { momentLabel } from "./routine-label.ts";
 import { text } from "./text.ts";
@@ -144,6 +146,7 @@ function ActionEditor({
 export function RoutineSheet({ start, current, me, today, duplicate, gone = false, flows, onClose }: Props) {
   const { label } = usePartner();
   const { busy, once } = useBusy();
+  const { locked: held } = useWriteLock();
   const [opened] = useState(current);
   const [draft, setDraft] = useState(start);
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -212,6 +215,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (held) return;
     return once(async () => {
       const plan = savePlan(forTimetable(draft, me), opened, current, () => crypto.randomUUID());
       if (!plan.ok) {
@@ -241,7 +245,7 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
       onClose={onClose}
       onSubmit={submit}
       foot={
-        <button type="submit" disabled={busy || gone}>
+        <button type="submit" disabled={busy || gone} {...lockedProps(held)}>
           {creating ? form.create : form.save}
         </button>
       }
@@ -359,10 +363,12 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
 
 export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flows: Flows; onClose: () => void }) {
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const [until, setUntil] = useState("");
   const [failure, setFailure] = useState<string[]>([]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     return once(async () => {
       const result = await flows.pause(routine, until);
       setFailure(failureOf(result));
@@ -375,7 +381,7 @@ export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flow
       onClose={onClose}
       onSubmit={submit}
       foot={
-        <button type="submit" disabled={busy || until === ""}>
+        <button type="submit" disabled={busy || until === ""} {...lockedProps(locked)}>
           {copy.pauseConfirm}
         </button>
       }

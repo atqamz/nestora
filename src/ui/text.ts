@@ -14,6 +14,7 @@ export const text = {
   appName: "Nestora",
   loading: "Loading",
   paused: "Sign-in not confirmed yet. Changes are paused. Try again when you are back online.",
+  pausedTap: "Sign-in not confirmed yet. Changes are paused.",
   storageFailed: "This phone could not keep your change. Free some space or allow site data, then try again.",
   storageBrokenTitle: "Storage is blocked",
   storageBroken: "This browser blocked local storage, so Nestora cannot start. Allow site data for this page and reload.",

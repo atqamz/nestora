@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import type { Written } from "../hooks/use-store.ts";
 import { Who } from "./avatar.tsx";
 import { Due } from "./due.tsx";
@@ -16,6 +17,7 @@ export function ItemLine({ name, row }: { name: ViewName; row: ItemRow }) {
   const view: View = views[name];
   const { me } = usePartner();
   const stamp = useStamp();
+  const { locked, guard } = useWriteLock();
   const done = view.done !== undefined && row.status === view.done;
   const takeable = view.assignable && row.who === null && me !== null && !done;
 
@@ -35,7 +37,7 @@ export function ItemLine({ name, row }: { name: ViewName; row: ItemRow }) {
       <div className="row">
         {view.done !== undefined && (
           <label className="check">
-            <input type="checkbox" checked={done} onChange={toggle} />
+            <input type="checkbox" checked={done} aria-disabled={locked || undefined} onChange={guard(toggle)} />
             <Icon name="check" />
             <span className="visually-hidden">{done ? text.reopen(row.title) : text.complete(row.title)}</span>
           </label>
@@ -57,7 +59,7 @@ export function ItemLine({ name, row }: { name: ViewName; row: ItemRow }) {
         </a>
         {takeable && (
           <span className="row-r">
-            <button type="button" className="pill" aria-label={text.takeNamed(row.title)} onClick={() => run(actions.update("items", row.id, { who: me }))}>
+            <button type="button" className="pill" aria-label={text.takeNamed(row.title)} aria-disabled={locked || undefined} onClick={guard(() => run(actions.update("items", row.id, { who: me })))}>
               {text.takeIt}
             </button>
           </span>

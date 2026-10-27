@@ -9,6 +9,7 @@ import { routeOf } from "../domain/stages.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useSettings, useToday } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { BookFields, useBookForm } from "./book-sheet.tsx";
 import { DETAILS, problemsOf } from "./add-problems.ts";
@@ -20,6 +21,7 @@ import { formatDay, formatMoney } from "./format.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { overlay, useOverlay, withSeed } from "./overlay.ts";
+import { PausedNote, lockedProps } from "./paused-note.tsx";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
 
@@ -44,6 +46,7 @@ function AddForm({ seed }: { seed: string }) {
   const items = useTable("items");
   const entries = useTable("budget_entries");
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const ids = useId();
   const form = useRef<HTMLFormElement>(null);
 
@@ -233,6 +236,7 @@ function AddForm({ seed }: { seed: string }) {
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     setAttempt((count) => count + 1);
     if (kind === "book") book.reveal();
     const first = (Object.keys(problems) as (Detail | "title")[]).find((name) => name !== "title");
@@ -274,6 +278,7 @@ function AddForm({ seed }: { seed: string }) {
         </button>
       </div>
       <div className="sheet-body">
+        <PausedNote />
         <div role="group" aria-label={text.sheet.kind} className="kinds">
           {KINDS.map((name) => (
             <button key={name} type="button" aria-pressed={kind === name} onClick={() => setKindPick(name)}>
@@ -355,7 +360,7 @@ function AddForm({ seed }: { seed: string }) {
         )}
       </div>
       <div className="sheet-foot">
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} {...lockedProps(locked)}>
           {kind === "book" ? book.saveLabel : text.sheet.save[kind]}
         </button>
         <p className="hint sheet-hint">{kind === "book" ? text.sheet.hintBook : text.sheet.hint}</p>

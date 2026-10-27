@@ -6,11 +6,13 @@ import { lastPlace, moveCopy, placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useBookActions } from "./book-actions.ts";
 import { ownerOptions, placeOptions } from "./book-sheet.tsx";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { text } from "./text.ts";
 
 type Format = "print" | "ebook" | "audio";
@@ -23,6 +25,7 @@ export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemR
   const items = useTable("items");
   const { me, label } = usePartner();
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const { removeCopy } = useBookActions();
   const stamp = useStamp();
   const places = useMemo(() => placesOf(items), [items]);
@@ -36,6 +39,7 @@ export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemR
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     setAttempt(true);
     if (!checked.ok) return;
     return once(async () => {
@@ -73,11 +77,11 @@ export function CopySheet({ book, copy, onClose }: { book: ItemRow; copy?: ItemR
       onSubmit={save}
       foot={
         <>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy} {...lockedProps(locked)}>
             {copy ? text.books.copySheet.save : text.books.copySheet.saveAdd}
           </button>
           {copy && (
-            <button type="button" className="danger bk-drop" disabled={busy} onClick={remove}>
+            <button type="button" className="danger bk-drop" disabled={busy} {...lockedProps(locked)} onClick={locked ? undefined : remove}>
               {text.books.removeCopy}
             </button>
           )}

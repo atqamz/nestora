@@ -167,7 +167,7 @@ export function ItemDetail({ name, row, gone, back, wide, head, cover, sheet, fl
       </p>
       {gone && !editing && (
         <p>
-          <button type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
+          <button type="button" className="secondary" aria-describedby={notice} disabled={busy} aria-disabled={locked || undefined} onClick={guard(restore)}>
             {text.undo}
           </button>
         </p>

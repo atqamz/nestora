@@ -5,6 +5,7 @@ import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { failureOf } from "../ui/failure.ts";
 import { ItemDetail } from "../ui/item-detail.tsx";
 import { Money } from "../ui/money.tsx";
@@ -17,6 +18,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
   const budget = useMemo(() => budgetOf(entries), [entries]);
   const [errors, setErrors] = useState<string[]>([]);
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const { row: line, gone } = useOpenRow(budget.groups.flatMap((group) => group.lines).find((candidate) => candidate.row.id === id));
   if (!line) return <Gone name="planned" id={id} back="#/money" wide={wide} />;
   const { row, payments } = line;
@@ -25,6 +27,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
 
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     const form = event.currentTarget;
     const data = new FormData(form);
     const amount = parseField("int", String(data.get("amount") ?? ""));
@@ -94,7 +97,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
             ))}
           </ul>
         )}
-        <form className="form" onSubmit={add}>
+        <form className="form" noValidate={locked} onSubmit={add}>
           <Sub>{text.budget.addPayment}</Sub>
           <div className="field">
             <label htmlFor="payment-title">{text.budget.paymentLabel}</label>
@@ -114,7 +117,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
             </p>
           )}
           <div className="form-actions">
-            <button type="submit" disabled={busy} aria-label={text.budget.addPayment}>
+            <button type="submit" disabled={busy} aria-disabled={locked || undefined} aria-label={text.budget.addPayment}>
               {text.add}
             </button>
           </div>

@@ -23,11 +23,6 @@ section {
   margin: 0;
 }
 
-.notice:focus {
-  outline: 2.5px solid var(--focus);
-  outline-offset: 2px;
-}
-
 .hint {
   margin: 0;
   color: var(--ink-2);
@@ -196,6 +191,10 @@ fieldset.field {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
+}
+
+.choices label:has(input[aria-disabled="true"]) {
+  opacity: 0.6;
 }
 
 .choices label:has(input:focus-visible) {

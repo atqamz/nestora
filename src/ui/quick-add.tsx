@@ -4,6 +4,7 @@ import { sortBefore } from "../domain/order.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { failureOf } from "./failure.ts";
 import { firstStatus } from "./registry.ts";
 import type { ListName } from "./registry.ts";
@@ -13,10 +14,12 @@ export function QuickAdd({ name, onAdded }: { name: ListName; onAdded?: () => vo
   const items = useTable("items");
   const { me } = usePartner();
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const [errors, setErrors] = useState<string[]>([]);
 
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     const form = event.currentTarget;
     const data = new FormData(form);
     const title = String(data.get("title") ?? "").trim();
@@ -38,7 +41,7 @@ export function QuickAdd({ name, onAdded }: { name: ListName; onAdded?: () => vo
   };
 
   return (
-    <form className="quick-add" onSubmit={add}>
+    <form className="quick-add" noValidate={locked} onSubmit={add}>
       <label className="visually-hidden" htmlFor={`add-${name}`}>
         {text.quickAdd[name].label}
       </label>
@@ -51,7 +54,7 @@ export function QuickAdd({ name, onAdded }: { name: ListName; onAdded?: () => vo
         enterKeyHint="done"
         placeholder={text.quickAdd[name].placeholder}
       />
-      <button type="submit" disabled={busy} aria-label={text.quickAdd[name].placeholder}>
+      <button type="submit" disabled={busy} aria-disabled={locked || undefined} aria-label={text.quickAdd[name].placeholder}>
         {text.add}
       </button>
       {errors.length > 0 && (
