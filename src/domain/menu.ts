@@ -1,4 +1,4 @@
-export type MenuItem = { id: string; label: string; icon: "copy" | "pause" | "resume" | "trash" | "pin" | "upload"; danger?: boolean; run: () => void };
+export type MenuItem = { id: string; label: string; icon: "copy" | "pause" | "resume" | "trash" | "pin" | "upload"; danger?: boolean; locked?: boolean; run: () => void };
 
 export const menuTarget = (key: string, at: number, count: number): number | null => {
   if (count === 0) return null;

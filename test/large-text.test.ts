@@ -59,9 +59,10 @@ test("the markup the carrier rules target holds the user text as its own text, n
   const row = item({ kind: "vendor", status: "option", title: "Florist", data: { phone, pic } });
   stage([row], [{ key: "partner_a_label", value: "Abcdefghijklmnopqrst", deleted_at: null }]);
   const vendor = await markupOf("views/people.tsx", ({ People }) => createElement(People, { route: "vendors", id: row.id }));
-  assert.match(vendor, new RegExp(`<p class="facts"><span class="mark"[^>]*>[^<]*</span><span>${pic}</span></p>`));
+  assert.match(vendor, new RegExp(`<dt>Contact person</dt><dd>${pic}</dd>`));
   assert.match(vendor, new RegExp(`<span class="contact"><a class="button secondary" href="tel:\\${phone}"><svg[^>]*>.*?</svg>Call \\${phone}</a>`));
-  assert.match(vendor, /<div class="choices"><label><input[^>]*\/><span>[^<]+<\/span><\/label>/);
+  const sheet = await markupOf("ui/item-form.tsx", ({ ItemForm }) => createElement(ItemForm, { name: "vendor", row, gone: false, sheet: () => undefined }));
+  assert.match(sheet, /<div class="choices"><label><input[^>]*\/><span>[^<]+<\/span><\/label>/);
   const who = await markupOf("ui/avatar.tsx", ({ Who }) => createElement(Who, { side: "a" }));
   assert.match(who, /<span class="who">.*<\/span>Abcdefghijklmnopqrst<\/span>$/);
 });

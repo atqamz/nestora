@@ -62,7 +62,7 @@ test("a deleted row's form shows the notice in a region that was already mounted
 test("Undo from an open form moves focus to the first field once the row is back, and only for the user's own Undo", () => {
   const form = read("ui/item-form.tsx");
   assert.match(form, /revived\.current = true;\s*const result = await \(onRestore \? onRestore\(\) : actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
-  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*form\.current\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
+  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*root\(\)\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
 });
 
 test("Delete is off on a deleted row", () => {
