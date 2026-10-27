@@ -813,7 +813,7 @@
   flex: 1 1 0;
   min-width: 0;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--ink-2);
   font-weight: 550;
   text-wrap: pretty;
@@ -827,7 +827,16 @@
   font-weight: 600;
 }
 
-@media (max-width: 11rem) {
+@media (max-width: 18.5rem) {
+  .rt-block h3 .rt-fold {
+    gap: var(--s1);
+  }
+
+  .rt-block h3 .rt-tick {
+    width: 24px;
+    height: 24px;
+  }
+
   .rt-block h3 .rt-state {
     display: none;
   }

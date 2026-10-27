@@ -15,6 +15,10 @@ import { text } from "../ui/text.ts";
 const copy = text.routines;
 
 export const SETTLE_MS = 600;
+export const QUIET_MS = 500;
+export const SETTLE_CAP_MS = 3000;
+
+const TOUCHES = ["pointerdown", "touchstart", "keydown"] as const;
 
 type Fold = "open" | "settling" | "folded" | "kept";
 
@@ -36,13 +40,28 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
   } else if (complete && fold === "open") setFold("settling");
   useEffect(() => {
     if (fold !== "settling") return;
-    const timer = setTimeout(() => {
-      const inside = card.current?.contains(document.activeElement) === true;
-      focus.current = inside ? "toggle" : null;
-      setSaid(!inside);
-      setFold("folded");
-    }, SETTLE_MS);
-    return () => clearTimeout(timer);
+    const start = Date.now();
+    let touched = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const note = () => {
+      touched = Date.now();
+    };
+    const arm = (wait: number) => {
+      timer = setTimeout(() => {
+        const left = Math.min(touched + QUIET_MS, start + SETTLE_CAP_MS) - Date.now();
+        if (left > 0) return arm(left);
+        const inside = card.current?.contains(document.activeElement) === true;
+        focus.current = inside ? "toggle" : null;
+        setSaid(!inside);
+        setFold("folded");
+      }, wait);
+    };
+    for (const event of TOUCHES) document.addEventListener(event, note, true);
+    arm(SETTLE_MS);
+    return () => {
+      clearTimeout(timer);
+      for (const event of TOUCHES) document.removeEventListener(event, note, true);
+    };
   }, [fold]);
   useEffect(() => {
     if (fold === "folded" && focus.current === "toggle") toggle.current?.focus();

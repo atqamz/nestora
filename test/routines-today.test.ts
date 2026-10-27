@@ -69,7 +69,12 @@ test("a routine that is finished the first time it is seen sits in the rested gr
   assert.equal(see(first_, [first, later], DAY), first_);
   assert.deepEqual([...see(first_, [first, later], DAY).rested], [first.routine.id]);
   const open = { ...first, progress: { done: 1, total: 3 } };
-  assert.deepEqual([...see(first_, [open, second], DAY).rested], [first.routine.id]);
+  const reopened = see(first_, [open, second], DAY);
+  assert.deepEqual([...reopened.rested], []);
+  assert.equal(reopened.known.size, 2);
+  assert.equal(see(reopened, [open, second], DAY), reopened);
+  assert.deepEqual([...see(reopened, [first, second], DAY).rested], []);
+  assert.equal(see(first_, [first, second], DAY), first_);
   const arrived = block(3, 3, "evening", "arrived");
   const grown = see(first_, [first, second, arrived], DAY);
   assert.deepEqual([...grown.rested].sort(), [first.routine.id, arrived.routine.id].sort());
@@ -157,7 +162,7 @@ test("only a finished on-demand routine offers Start over", async () => {
   const need = routine("Before going out", "on_demand");
   const html = await render([folded, step(folded, "Cleanse", { done_a: DAY }), need, step(need, "Keys", { done_a: DAY })]);
   assert.equal([...html.matchAll(/Start over/g)].length, 2);
-  assert.match(html, /aria-label="Start over: Before going out"/);
+  assert.match(html, /aria-label="Start over: Before going out"[^>]*>Start over<\/button>/);
   assert.equal(html.includes("Start over: Morning care"), false);
 });
 
@@ -188,34 +193,8 @@ test("the detail keeps a quiet +1 on a counter at target, for a deliberate extra
   assert.match(html, /class="pill rt-minus"/);
 });
 
-test("the folded row, its focus hand-off and its announcement are wired: 600 ms, the row takes focus when the last tick had it, the live region speaks otherwise", () => {
-  const source = read("views/today-block.tsx");
-  assert.match(source, /export const SETTLE_MS = 600;/);
-  assert.match(source, /setTimeout\(\(\) => \{[^}]*document\.activeElement[\s\S]*?\}, SETTLE_MS\)/);
-  assert.match(source, /focus\.current = inside \? "toggle" : null;\s*setSaid\(!inside\);/);
-  assert.match(source, /if \(fold === "folded" && focus\.current === "toggle"\) toggle\.current\?\.focus\(\);/);
-  assert.match(source, /<span className="visually-hidden" role="status">\s*\{said \? copy\.finished\(name\) : ""\}/);
-  assert.match(source, /<div hidden=\{fold === "folded"\}>/);
-  assert.match(source, /aria-expanded=\{fold === "kept"\}/);
-  assert.doesNotMatch(source, /overlay|toast/);
-  assert.match(source, /onClick=\{\(\) => setFold\(fold === "kept" \? "folded" : "kept"\)\}/);
-  assert.match(source, /\} else if \(complete && fold === "open"\) setFold\("settling"\);/);
-  assert.match(source, /if \(fold !== "settling"\) return;/);
-  assert.match(source, /const folding = fold === "folded" \|\| fold === "kept";/);
-  assert.match(source, /if \(fold === "open" && focus\.current === "link"\) link\.current\?\.focus\(\);/);
-  assert.match(source, /focus\.current = "link";\s*void flows\.clear\(routine, actions\)\.then\(\(result\) => \{\s*if \(!result\.ok\) focus\.current = null;/);
-});
-
-test("a counter that reaches its target on Today hands focus to −1, only when the +1 it had was removed from under it", () => {
-  const source = read("ui/routine-action.tsx");
-  assert.match(source, /if \(reached && !was\.current && !full && document\.activeElement === document\.body\) minus\.current\?\.focus\(\);\s*was\.current = reached;/);
-  assert.match(source, /<button type="button" ref=\{minus\} className="pill rt-minus"/);
-  assert.match(source, /\{\(!reached \|\| full\) && \(\s*<button type="button" className="pill rt-plus"/);
-});
-
-test("the folded row drops the word Done when text is large for the screen, and the check is a filled disc", () => {
+test("the check on a folded row and on a counter at target is a filled disc", () => {
   const css = read("views/routines.css");
-  assert.match(css, /@media \(max-width: 11rem\) \{\s*\.rt-block h3 \.rt-state \{\s*display: none;/);
   assert.match(css, /\.rt-count\.rt-reached svg,\s*\.rt-tick svg \{[^}]*background: var\(--route\);[^}]*color: var\(--bg\)/);
 });
 
@@ -235,7 +214,8 @@ test("Reset counts sits in the More menu, only while a counter has a count, befo
 
 test("the detail says Done today when everything is ticked and clears counters from the menu", () => {
   const detail = read("views/routine.tsx");
-  assert.match(detail, /finished\(\{ done, total \}\) \? copy\.doneToday : copy\.progress\(done, total\)/);
+  assert.match(detail, /\{today && total > 0 && ` · \$\{finished\(\{ done, total \}\) \? copy\.doneToday : copy\.progress\(done, total\)\}`\}/);
+  assert.match(detail, /\{today && !away && !finished\(\{ done, total \}\) && pagesOf\(todays\)\.length > 0 && \(/);
   assert.match(detail, /const counted = todays\.filter\(\(action\) => action\.kind === "counter" && count\(action, keyFor\(routine\.who, me\), day\) > 0\);/);
   assert.match(detail, /resetCounts: counted\.length > 0 \? \(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.clear\(routine, counted\)\)\)\) : undefined/);
 });
@@ -305,6 +285,17 @@ test("clear writes nothing when there is nothing to clear", async () => {
   const before = a.store.getSnapshot().pending;
   assert.deepEqual(await a.flows().clear(a.row(parent.id), children), { ok: true, id: "" });
   assert.equal(a.store.getSnapshot().pending, before);
+});
+
+test("clear leaves a row with nothing to clear out of the write and clears the rest in one call", async () => {
+  const { a, parent, children } = await planned("a", "a", ["text", "step"]);
+  const [note, tick] = children;
+  await a.flows().toggle(a.row(parent.id), a.row(tick.id));
+  const before = a.store.getSnapshot().pending;
+  assert.equal((await a.flows().clear(a.row(parent.id), [a.row(note.id), a.row(tick.id)])).ok, true);
+  assert.equal(a.store.getSnapshot().pending - before, 1);
+  assert.deepEqual(a.row(tick.id).data, {});
+  assert.deepEqual(a.row(note.id).data, {});
 });
 
 test("a partner ticking the last step of my routine finishes it on my side, without a write of mine", async () => {

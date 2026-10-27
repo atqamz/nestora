@@ -31,10 +31,10 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
   const done = isDone(action, side, today);
   const reached = done && action.kind === "counter";
   const minus = useRef<HTMLButtonElement>(null);
-  const was = useRef(reached);
+  const tapped = useRef(false);
   useEffect(() => {
-    if (reached && !was.current && !full && document.activeElement === document.body) minus.current?.focus();
-    was.current = reached;
+    if (reached && tapped.current && !full && document.activeElement === document.body) minus.current?.focus();
+    if (reached) tapped.current = false;
   }, [reached, full]);
 
   if (action.kind === "text") {
@@ -68,6 +68,13 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
   }
 
   const taken = count(action, side, today);
+  const add = () =>
+    run(async () => {
+      tapped.current = action.qty !== null && taken + 1 >= action.qty;
+      const result = await flows.plus(routine, action);
+      if (!result.ok) tapped.current = false;
+      return result;
+    });
   const theirs = other !== null && isDone(action, other, today);
   const meta = (
     <span className="meta rt-nums" aria-live={action.kind === "counter" ? "polite" : undefined}>
@@ -121,7 +128,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
                   {copy.minusLabel}
                 </button>
                 {(!reached || full) && (
-                  <button type="button" className="pill rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={() => run(() => flows.plus(routine, action))}>
+                  <button type="button" className="pill rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={add}>
                     {copy.plusLabel}
                   </button>
                 )}
