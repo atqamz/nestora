@@ -392,7 +392,7 @@ export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flow
         </button>
       }
     >
-      <div className="form rt-form rt-pause">
+      <div className="form rt-form">
         <Field
           control={{
             name: "pause-for",

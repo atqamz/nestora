@@ -332,7 +332,8 @@ test("a spoken form that equals the shown one is plain text, and a different one
   assert.equal(renderToStaticMarkup(createElement(Spoken, { shown: "Mo", said: "Monday" })), '<span aria-hidden="true">Mo</span><span class="visually-hidden">Monday</span>');
 });
 
-test("the Pause presets sit in three columns that keep Tomorrow whole at 320 px", () => {
-  assert.match(read("ui/routine-sheet.tsx"), /className="form rt-form rt-pause"/);
-  assert.equal(cascade(sheet("views/routines.css"), ".rt-pause .choices label", 20).get("padding-inline"), "var(--s1)");
+test("a segmented control of three options trims its side padding on a phone so Tomorrow stays whole at 320 px", () => {
+  const three = (width: number) => cascade(sheet("ui/ui.css"), ".choices:has(> label:nth-child(3):last-child) label", width).get("padding-inline");
+  assert.equal(three(20), "var(--s1)");
+  assert.equal(three(26), undefined);
 });

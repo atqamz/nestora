@@ -148,6 +148,12 @@ fieldset.field {
   }
 }
 
+@media (max-width: 25.5rem) {
+  .choices:has(> label:nth-child(3):last-child) label {
+    padding-inline: var(--s1);
+  }
+}
+
 .choices label {
   position: relative;
   display: flex;

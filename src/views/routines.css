@@ -51,10 +51,6 @@
   margin-top: var(--s4);
 }
 
-.rt-pause .choices label {
-  padding-inline: var(--s1);
-}
-
 .first-run {
   margin-bottom: var(--s5);
 }
