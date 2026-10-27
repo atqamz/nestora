@@ -212,10 +212,10 @@ test("a shop link on a wish book reads as its host and keeps the whole URL as it
   const wish = book({ status: "wish", data: { shop_url: "https://shop.example.test/long/path/slow-bread?ref=1" } });
   stage([wish]);
   const html = await markupOf("views/books.tsx", ({ Books }) => createElement(Books, { route: "wishlist", id: wish.id }));
-  const link = /<a href="https:\/\/shop[^>]*>[^<]*<\/a>/.exec(html)![0];
+  const link = /<a href="https:\/\/shop[^>]*>.*?<\/a>/.exec(html)![0];
   assert.match(link, /href="https:\/\/shop\.example\.test\/long\/path\/slow-bread\?ref=1"/);
   assert.match(link, /aria-label="[^"]*shop\.example\.test"/);
-  assert.match(link, />shop\.example\.test<\/a>$/);
+  assert.match(link, />shop\.<wbr\/>example\.<wbr\/>test<\/a>$/);
   assert.equal(html.split(">").some((chunk) => chunk.startsWith("https://")), false);
   stage([]);
 });

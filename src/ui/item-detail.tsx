@@ -96,7 +96,9 @@ function Facts({ name, row, skip }: { name: ViewName; row: Row; skip: readonly s
               <Money rupiah={Number(fact.value)} />
             ) : fact.kind === "link" ? (
               <a href={String(fact.value)} aria-label={`${fact.label}: ${hostOf(String(fact.value))}`} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-                {hostOf(String(fact.value))}
+                {hostOf(String(fact.value))
+                  .split(".")
+                  .flatMap((label, at) => (at === 0 ? [label] : [".", <wbr key={at} />, label]))}
               </a>
             ) : (
               fact.value

@@ -111,7 +111,7 @@ test("a book opens as a read view with the facts the form used to hold, and Edit
   assert.match(html, /aria-label="More actions for Slow Bread"/);
   assert.match(html, /<dl class="nums detail-facts"><div><dt>Language<\/dt><dd>Indonesian<\/dd><\/div>/);
   assert.match(html, /<div><dt>Priority<\/dt><dd>Next up<\/dd><\/div>/);
-  assert.match(html, /<dt>Shop link<\/dt><dd><a href="https:\/\/shop\.example\.test\/slow-bread"[^>]*>shop\.example\.test<\/a><\/dd>/);
+  assert.match(html, /<dt>Shop link<\/dt><dd><a href="https:\/\/shop\.example\.test\/slow-bread"[^>]*>shop\.<wbr\/>example\.<wbr\/>test<\/a><\/dd>/);
   assert.doesNotMatch(html, /class="form"|>Cancel<|>Delete<|class="danger"|id="bk-edit"|bk-details|bk-dl/);
   const bare = await books([shelved("Salt and Lantern")], "books", "x");
   assert.doesNotMatch(bare, /detail-facts/);

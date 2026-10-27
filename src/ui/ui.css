@@ -951,6 +951,7 @@ main:has(> .split[data-wide]) {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
+  overflow-wrap: break-word;
 }
 
 .instant .hint {
