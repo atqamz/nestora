@@ -1,13 +1,14 @@
 import { useState } from "react";
+import type { BudgetEntryRow } from "../../shared/tables.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
 import { failureOf } from "../ui/failure.ts";
-import { ItemForm, backHref } from "../ui/item-form.tsx";
+import { ItemDetail } from "../ui/item-detail.tsx";
+import { backHref } from "../ui/item-flows.ts";
 import { views } from "../ui/registry.ts";
 import type { ViewName } from "../ui/registry.ts";
 import { DetailTitle } from "../ui/split.tsx";
 import { text } from "../ui/text.ts";
-import { Title } from "../ui/title.tsx";
 
 export function Gone({ name, id, back, wide = false }: { name: ViewName; id: string; back: string; wide?: boolean }) {
   const [failure, setFailure] = useState<string[]>([]);
@@ -35,15 +36,10 @@ export function Gone({ name, id, back, wide = false }: { name: ViewName; id: str
 export function GenericItem({ name, id }: { name: ViewName; id: string }) {
   const view = views[name];
   const rows = useTable(view.table);
+  const lines = useTable("budget_entries");
   const { row, gone } = useOpenRow(rows.find((candidate) => candidate.id === id));
   if (!row) return <Gone name={name} id={id} back={`#/${view.route === "payments" ? "money" : view.route}`} />;
-  return (
-    <>
-      <Title>{row.title}</Title>
-      <ItemForm key={row.id} name={name} row={row} gone={gone} />
-      <p className="trail">
-        <a href={backHref(name, row)}>{text.back}</a>
-      </p>
-    </>
-  );
+  const line = name === "payment" ? lines.find((candidate) => candidate.id === (row as BudgetEntryRow).budget_id) : undefined;
+  const word = name === "payment" ? (line?.title ?? text.nav.money) : text.tasks;
+  return <ItemDetail name={name} row={row} gone={gone} back={{ href: backHref(name, row), word }} />;
 }
