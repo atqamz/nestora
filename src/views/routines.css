@@ -6,7 +6,7 @@
 }
 
 .rt-tools > * {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 }
@@ -63,8 +63,9 @@
 
 .rt-link svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
   color: var(--ink-2);
 }
 
@@ -496,8 +497,9 @@
 
 .rt-week-d svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
 }
 
 .rt-week-l {

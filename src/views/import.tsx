@@ -327,7 +327,7 @@ export function ImportBooks() {
           </p>
           <div className="imp-bar">
             <button type="button" disabled={busy || ticked.length === 0} onClick={() => void run()}>
-              <Icon name="download" />
+              <Icon name="upload" />
               {busy ? WORDS.running : WORDS.run(ticked.length)}
             </button>
             <button type="button" className="secondary" onClick={() => tick(true)}>

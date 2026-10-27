@@ -245,10 +245,10 @@
 
 .stop-h svg {
   flex: none;
-  width: 0.9375rem;
-  height: 0.9375rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
   margin-right: var(--s1);
-  stroke-width: 2.2;
+  stroke-width: var(--stroke-s);
   color: var(--route);
 }
 

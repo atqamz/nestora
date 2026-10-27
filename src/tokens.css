@@ -63,6 +63,12 @@
   --s9: 3.5rem;
   --row-min: 3.75rem;
   --target-min: 44px;
+  --icon-s: 1rem;
+  --icon-m: 1.25rem;
+  --icon-l: 1.5rem;
+  --stroke-s: 2.25;
+  --stroke-m: 2;
+  --stroke-l: 1.85;
   --r-control: 0.625rem;
   --r-group: 1rem;
   --route-w: 4px;

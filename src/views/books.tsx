@@ -62,11 +62,11 @@ function Head({ mode, shelf, wishes, onAdd }: { mode: Mode; shelf: number; wishe
           {mode === "shelf" ? text.books.add : text.books.addWish}
         </button>
         <a className="button secondary" href="#/places">
-          <Icon name="place" />
+          <Icon name="pin" />
           {text.books.places}
         </a>
         <a className="button secondary" href="#/books/import">
-          <Icon name="download" />
+          <Icon name="upload" />
           {text.books.import.open}
         </a>
       </div>

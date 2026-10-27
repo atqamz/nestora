@@ -325,8 +325,8 @@ fieldset.field {
 }
 
 .lead svg {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: var(--icon-m);
+  height: var(--icon-m);
 }
 
 .title {
@@ -357,9 +357,9 @@ fieldset.field {
 
 .meta svg {
   flex: none;
-  width: 0.9375rem;
-  height: 0.9375rem;
-  stroke-width: 2.2;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
 }
 
 .due,
@@ -596,8 +596,8 @@ progress::-moz-progress-bar {
 
 .links svg {
   flex: none;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--icon-m);
+  height: var(--icon-m);
   margin-right: var(--s3);
 }
 
@@ -742,8 +742,8 @@ progress::-moz-progress-bar {
 
 .note svg {
   flex: none;
-  width: 1.0625rem;
-  height: 1.0625rem;
+  width: var(--icon-m);
+  height: var(--icon-m);
   margin-top: 0.125rem;
 }
 
@@ -820,8 +820,8 @@ progress::-moz-progress-bar {
 .ib svg,
 .contact svg {
   flex: none;
-  width: 1.375rem;
-  height: 1.375rem;
+  width: var(--icon-m);
+  height: var(--icon-m);
 }
 
 .nophone {
@@ -943,15 +943,22 @@ main:has(> .split[data-wide]) {
   }
 }
 
+.icon {
+  width: var(--icon-m);
+  height: var(--icon-m);
+  stroke-width: var(--stroke-m);
+}
+
 .menu {
   display: flex;
   flex-direction: column;
-  padding: var(--s2) 0 var(--s4);
+  padding: var(--s2) 0;
 }
 
 .menu button {
   justify-content: flex-start;
   min-height: 3.25rem;
+  padding: 0 var(--s3);
   border: 0;
   border-radius: 0.75rem;
   background: transparent;

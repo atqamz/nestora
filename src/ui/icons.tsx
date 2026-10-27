@@ -22,7 +22,14 @@ const paths = {
   ),
   scan: <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10" />,
   star: <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" />,
-  place: <path d="M4 11.5 12 4l8 7.5M6 10v10h12V10M10 20v-5h4v5" />,
+  home: <path d="M4 11.5 12 4l8 7.5M6 10v10h12V10M10 20v-5h4v5" />,
+  pin: (
+    <>
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
+  bookmark: <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />,
   search: (
     <>
       <circle cx="11" cy="11" r="6.5" />
@@ -31,7 +38,13 @@ const paths = {
   ),
   back: <path d="m15 6-6 6 6 6" />,
   forward: <path d="m9 6 6 6-6 6" />,
-  more: <path d="M5 12h.01M12 12h.01M19 12h.01" />,
+  more: (
+    <>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </>
+  ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   late: (
     <>
@@ -88,12 +101,31 @@ const paths = {
     </>
   ),
   download: <path d="M12 4v11M7.5 11 12 15.5l4.5-4.5M5 20h14" />,
+  upload: <path d="M12 15V4M7.5 8 12 3.5 16.5 8M5 20h14" />,
   door: <path d="M14 4H6v16h8M10 12h10M17 8l3 4-3 4" />,
   up: <path d="m6 15 6-6 6 6" />,
   down: <path d="m6 9 6 6 6-6" />,
   trash: <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" />,
   reset: <path d="M4 12a8 8 0 1 1 2.6 5.9M4 20v-5h5" />,
   play: <path d="M8 5v14l11-7z" />,
+  resume: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m10.5 8.5 5 3.5-5 3.5z" />
+    </>
+  ),
+  pause: (
+    <>
+      <rect x="14" y="3" width="5" height="18" rx="1" />
+      <rect x="5" y="3" width="5" height="18" rx="1" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="14" height="14" rx="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="8" />
@@ -114,6 +146,7 @@ export type IconName = keyof typeof paths;
 export function Icon({ name }: { name: IconName }) {
   return (
     <svg
+      className="icon"
       aria-hidden="true"
       viewBox="0 0 24 24"
       width="24"

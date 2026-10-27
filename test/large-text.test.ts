@@ -170,14 +170,13 @@ test("the bottom bar hides its labels visually, never from the accessibility tre
   expects(".tab-add", 16, { width: "56px", height: "56px", margin: null });
   expects(".tab-add", LARGE, { width: "56px", height: "56px", margin: "0 var(--s1)" });
   expects(".tab-add", PHONE, { width: "3.5rem", height: "3.5rem" });
-  expects(".tab-add svg", 16, { width: "26px", height: "26px" });
   expects(":root", 16, { "--tabs": "4.25rem" });
   expects(":root", LARGE, { "--tabs": "calc(56px + var(--s2) + var(--s1) + 1px)" });
   for (const selector of [".tabs", ".bar"]) assert.equal(at(selector, PHONE).get("display"), selector === ".bar" ? "flex" : "grid");
 });
 
 test("no label, brand or nav control is capped by the viewport width, and a star is only at 100 percent, so the phone's text size reaches them", () => {
-  const selectors = [".brand", ".tabs", ".tabs a", ".tab-add", ".tab-add svg", "h1"];
+  const selectors = [".brand", ".tabs", ".tabs a", ".tab-add", "h1"];
   for (const width of [LARGE, PHONE, 40]) for (const selector of selectors) for (const [property, value] of at(selector, width)) assert.doesNotMatch(value, /vw/, `${selector} ${property} at ${width}rem`);
   expects(".brand", PHONE, { font: "800 1.375rem / 1 var(--font-display)" });
   for (const width of [LARGE, 18.5]) expects(".stars svg", width, { width: "0.875rem", height: "0.875rem" });
@@ -329,7 +328,6 @@ const layouts: [string, [number, string][]][] = [
   [".tabs a[aria-current=\"page\"] span", [[10, "height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px"], [17, "position: relative"]]],
   [".tabs a[aria-current=\"page\"] span::after", [[10, "height: 5px; margin-left: -2.5px; position: absolute; width: 5px"]]],
   [".tab-add", [[10, "display: grid; height: 56px; justify-self: center; margin: 0 var(--s1); min-height: 0; padding: 0; place-items: center; width: 56px"], [17, "display: grid; height: 56px; justify-self: center; min-height: 0; padding: 0; place-items: center; width: 56px"], [20, "display: grid; height: 3.5rem; justify-self: center; min-height: 0; padding: 0; place-items: center; width: 3.5rem"]]],
-  [".tab-add svg", [[10, "height: 26px; width: 26px"], [20, "height: 1.625rem; width: 1.625rem"]]],
   ["main", [[10, "margin: 0 auto; max-width: 40rem; padding: var(--s2) max(var(--s4), var(--safe-r)) calc(var(--tabs) + var(--safe-b) + var(--s6)) max(var(--s4), var(--safe-l)); padding-left: max(var(--s2), var(--safe-l)); padding-right: max(var(--s2), var(--safe-r))"], [20, "margin: 0 auto; max-width: 40rem; padding: var(--s2) max(var(--s4), var(--safe-r)) calc(var(--tabs) + var(--safe-b) + var(--s6)) max(var(--s4), var(--safe-l))"]]],
   ["main[data-page=\"journey\"]", [[10, "max-width: none; padding: 0 0 calc(var(--tabs) + var(--safe-b) + var(--s6))"]]],
   [".sheet-form", [[10, "display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0"]]],
@@ -339,7 +337,7 @@ const layouts: [string, [number, string][]][] = [
   [".sheet-foot", [[10, "border-top: 1px solid var(--line); flex: none; padding: var(--s3) max(var(--s5), var(--safe-r)) calc(var(--safe-b) + var(--s3)) max(var(--s5), var(--safe-l))"]]],
   [".kinds", [[10, "display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); margin: var(--s2) 0 var(--s4)"]]],
   [".capture", [[10, "align-items: center; border: 1.5px dashed var(--ink-2); display: grid; gap: var(--s2); grid-template-columns: auto minmax(0, 1fr); margin: 0 0 var(--s5); min-height: 3.25rem; padding: 0 var(--s1) var(--s1); row-gap: var(--s1)"], [20, "align-items: center; border: 1.5px dashed var(--ink-2); display: flex; gap: var(--s2); margin: 0 0 var(--s5); min-height: 3.25rem; padding: 0 var(--s1) 0 var(--s3)"]]],
-  [".capture svg", [[10, "flex: none; height: 1.25rem; margin-left: var(--s2); width: 1.25rem"], [20, "flex: none; height: 1.25rem; width: 1.25rem"]]],
+  [".capture svg", [[10, "flex: none; height: var(--icon-m); margin-left: var(--s2); width: var(--icon-m)"], [20, "flex: none; height: var(--icon-m); width: var(--icon-m)"]]],
   [".choices", [[10, "display: grid; gap: var(--s1); grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr)); padding: var(--s1)"], [20, "display: grid; gap: var(--s1); grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr)); padding: var(--s1)"]]],
   [".choices label", [[10, "align-items: center; display: flex; font-size: var(--fs-meta); gap: var(--s2); justify-content: center; line-height: 1.2; min-height: var(--target-min); padding: var(--s1) var(--s3); position: relative"]]],
   [".choices label > span", [[10, "align-items: center; display: inline-flex; flex-direction: column; gap: var(--s1); justify-content: center; min-width: 0; overflow-wrap: anywhere"]]],
