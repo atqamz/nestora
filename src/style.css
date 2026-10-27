@@ -284,11 +284,6 @@ a {
     width: 56px;
     height: 56px;
   }
-
-  .tab-add svg {
-    width: 26px;
-    height: 26px;
-  }
 }
 
 @media (max-width: 15.5rem) {
