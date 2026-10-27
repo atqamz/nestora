@@ -19,6 +19,7 @@ import { routineMenu } from "../ui/routine-menu.ts";
 import { RoutineAction } from "../ui/routine-action.tsx";
 import type { Flows } from "../ui/routine-flows.ts";
 import { RoutineWeek } from "../ui/routine-week.tsx";
+import { Spoken } from "../ui/spoken.tsx";
 import { momentLabel, scheduleLine, whenLine } from "../ui/routine-label.ts";
 import { PauseSheet, RoutineSheet } from "../ui/routine-sheet.tsx";
 import { text } from "../ui/text.ts";
@@ -75,7 +76,9 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
       <p className="meta rt-meta">
         <Who side={routine.who} />
         <span>{momentLabel(momentOf(routine))}</span>
-        <span>{scheduleLine(routine, day)}</span>
+        <span>
+          <Spoken shown={scheduleLine(routine, day)} said={scheduleLine(routine, day, true)} />
+        </span>
         {routine.data?.private === true && <span>{copy.onlyYou}</span>}
       </p>
       <p className="hint rt-when">
@@ -94,9 +97,9 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
             </span>
           </a>
         )}
-        <button type="button" className="secondary" data-replaces={`#/routines/${routine.id}/start`} onClick={() => setSheet("edit")}>
+        <button type="button" className="secondary" aria-label={text.editNamed(routine.title)} data-replaces={`#/routines/${routine.id}/start`} onClick={() => setSheet("edit")}>
           <Icon name="edit" />
-          {copy.edit}
+          {text.edit}
         </button>
         <Menu
           name={copy.moreNamed(routine.title)}

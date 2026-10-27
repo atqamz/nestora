@@ -8,6 +8,7 @@ import { Icon } from "./icons.tsx";
 import { text } from "./text.ts";
 
 type Props = {
+  id?: string;
   field: Control;
   kicker: string;
   shown: ReactNode;
@@ -17,7 +18,7 @@ type Props = {
   save: (value: string) => Promise<string | null>;
 };
 
-export function SettingRow({ field, kicker, shown, notes, lead, what, save }: Props) {
+export function SettingRow({ id, field, kicker, shown, notes, lead, what, save }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
@@ -77,7 +78,7 @@ export function SettingRow({ field, kicker, shown, notes, lead, what, save }: Pr
   }
 
   return (
-    <li>
+    <li id={id}>
       {lead}
       <span className="v">
         <small className="k">{kicker}</small>

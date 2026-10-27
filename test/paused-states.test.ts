@@ -31,7 +31,7 @@ const rendered = async (paused: boolean, action: Record<string, unknown>, active
 
 const input = (html: string) => /<input[^>]*type="checkbox"[^>]*>/.exec(html)?.[0] ?? "";
 
-const button = (html: string, label: string) => new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`).exec(html)?.[0] ?? "";
+const button = (html: string, label: string) => new RegExp(`<button[^>]*aria-label="${label.replace("+", "\\+")}"[^>]*>`).exec(html)?.[0] ?? "";
 
 test("the badge reads Paused for a held store, below login and above the rest, so the one fix still shows", () => {
   assert.equal(badgeFor({ ...healthy, paused: true }), "paused");
@@ -70,7 +70,7 @@ test("while paused a check and a counter button stay focusable but announce aria
   const on = await rendered(true, check);
   assert.match(input(on), /aria-disabled="true"/);
   assert.doesNotMatch(input(on), /\sdisabled(=|\s|>)/);
-  const plus = button(await rendered(true, counter), "Add one: Fish oil");
+  const plus = button(await rendered(true, counter), "+1 Fish oil");
   assert.match(plus, /aria-disabled="true"/);
   assert.doesNotMatch(plus, /\sdisabled(=|\s|>)/);
   const counted = { ...counter, data: { unit: "pcs", done_a: "2026-10-27", value_a: 1 } };
@@ -80,7 +80,7 @@ test("while paused a check and a counter button stay focusable but announce aria
   assert.doesNotMatch(button(await rendered(false, counted), "−1 Fish oil"), /aria-disabled/);
   assert.match(button(await rendered(false, counter), "−1 Fish oil"), /aria-disabled="true"/);
   assert.doesNotMatch(input(await rendered(false, check)), /aria-disabled/);
-  assert.doesNotMatch(button(await rendered(false, counter), "Add one: Fish oil"), /aria-disabled/);
+  assert.doesNotMatch(button(await rendered(false, counter), "+1 Fish oil"), /aria-disabled/);
 });
 
 test("a step that does not occur today keeps its native disabled state, paused or not", async () => {

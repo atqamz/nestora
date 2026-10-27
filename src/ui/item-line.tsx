@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ItemRow } from "../../shared/tables.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
@@ -19,6 +19,7 @@ export function ItemLine({ name, row }: { name: ViewName; row: ItemRow }) {
   const stamp = useStamp();
   const { locked, guard } = useWriteLock();
   const done = view.done !== undefined && row.status === view.done;
+  const titleId = useId();
   const takeable = view.assignable && row.who === null && me !== null && !done;
 
   const [failure, setFailure] = useState<string[]>([]);
@@ -37,13 +38,12 @@ export function ItemLine({ name, row }: { name: ViewName; row: ItemRow }) {
       <div className="row">
         {view.done !== undefined && (
           <label className="check">
-            <input type="checkbox" checked={done} aria-disabled={locked || undefined} onChange={guard(toggle)} />
+            <input type="checkbox" checked={done} aria-labelledby={titleId} aria-disabled={locked || undefined} onChange={guard(toggle)} />
             <Icon name="check" />
-            <span className="visually-hidden">{done ? text.reopen(row.title) : text.complete(row.title)}</span>
           </label>
         )}
         <a className="row-b" href={`#/${view.route}/${row.id}`}>
-          <span className="title">{row.title}</span>
+          <span id={titleId} className="title">{row.title}</span>
           <span className="meta">
             {done && (
               <span className="done-m">

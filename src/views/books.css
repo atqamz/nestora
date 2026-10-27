@@ -37,6 +37,7 @@
 
 .lib-find {
   margin-bottom: var(--s3);
+  border-style: solid;
 }
 
 .lib-find + section > h2:first-child {

@@ -4,11 +4,13 @@ import type { Side } from "../../shared/api.ts";
 import { ACTION_KINDS, DAY_CODES, TIMETABLE } from "../../shared/routines.ts";
 import type { DayCode } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
+import { addDays, daysBetween } from "../domain/dates.ts";
 import { KIND_FIELDS, LIMITS, blankAction, forTimetable, savePlan } from "../domain/routine-draft.ts";
 import type { ActionDraft, ActionKind, Current, Problem, RoutineDraft, Who } from "../domain/routine-draft.ts";
 import { MOMENTS } from "../domain/routines.ts";
 import { overlaps } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useRoutineDay } from "../hooks/use-routines.ts";
 import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { Avatar, Pair } from "./avatar.tsx";
@@ -364,11 +366,15 @@ export function RoutineSheet({ start, current, me, today, duplicate, gone = fals
   );
 }
 
+const PRESETS = [1, 7, 14] as const;
+
 export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flows: Flows; onClose: () => void }) {
   const { busy, once } = useBusy();
   const { locked } = useWriteLock();
+  const day = useRoutineDay();
   const [until, setUntil] = useState("");
   const [failure, setFailure] = useState<string[]>([]);
+  const days = until === "" ? "" : String(daysBetween(day, until));
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (locked) return;
@@ -390,6 +396,19 @@ export function PauseSheet({ routine, flows, onClose }: { routine: ItemRow; flow
       }
     >
       <div className="form rt-form">
+        <Field
+          control={{
+            name: "pause-for",
+            label: copy.pauseFor,
+            type: "text",
+            required: true,
+            choice: true,
+            first: true,
+            value: days,
+            options: PRESETS.map((n) => ({ value: String(n), label: copy.pausePreset[n] })),
+            onChange: (value) => setUntil(addDays(day, Number(value))),
+          }}
+        />
         <Field control={{ name: "pause-until", label: copy.pauseUntil, type: "date", required: true, value: until, hint: copy.pauseHint, onChange: setUntil }} error={failure[0]} />
       </div>
     </Modal>

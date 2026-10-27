@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mine } from "../../shared/routines.ts";
+import { blankDraft } from "../domain/routine-draft.ts";
 import { allDone, finished as complete, openFirst, routinesOf, sections, see, sum, tally, todayBlocks, unseen } from "../domain/routines.ts";
 import { useRoutineClock, useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
+import { Icon } from "../ui/icons.tsx";
+import { RoutineSheet } from "../ui/routine-sheet.tsx";
 import { text } from "../ui/text.ts";
 import { TodayBlock } from "./today-block.tsx";
 
@@ -21,6 +24,8 @@ export function Today() {
   const finished = allDone(blocks);
   const [open, setOpen] = useState(!finished);
   const [doneOpen, setDoneOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const started = useRef(false);
   const { elapsed } = useRoutineClock();
   const [picks, setPicks] = useState<string[] | undefined>(() => {
     if (remembered?.day !== day) return undefined;
@@ -51,6 +56,13 @@ export function Today() {
       setPicks([...new Set([...was.others, ...picks])]);
     }
   }, [picks]);
+  useEffect(() => {
+    if (starting) started.current = true;
+    else if (started.current) {
+      started.current = false;
+      if (document.activeElement === document.body) document.querySelector<HTMLElement>(".rt-today .rt-fold")?.focus();
+    }
+  }, [starting]);
   const [seen, setSeen] = useState(() => unseen(day));
   const next = see(seen, blocks, day);
   if (next !== seen) setSeen(next);
@@ -83,12 +95,21 @@ export function Today() {
       <a href="#/routines">{owned ? copy.all : copy.create}</a>
     </p>
   );
+  const sheet = starting && <RoutineSheet key="starter" start={blankDraft(me)} current={null} me={me} today={day} flows={flows} onClose={() => setStarting(false)} />;
   if (!owned || blocks.length === 0) {
     return (
       <section className="group rt-today" aria-labelledby="rt-today">
         <h2 id="rt-today">{copy.title}</h2>
         <p className="empty">{owned ? copy.nothingToday : copy.emptyHome}</p>
-        {trail}
+        {owned ? (
+          trail
+        ) : (
+          <button type="button" className="secondary" onClick={() => setStarting(true)}>
+            <Icon name="plus" />
+            {copy.starter}
+          </button>
+        )}
+        {sheet}
       </section>
     );
   }
@@ -119,6 +140,7 @@ export function Today() {
         )}
         {trail}
       </details>
+      {sheet}
     </section>
   );
 }

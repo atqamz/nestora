@@ -163,10 +163,7 @@ export function StartPage(props: Props) {
                   <input type="checkbox" checked={isDone(item, side, day)} {...lockedProps(locked)} onChange={() => tick(item)} />
                   <Icon name="check" />
                 </span>
-                <span className="start-tick-t">
-                  {item.title}
-                  <span className="visually-hidden">{isDone(item, side, day) ? text.reopen(item.title) : text.complete(item.title)}</span>
-                </span>
+                <span className="start-tick-t">{item.title}</span>
               </label>
             </li>
           ))}

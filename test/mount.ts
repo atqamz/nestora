@@ -72,6 +72,7 @@ export const mount = <P extends object>(component: (props: P) => ReactNode, firs
       if (!effect) slots[index] = { deps, run, pending: true };
       else if (!same(effect.deps, deps)) Object.assign(effect, { deps, run, pending: true });
     },
+    useLayoutEffect: (run: () => void | (() => void), deps?: unknown[]) => dispatcher.useEffect(run, deps),
   };
   const render = () => {
     const before = internals.H;

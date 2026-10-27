@@ -18,7 +18,7 @@ test("the routine screens read rows only through the hook that applies the parti
   assert.match(hook, /routineRows\(rows\.items, me\)/);
   assert.equal([...hook.matchAll(/rows\.items/g)].length, 2);
   assert.match(read("domain/routines.ts"), /export const routineRows = \(rows: readonly ItemRow\[\], me: Side \| null\) => visible\(rows, me\)\.filter/);
-  assert.match(read("domain/lately.ts"), /isRoutineKind\(row\.kind\)/);
+  assert.match(read("domain/lately.ts"), /MARRIAGE_KINDS: ReadonlySet<string> = new Set\(\["task", "vendor", "guest"\]\)/);
 });
 
 test("every routine screen takes its rows from useRoutines and its writes from the flows", () => {
@@ -88,7 +88,7 @@ test("the whole Today block collapses by its own choice only, so a tick never cl
 test("a tick or a tap leaves keyboard focus on its control: nothing is disabled while a write runs, and the guard refuses a second tap", () => {
   const source = read("ui/routine-action.tsx");
   assert.doesNotMatch(source, /disabled=\{[^}]*busy/);
-  assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} aria-disabled=\{locked \|\| undefined\} onChange=\{guard\(\(\) => run\(/);
+  assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} aria-labelledby=\{titleId\} aria-disabled=\{locked \|\| undefined\} onChange=\{guard\(\(\) => run\(/);
   assert.match(source, /className="pill rt-plus" disabled=\{!active\} aria-disabled=\{locked \|\| undefined\} aria-label/);
   assert.match(source, /aria-disabled=\{taken === 0 \|\| locked \|\| undefined\}/);
   assert.match(source, /onClick=\{guard\(add\)\}/);
