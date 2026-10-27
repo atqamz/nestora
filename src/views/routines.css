@@ -289,6 +289,27 @@
   overflow-wrap: anywhere;
 }
 
+@media (max-width: 18.5rem) {
+  .rt-slot {
+    min-width: 0;
+  }
+
+  .rt-slot-b {
+    display: block;
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .rt-slot-b,
+  .rt-slot-b > span {
+    overflow-wrap: break-word;
+  }
+
+  .rt-slot-b > span {
+    display: block;
+  }
+}
+
 .rt-slot[data-state="done"],
 .rt-slot[data-state="done"] .rt-slot-title {
   color: var(--ink-2);

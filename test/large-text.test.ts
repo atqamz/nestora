@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
-import { cascade, eachScreen, queries, sheet } from "./css.ts";
+import { cascade, eachScreen, inherited, queries, sheet } from "./css.ts";
 import { entry, item, payment } from "./domain-rows.ts";
 import { markupOf } from "./render.ts";
 import { stage } from "./render-store.ts";
@@ -90,6 +90,45 @@ test("a row's text column keeps the longest word of its title whole; a trailing 
   expects(".row-b .title", PHONE, { "overflow-wrap": null });
   expects(".row > .check", LARGE, { "align-self": "flex-start" });
   expects(".row > .check", PHONE, { "align-self": null });
+});
+
+test("a row's nickname chip is never sized below the nickname once text is large, so the check goes above the title instead of splitting it", () => {
+  const chip = [["body"], [".row"], [".row-b"], [".meta"], [".who", ".row-b .who"]];
+  assert.equal(inherited(css, chip, "overflow-wrap", LARGE), "break-word");
+  assert.equal(inherited(css, chip, "overflow-wrap", PHONE), "anywhere");
+  assert.equal(inherited(css, chip, "overflow-wrap", 18.6), "anywhere");
+  expects(".row-b .who", LARGE, { "overflow-wrap": "break-word" });
+  expects(".row-b .who", PHONE, { "overflow-wrap": null });
+  expects(".row-b", LARGE, { "min-width": "auto", "max-width": "100%" });
+});
+
+test("a timetable slot's title and place are never sized below their longest word once text is large, and the slot does not widen its list", () => {
+  const slot = [["body"], [".rt-slots"], [".rt-slot"], [".rt-slot-b"]];
+  for (const selectors of [[...slot, [".title", ".rt-slot-b > span"]], [...slot, [".meta", ".rt-slot-b > span"]]]) {
+    assert.equal(inherited(css, selectors, "overflow-wrap", LARGE), "break-word");
+    assert.equal(inherited(css, selectors, "overflow-wrap", PHONE), "anywhere");
+  }
+  expects(".rt-slot-b", LARGE, { display: "block", "min-width": "auto", "max-width": "100%", "overflow-wrap": "break-word" });
+  expects(".rt-slot-b", PHONE, { display: "grid", flex: "1 1 8rem", "min-width": "0", "max-width": null, "overflow-wrap": "anywhere" });
+  expects(".rt-slot-b > span", LARGE, { display: "block", "overflow-wrap": "break-word" });
+  expects(".rt-slot-b > span", PHONE, { display: null, "overflow-wrap": null });
+  expects(".rt-slot", LARGE, { "min-width": "0" });
+  expects(".rt-slot", PHONE, { display: "flex", "flex-wrap": "wrap", "min-width": null });
+  expects(".rt-slot-t", PHONE, { flex: "none", "min-width": "5.5rem" });
+  expects(".rt-slots", PHONE, { display: "grid" });
+});
+
+test("the glyph widths and the inset the chip, the amount, the due date and the slot lean on stay as measured, at the large and the plain width", () => {
+  for (const width of [LARGE, PHONE]) {
+    expects(".title", width, { "font-weight": "550" });
+    expects(".who", width, { "font-weight": "500" });
+    expects(".amt", width, { "font-weight": "650", "font-variant-numeric": "tabular-nums lining-nums" });
+    expects(".due[data-late]", width, { "font-weight": "650" });
+    expects(".rt-slot-t", width, { "font-weight": "650", "font-variant-numeric": "tabular-nums lining-nums" });
+    expects(".row > .row-b:first-child", width, { "padding-left": "var(--s3)" });
+    expects(".rt-slot[data-tag]", width, { "padding-inline-start": "var(--s3)" });
+    expects(".rt-slots", width, { "list-style": "none" });
+  }
 });
 
 test("the declarations the row rules lean on: a wrapping flex row, a wrapping meta whose items shrink and break a word, a trailing column held to the line", () => {
@@ -362,6 +401,10 @@ const layouts: [string, [number, string][]][] = [
   [".setl", [[10, "margin: 0; overflow: hidden; padding: 0"]]],
   [".setl > li", [[10, "align-items: center; display: flex; flex-wrap: wrap; gap: var(--s3); min-height: var(--row-min); padding: var(--s2) var(--s1) var(--s2) var(--s4)"]]],
   [".setl .v", [[10, "flex: 1 1 8rem; min-width: 0"]]],
+  [".rt-slots", [[10, "display: grid; margin: 0; padding: 0"]]],
+  [".rt-slot", [[10, "align-items: baseline; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); min-height: var(--target-min); min-width: 0; padding: var(--s2) 0"], [20, "align-items: baseline; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); min-height: var(--target-min); padding: var(--s2) 0"]]],
+  [".rt-slot-t", [[10, "flex: none; min-width: 5.5rem"]]],
+  [".rt-slot-b", [[10, "display: block; flex: 1 1 8rem; max-width: 100%; min-width: auto; overflow-wrap: break-word"], [20, "display: grid; flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere"]]],
 ];
 
 test("every declaration that sets a size, a wrap, a gap, a spacing or an alignment in the rules the large-text rules lean on stays as measured, at the large, the narrow and the plain width", () => {

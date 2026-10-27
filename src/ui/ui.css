@@ -288,7 +288,8 @@ fieldset.field {
     flex-basis: 0;
   }
 
-  .row-b .title {
+  .row-b .title,
+  .row-b .who {
     overflow-wrap: break-word;
   }
 }

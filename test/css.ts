@@ -77,6 +77,12 @@ export const cascade = (rules: Rule[], selector: string, width: number) => {
   return final;
 };
 
+export const inherited = (rules: Rule[], chain: string[][], property: string, width: number) => {
+  let value: string | null = null;
+  for (const selectors of chain) for (const selector of selectors) value = cascade(rules, selector, width).get(property) ?? value;
+  return value;
+};
+
 export const PHONE_WIDTHS = [320, 360, 390, 412];
 
 export const TEXT_ZOOMS = [1, 1.25, 1.5, 1.75, 2];
