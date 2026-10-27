@@ -100,8 +100,8 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
             open: setSheet,
             resetCounts: counted.length > 0 ? guard(() => void once(async () => setFailure(failureOf(await flows.clear(routine, counted))))) : undefined,
             locked,
-            resume: () => void once(async () => setFailure(failureOf(await flows.resume(routine)))),
-            remove: () => void once(async () => setFailure(failureOf(await flows.remove(routine)))),
+            resume: guard(() => void once(async () => setFailure(failureOf(await flows.resume(routine))))),
+            remove: guard(() => void once(async () => setFailure(failureOf(await flows.remove(routine))))),
           })}
         />
       </div>

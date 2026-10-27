@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Icon } from "./icons.tsx";
+import { PausedNote } from "./paused-note.tsx";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
 
@@ -39,7 +40,12 @@ export function Modal({ title, onClose, onSubmit, foot, dismissible, className, 
         </button>
       </div>
       <div className="sheet-body">{children}</div>
-      {foot && <div className="sheet-foot">{foot}</div>}
+      {foot && (
+        <div className="sheet-foot">
+          <PausedNote />
+          {foot}
+        </div>
+      )}
     </>
   );
   return (

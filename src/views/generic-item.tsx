@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { BudgetEntryRow } from "../../shared/tables.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { failureOf } from "../ui/failure.ts";
 import { ItemDetail } from "../ui/item-detail.tsx";
 import { backHref } from "../ui/item-flows.ts";
@@ -12,6 +13,7 @@ import { text } from "../ui/text.ts";
 
 export function Gone({ name, id, back, wide = false }: { name: ViewName; id: string; back: string; wide?: boolean }) {
   const [failure, setFailure] = useState<string[]>([]);
+  const { locked, guard } = useWriteLock();
   const undo = async () => setFailure(failureOf(await actions.update(views[name].table, id, { deleted_at: null } as never)));
   return (
     <>
@@ -22,7 +24,7 @@ export function Gone({ name, id, back, wide = false }: { name: ViewName; id: str
         </p>
       )}
       <div className="form-actions">
-        <button type="button" onClick={undo}>
+        <button type="button" aria-disabled={locked || undefined} onClick={guard(undo)}>
           {text.undo}
         </button>
         <a className="button secondary" href={back}>

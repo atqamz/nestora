@@ -48,7 +48,7 @@ test("the detail shows a rating control only for the signed-in partner, and none
   assert.match(view, /ratingRows\(row, me\)\.map\(\(\{ side, stars, mine \}\) => \(/);
   assert.match(view, /\{mine \? \(\s*<div className="rate"/);
   assert.equal(view.match(/ratingPatch\(/g)?.length, 1);
-  assert.match(view, /onClick=\{\(\) => run\(ratingPatch\(row, side, n\)\)\}/);
+  assert.match(view, /onClick=\{guard\(\(\) => run\(ratingPatch\(row, side, n\)\)\)\}/);
   assert.match(view, /text\.screen\.notRated/);
   assert.match(view, /\{!gone && watched && <Ratings row=\{row\} \/>\}/);
 });

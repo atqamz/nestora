@@ -5,6 +5,7 @@ import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar, Pair } from "./avatar.tsx";
 import { failureOf, splitErrors } from "./failure.ts";
 import { Field } from "./field.tsx";
@@ -12,6 +13,7 @@ import type { Control } from "./field.tsx";
 import type { Row } from "./item-flows.ts";
 import { fieldLabel, optionLabel } from "./labels.ts";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { fieldOptions, fieldType, isRequired, views } from "./registry.ts";
 import type { View, ViewName } from "./registry.ts";
 import { text } from "./text.ts";
@@ -32,6 +34,7 @@ export function ItemForm({ name, row, gone, only, sheet }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string[]>([]);
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const { label } = usePartner();
   const stamp = useStamp();
   const siblings = useTable(view.table);
@@ -73,6 +76,7 @@ export function ItemForm({ name, row, gone, only, sheet }: Props) {
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     const form = new FormData(event.currentTarget);
     return once(() => store(form));
   };
@@ -134,7 +138,7 @@ export function ItemForm({ name, row, gone, only, sheet }: Props) {
       onClose={sheet}
       onSubmit={save}
       foot={
-        <button type="submit" disabled={busy || gone}>
+        <button type="submit" disabled={busy || gone} {...lockedProps(locked)}>
           {text.save}
         </button>
       }

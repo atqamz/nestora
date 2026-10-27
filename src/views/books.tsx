@@ -8,6 +8,7 @@ import type { Where } from "../domain/shelf.ts";
 import { wishSections } from "../domain/wish.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useLibrary } from "../hooks/use-books.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Who } from "../ui/avatar.tsx";
 import { useBookActions } from "../ui/book-actions.ts";
 import { Cover } from "../ui/book-bits.tsx";
@@ -98,6 +99,7 @@ function Find({ mode, onChange, value }: { mode: Mode; value: string; onChange: 
 function Wish({ book }: { book: ItemRow }) {
   const { gotIt } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const by = typeof book.data?.author === "string" ? book.data.author : null;
   const shop = typeof book.data?.shop === "string" ? book.data.shop : null;
@@ -128,8 +130,10 @@ function Wish({ book }: { book: ItemRow }) {
           type="button"
           className="got"
           disabled={busy}
+          aria-disabled={locked || undefined}
           aria-label={text.books.gotItNamed(book.title)}
           onClick={(event) => {
+            if (locked) return hold();
             const row = event.currentTarget.closest("li");
             const next = (row?.nextElementSibling ?? row?.previousElementSibling)?.querySelector<HTMLElement>(".got") ?? document.querySelector<HTMLElement>("h1");
             return once(async () => {

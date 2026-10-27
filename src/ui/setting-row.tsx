@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Field } from "./field.tsx";
 import type { Control } from "./field.tsx";
 import { Icon } from "./icons.tsx";
@@ -21,6 +22,7 @@ export function SettingRow({ field, kicker, shown, notes, lead, what, save }: Pr
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const button = useRef<HTMLButtonElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const returning = useRef(false);
@@ -40,6 +42,7 @@ export function SettingRow({ field, kicker, shown, notes, lead, what, save }: Pr
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     return once(async () => {
       const problem = await save(draft.trim());
       if (problem === null) close();
@@ -61,7 +64,7 @@ export function SettingRow({ field, kicker, shown, notes, lead, what, save }: Pr
         >
           <Field control={{ ...field, value: draft, onChange: setDraft }} error={error} />
           <div className="form-actions">
-            <button type="submit" disabled={busy} aria-label={text.settings.save(what)}>
+            <button type="submit" disabled={busy} aria-disabled={locked || undefined} aria-label={text.settings.save(what)}>
               {text.save}
             </button>
             <button type="button" className="secondary" aria-label={text.settings.cancel(what)} onClick={close}>

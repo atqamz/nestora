@@ -9,6 +9,7 @@ import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar } from "../ui/avatar.tsx";
 import { useBookActions } from "../ui/book-actions.ts";
 import { Cover, Stars } from "../ui/book-bits.tsx";
@@ -39,6 +40,7 @@ function Reader({ book }: { book: ItemRow }) {
   const { me, label } = usePartner();
   const stamp = useStamp();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   if (me === null) return null;
   const them = me === "a" ? "b" : "a";
@@ -56,7 +58,7 @@ function Reader({ book }: { book: ItemRow }) {
         </p>
         <div role="group" aria-label={`${label(me)}: ${text.books.reading}`} className="seg reader-seg">
           {READING.map((pick) => (
-            <button key={pick} type="button" disabled={busy} aria-pressed={mine.state === pick} onClick={() => run(readingPatch(book, me, pick, stamp()))}>
+            <button key={pick} type="button" disabled={busy} aria-disabled={locked || undefined} aria-pressed={mine.state === pick} onClick={guard(() => run(readingPatch(book, me, pick, stamp())))}>
               {text.books.readingPick[pick]}
             </button>
           ))}
@@ -64,7 +66,7 @@ function Reader({ book }: { book: ItemRow }) {
         {mine.state === "read" && (
           <div className="rate" role="group" aria-label={text.books.rate}>
             {[1, 2, 3, 4, 5].map((stars) => (
-              <button key={stars} type="button" className="star" disabled={busy} aria-pressed={mine.rating === stars} aria-label={text.books.rateStar(stars)} data-on={(mine.rating ?? 0) >= stars || undefined} onClick={() => run(ratingPatch(book, me, stars))}>
+              <button key={stars} type="button" className="star" disabled={busy} aria-disabled={locked || undefined} aria-pressed={mine.rating === stars} aria-label={text.books.rateStar(stars)} data-on={(mine.rating ?? 0) >= stars || undefined} onClick={guard(() => run(ratingPatch(book, me, stars)))}>
                 <Icon name="star" />
               </button>
             ))}
@@ -95,6 +97,7 @@ function Reader({ book }: { book: ItemRow }) {
 function LostIt({ book }: { book: ItemRow }) {
   const { lostIt } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [asking, setAsking] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const ask = useRef<HTMLButtonElement>(null);
@@ -135,7 +138,7 @@ function LostIt({ book }: { book: ItemRow }) {
           </div>
         </div>
       ) : (
-        <button ref={ask} type="button" className="secondary lost" disabled={busy} onClick={() => setAsking(true)}>
+        <button ref={ask} type="button" className="secondary lost" disabled={busy} aria-disabled={locked || undefined} onClick={guard(() => setAsking(true))}>
           <Icon name="back" />
           {text.books.lostIt}
         </button>
@@ -178,6 +181,7 @@ export function BookDetail({ id }: { id: string }) {
   const { items, places, copies } = useLibrary();
   const { gotIt, removeBook, restoreBook } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [sheet, setSheet] = useState<"add" | ItemRow | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
   const found = items.find((row) => row.id === id && row.kind === "book");
@@ -223,13 +227,14 @@ export function BookDetail({ id }: { id: string }) {
               type="button"
               className="got"
               disabled={busy}
-              onClick={() =>
+              aria-disabled={locked || undefined}
+              onClick={guard(() =>
                 once(async () => {
                   const result = await gotIt(book);
                   setFailure(failureOf(result));
                   if (result.ok) document.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
-                })
-              }
+                }),
+              )}
             >
               <Icon name="check" />
               {text.books.gotIt}

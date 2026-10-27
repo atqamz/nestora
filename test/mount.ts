@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 
 const internals = (React as any).__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
 
-export type Spot = { element: ReactElement<any>; focused: number; focus: () => void };
+export type Spot = { element: ReactElement<any>; focused: number; focus: () => void; querySelector: () => null; showModal: () => void };
 
 export const walk = (node: ReactNode, visit: (element: ReactElement<any>) => void) => {
   if (Array.isArray(node)) node.forEach((child) => walk(child, visit));
@@ -63,6 +63,9 @@ export const mount = <P extends object>(component: (props: P) => ReactNode, firs
       if (!(index in slots) || !same(slots[index].deps, deps)) slots[index] = { deps, value: make() };
       return slots[index].value;
     },
+    useCallback: (fn: unknown, deps: unknown[]) => dispatcher.useMemo(() => fn, deps),
+    useDeferredValue: (value: unknown) => value,
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
     useEffect: (run: () => void | (() => void), deps?: unknown[]) => {
       const index = cursor++;
       const effect = slots[index];
@@ -87,7 +90,7 @@ export const mount = <P extends object>(component: (props: P) => ReactNode, firs
     walk(tree, (element) => {
       const ref = element.props.ref;
       if (ref && typeof ref === "object" && !spots.has(ref)) {
-        const spot: Spot = { element, focused: 0, focus: () => void (spot.focused++, focusLog.push(spot)) };
+        const spot: Spot = { element, focused: 0, focus: () => void (spot.focused++, focusLog.push(spot)), querySelector: () => null, showModal: () => undefined };
         spots.set(ref, spot);
       }
       if (ref && typeof ref === "object") {

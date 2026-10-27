@@ -4,6 +4,7 @@ import { batchesOf, changedBooks, detectFormat, previewOf, readInput, stepsOf } 
 import type { Batch, Entry, Format } from "../domain/import-plan.ts";
 import { placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { useDetails } from "../hooks/use-details.ts";
 import { usePartner, useSettings } from "../hooks/use-plan.ts";
@@ -122,6 +123,7 @@ function Row({ entry, on, onToggle }: { entry: Entry; on: boolean; onToggle: () 
 
 function Earlier({ batch, changed }: { batch: Batch; changed: number }) {
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [confirming, setConfirming] = useState(false);
   const ask = useRef<HTMLButtonElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
@@ -172,7 +174,7 @@ function Earlier({ batch, changed }: { batch: Batch; changed: number }) {
           </button>
         ) : (
           remaining > 0 && (
-            <button type="button" className="secondary" aria-label={again ? undefined : WORDS.findNamed(day)} onClick={() => void start()}>
+            <button type="button" className="secondary" aria-disabled={locked || undefined} aria-label={again ? undefined : WORDS.findNamed(day)} onClick={guard(() => void start())}>
               {again ? WORDS.resume : WORDS.find}
             </button>
           )
@@ -183,8 +185,9 @@ function Earlier({ batch, changed }: { batch: Batch; changed: number }) {
             type="button"
             className="secondary"
             disabled={busy || going}
+            aria-disabled={locked || undefined}
             aria-label={WORDS.undoNamed(day)}
-            onClick={() => (changed > 0 ? setConfirming(true) : once(undo))}
+            onClick={guard(() => void (changed > 0 ? setConfirming(true) : once(undo)))}
           >
             {WORDS.undo}
           </button>
@@ -219,13 +222,14 @@ function Earlier({ batch, changed }: { batch: Batch; changed: number }) {
 
 function Hidden({ entry }: { entry: Undone }) {
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const day = formatDate(entry.at.slice(0, 10));
   return (
     <li className="imp-batch">
       <p className="imp-line">{WORDS.undoneLine(entry.books.length, day)}</p>
       <div className="imp-acts">
-        <button type="button" className="secondary" disabled={busy} aria-label={WORDS.restoreNamed(day)} onClick={() => once(async () => setFailure(failureOf(await restoreImport(entry.batch, actions.many))))}>
+        <button type="button" className="secondary" disabled={busy} aria-disabled={locked || undefined} aria-label={WORDS.restoreNamed(day)} onClick={guard(() => void once(async () => setFailure(failureOf(await restoreImport(entry.batch, actions.many)))))}>
           {WORDS.restore}
         </button>
       </div>
@@ -243,6 +247,7 @@ export function ImportBooks() {
   const { me, label } = usePartner();
   const settings = useSettings();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [input, setInput] = useState("");
   const [pick, setPick] = useState<"auto" | Format>("auto");
   const [kind, setKind] = useState<BookKind>("wish");
@@ -326,7 +331,7 @@ export function ImportBooks() {
             {WORDS.summary(ticked.length, entries.length)}
           </p>
           <div className="imp-bar">
-            <button type="button" disabled={busy || ticked.length === 0} onClick={() => void run()}>
+            <button type="button" disabled={busy || ticked.length === 0} aria-disabled={locked || undefined} onClick={guard(() => void run())}>
               <Icon name="upload" />
               {busy ? WORDS.running : WORDS.run(ticked.length)}
             </button>

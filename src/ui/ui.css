@@ -23,11 +23,6 @@ section {
   margin: 0;
 }
 
-.notice:focus {
-  outline: 2.5px solid var(--focus);
-  outline-offset: 2px;
-}
-
 .hint {
   margin: 0;
   color: var(--ink-2);

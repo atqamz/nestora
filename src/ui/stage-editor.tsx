@@ -6,6 +6,7 @@ import type { Stage } from "../domain/stages.ts";
 import { settingKeys } from "../domain/settings.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { actions } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { failureOf } from "./failure.ts";
 import { formatMonth } from "./format.ts";
 import { Icon } from "./icons.tsx";
@@ -22,6 +23,7 @@ export function StageEditor({ saved, ceremony }: Props) {
   const [list, setList] = useState<Stage[]>(() => saved.map((stage) => ({ ...stage })));
   const [failure, setFailure] = useState<string[]>([]);
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const form = useRef<HTMLFormElement>(null);
   const trimmed = useMemo(() => list.map((stage) => ({ ...stage, name: stage.name.trim() })), [list]);
   const problems = useMemo(() => stageProblems(trimmed), [trimmed]);
@@ -63,6 +65,7 @@ export function StageEditor({ saved, ceremony }: Props) {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     if (problems.length > 0) {
       form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
@@ -179,7 +182,7 @@ export function StageEditor({ saved, ceremony }: Props) {
           </p>
         )}
         <div className="form-actions">
-          <button type="submit" disabled={busy || !changed}>
+          <button type="submit" disabled={busy || !changed} aria-disabled={locked || undefined}>
             {text.stages.save}
           </button>
           {changed && <span className="hint stage-state">{text.stages.changed}</span>}

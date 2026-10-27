@@ -4,6 +4,7 @@ import { hijriChoices, hijriOf } from "../domain/hijri.ts";
 import { DEFAULT_ZONE, settingKeys } from "../domain/settings.ts";
 import { useSettings } from "../hooks/use-plan.ts";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar } from "../ui/avatar.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { FeedSection } from "../ui/feed-section.tsx";
@@ -46,6 +47,7 @@ const store = (key: string, check?: (value: string) => string | null) => async (
 export function Settings() {
   const settings = useSettings();
   const { me } = useSnapshot();
+  const { locked, hold } = useWriteLock();
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [failure, setFailure] = useState<string[]>([]);
   const hijri = settings.ceremonyDate === null ? null : hijriOf(settings.ceremonyDate, settings.hijriOffset);
@@ -54,6 +56,7 @@ export function Settings() {
   const nicknames = { a: settings.partnerA, b: settings.partnerB };
 
   const chooseOffset = async (value: string) => {
+    if (locked) return hold();
     const errors = failureOf(await actions.setSetting(settingKeys.hijriOffset, value));
     setFailure(errors);
     if (errors.length === 0) overlay.announce(text.saved);
@@ -97,6 +100,7 @@ export function Settings() {
                 type: "text",
                 required: true,
                 choice: true,
+                locked,
                 value: String(settings.hijriOffset),
                 options: hijriChoices(settings.hijriOffset).map((offset) => ({ value: String(offset), label: text.settings.hijriOffset[String(offset) as keyof typeof text.settings.hijriOffset] })),
                 hint: hijri === null ? text.settings.hijriUnavailable : text.settings.hijriNote,

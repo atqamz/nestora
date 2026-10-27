@@ -93,6 +93,12 @@ html:has(dialog[open]) {
   text-wrap: balance;
 }
 
+.paused-note {
+  margin-bottom: var(--s2);
+  text-align: center;
+  text-wrap: balance;
+}
+
 .kinds {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));

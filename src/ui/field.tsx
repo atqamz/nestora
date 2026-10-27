@@ -12,6 +12,7 @@ export type Control = {
   required?: boolean;
   options?: readonly { value: string; label: string; icon?: ReactNode }[] | null;
   choice?: true;
+  locked?: boolean;
   blank?: string;
   blankIcon?: ReactNode;
   suggestions?: readonly string[];
@@ -25,7 +26,7 @@ const LIMITS: Partial<Record<string, number>> = { text: 500, longtext: 2000, not
 
 export function Field({ control, error }: { control: Control; error?: string }) {
   const id = useId();
-  const { name, label, type, value, required, options, choice, blank, blankIcon, suggestions, hint, words, max, onChange } = control;
+  const { name, label, type, value, required, options, choice, locked, blank, blankIcon, suggestions, hint, words, max, onChange } = control;
   const shown = value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
   const [typed, setTyped] = useState<string | null>(null);
   const note = type === "isbn" ? isbnNote(onChange ? shown : (typed ?? shown)) : hint;
@@ -69,6 +70,7 @@ export function Field({ control, error }: { control: Control; error?: string }) 
                 type="radio"
                 name={name}
                 value={option.value}
+                aria-disabled={locked || undefined}
                 {...(onChange ? { checked: shown === option.value, onChange: () => onChange(option.value) } : { defaultChecked: shown === option.value })}
               />
               <span>

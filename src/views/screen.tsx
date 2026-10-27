@@ -11,6 +11,7 @@ import { useBusy } from "../hooks/use-busy.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions, readItems, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar, Who } from "../ui/avatar.tsx";
 import { Cover, Stars } from "../ui/book-bits.tsx";
 import { setCollection } from "../ui/collection-flows.ts";
@@ -29,6 +30,7 @@ import { Gone } from "./generic-item.tsx";
 function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
   const stamp = useStamp();
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const id = useId();
   const [typed, setTyped] = useState<string | null>(null);
   const [failure, setFailure] = useState<string[]>([]);
@@ -37,6 +39,7 @@ function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
   const shown = draft ?? day;
   const save = (event: FormEvent) => {
     event.preventDefault();
+    if (locked) return hold();
     return once(async () => {
       const result = await moveWatched(actions, row, shown, stamp());
       setFailure(failureOf(result));
@@ -61,7 +64,7 @@ function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
           }}
         />
       </div>
-      <button type="submit" className="secondary" aria-disabled={busy || shown === day || undefined}>
+      <button type="submit" className="secondary" aria-disabled={busy || shown === day || locked || undefined}>
         {text.screen.watchedDate.save}
       </button>
       {failure.length > 0 && (
@@ -76,6 +79,7 @@ function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
 function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) {
   const stamp = useStamp();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const now = watchOf(row);
   const group = useRef<HTMLDivElement>(null);
@@ -95,8 +99,9 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
             key={pick}
             type="button"
             disabled={busy}
+            aria-disabled={locked || undefined}
             aria-pressed={now === pick}
-            onClick={() => once(async () => setFailure(failureOf(await moveScreen(actions, row, pick, stamp()))))}
+            onClick={guard(() => void once(async () => setFailure(failureOf(await moveScreen(actions, row, pick, stamp())))))}
           >
             {text.screen.pick[pick]}
           </button>
@@ -118,6 +123,7 @@ function Status({ row, watchedOn }: { row: ItemRow; watchedOn: string | null }) 
 
 export function PosterRemoval({ row }: { row: ItemRow }) {
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const remove = () =>
     once(async () => {
@@ -128,7 +134,7 @@ export function PosterRemoval({ row }: { row: ItemRow }) {
   return (
     <>
       <p>
-        <button type="button" className="secondary" disabled={busy} onClick={remove}>
+        <button type="button" className="secondary" disabled={busy} aria-disabled={locked || undefined} onClick={guard(remove)}>
           {text.screen.removePoster}
         </button>
       </p>
@@ -144,6 +150,7 @@ export function PosterRemoval({ row }: { row: ItemRow }) {
 function Ratings({ row }: { row: ItemRow }) {
   const { me, label } = usePartner();
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const run = (patch: Patch<"items">) => once(async () => setFailure(failureOf(await actions.update("items", row.id, patch))));
   return (
@@ -158,7 +165,7 @@ function Ratings({ row }: { row: ItemRow }) {
           {mine ? (
             <div className="rate" role="group" aria-label={`${label(side)}: ${text.screen.rate}`}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" className="star" disabled={busy} aria-pressed={stars === n} aria-label={text.screen.rateStar(n)} data-on={(stars ?? 0) >= n || undefined} onClick={() => run(ratingPatch(row, side, n))}>
+                <button key={n} type="button" className="star" disabled={busy} aria-disabled={locked || undefined} aria-pressed={stars === n} aria-label={text.screen.rateStar(n)} data-on={(stars ?? 0) >= n || undefined} onClick={guard(() => run(ratingPatch(row, side, n)))}>
                   <Icon name="star" />
                 </button>
               ))}
@@ -180,6 +187,7 @@ function Ratings({ row }: { row: ItemRow }) {
 function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
   const rows = useTable("items");
   const { busy, once } = useBusy();
+  const { locked, hold, guard } = useWriteLock();
   const live = rows.find((candidate) => candidate.id === row.id) ?? row;
   const current = collectionName(live);
   const group = collections(rows, kind).find(({ rows: members }) => members.some((member) => member.id === row.id));
@@ -203,6 +211,7 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
+          if (locked) return hold();
           return draft === null ? undefined : run(draft);
         }}
       >
@@ -215,7 +224,7 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
           </p>
         )}
         <div className="form-actions">
-          <button type="submit" aria-disabled={busy || draft === null || undefined}>
+          <button type="submit" aria-disabled={busy || draft === null || locked || undefined}>
             {words.save}
           </button>
           {current !== null && (
@@ -223,7 +232,8 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
               type="button"
               className="secondary"
               disabled={busy}
-              onClick={() => run("")}
+              aria-disabled={locked || undefined}
+              onClick={guard(() => void run(""))}
             >
               {words.remove}
             </button>

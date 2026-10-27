@@ -4,6 +4,7 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { copiesAt, placesOf } from "../domain/places.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useBookActions } from "../ui/book-actions.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Field } from "../ui/field.tsx";
@@ -64,6 +65,7 @@ function Reassign({ place, others, count, onClose }: { place: ItemRow; others: r
 function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index: number; last: boolean; count: number; others: readonly ItemRow[] }) {
   const { swapPlace, deletePlace, renamePlace } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked, hold, guard } = useWriteLock();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
@@ -71,6 +73,7 @@ function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index
 
   const rename = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     if (draft.trim() === "") return setFailure([copy.needName]);
     return once(async () => {
       const result = await renamePlace(place, draft.trim());
@@ -85,7 +88,7 @@ function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index
         <form className="form place-form" noValidate onSubmit={rename} onKeyDown={(event) => event.key === "Escape" && setEditing(false)}>
           <Field control={{ name: "place", label: copy.name, type: "text", words: true, required: true, value: draft, onChange: setDraft }} error={failure[0]} />
           <div className="form-actions">
-            <button type="submit" disabled={busy} aria-label={copy.save}>
+            <button type="submit" disabled={busy} aria-disabled={locked || undefined} aria-label={copy.save}>
               {text.save}
             </button>
             <button type="button" className="secondary" aria-label={copy.cancel} onClick={() => setEditing(false)}>
@@ -107,10 +110,10 @@ function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index
           <span className="meta">{text.books.copyCount(count)}</span>
         </span>
         <span className="acts">
-          <button type="button" className="ib" disabled={busy || index === 0} aria-label={copy.up(place.title)} onClick={() => once(async () => setFailure(failureOf(await swapPlace(place, -1))))}>
+          <button type="button" className="ib" disabled={busy || index === 0} aria-disabled={locked || undefined} aria-label={copy.up(place.title)} onClick={guard(() => void once(async () => setFailure(failureOf(await swapPlace(place, -1)))))}>
             <Icon name="up" />
           </button>
-          <button type="button" className="ib" disabled={busy || last} aria-label={copy.down(place.title)} onClick={() => once(async () => setFailure(failureOf(await swapPlace(place, 1))))}>
+          <button type="button" className="ib" disabled={busy || last} aria-disabled={locked || undefined} aria-label={copy.down(place.title)} onClick={guard(() => void once(async () => setFailure(failureOf(await swapPlace(place, 1)))))}>
             <Icon name="down" />
           </button>
           <button
@@ -125,7 +128,7 @@ function PlaceRow({ place, index, last, count, others }: { place: ItemRow; index
           >
             <Icon name="edit" />
           </button>
-          <button type="button" className="ib" disabled={busy} aria-label={copy.remove(place.title)} onClick={remove}>
+          <button type="button" className="ib" disabled={busy} aria-disabled={locked || undefined} aria-label={copy.remove(place.title)} onClick={guard(remove)}>
             <Icon name="trash" />
           </button>
         </span>
@@ -145,10 +148,12 @@ export function Places() {
   const places = useMemo(() => placesOf(items), [items]);
   const { addPlace } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
 
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return hold();
     const form = event.currentTarget;
     const title = String(new FormData(form).get("title") ?? "").trim();
     if (title === "") return;
@@ -174,7 +179,7 @@ export function Places() {
           {copy.addLabel}
         </label>
         <input id="place-add" name="title" required maxLength={500} autoComplete="off" autoCapitalize="words" enterKeyHint="done" placeholder={copy.addPlaceholder} />
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} aria-disabled={locked || undefined}>
           {text.add}
         </button>
         {failure.length > 0 && (

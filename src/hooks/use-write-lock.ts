@@ -1,10 +1,9 @@
+import { overlay } from "../ui/overlay.ts";
+import { text } from "../ui/text.ts";
 import { useSnapshot } from "./use-store.ts";
-
-export const PAUSED_NOTICE = "paused-notice";
-
-const focusNotice = () => document.getElementById(PAUSED_NOTICE)?.focus();
 
 export const useWriteLock = () => {
   const locked = useSnapshot().paused;
-  return { locked, guard: (run: () => void) => (locked ? focusNotice : run) };
+  const hold = () => overlay.announce(text.paused);
+  return { locked, hold, guard: (run: () => void) => (locked ? hold : run) };
 };
