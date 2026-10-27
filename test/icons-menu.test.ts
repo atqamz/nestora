@@ -272,7 +272,7 @@ test("the routine toolbar keeps natural widths so no button is stretched or left
 
 test("the routine detail shows one filled button and two outlined ones in one toolbar, Edit and More first-class beside the primary", async () => {
   const mineRoutine = item({ kind: "routine", status: null, who: "a", title: "Morning care", group_key: "morning", data: {} });
-  const rows = [mineRoutine, item({ kind: "step", status: null, parent_id: mineRoutine.id, title: "Cleanse", data: null }), item({ kind: "step", status: null, parent_id: mineRoutine.id, title: "Tone", data: null })];
+  const rows = [mineRoutine, ...["Cleanse", "Tone", "Serum", "Cream"].map((title) => item({ kind: "step", status: null, parent_id: mineRoutine.id, title, data: null }))];
   stage(rows);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   try {

@@ -196,7 +196,7 @@
 }
 
 .rt-block h3 {
-  margin: 0 0 var(--s1);
+  margin: 0;
   overflow-wrap: anywhere;
   line-height: inherit;
   font-size: var(--fs-meta);
@@ -449,13 +449,23 @@
   min-width: 0;
 }
 
-.rt-start {
-  margin: var(--s2) 0 var(--s3);
+.rt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+  margin: 0 0 var(--s1);
 }
 
-.rt-start a {
-  display: flex;
+.rt-head h3 {
+  flex: 1 1 10rem;
   min-width: 0;
+}
+
+.rt-go {
+  flex: none;
+  max-width: 100%;
+  min-height: var(--target-min);
 }
 
 .rt-week {

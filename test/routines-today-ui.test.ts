@@ -154,21 +154,48 @@ test("only the folded state hides the card's body", (t) => {
   assert.deepEqual([stateOf(), hidden()], ["kept", false]);
 });
 
-test("the Start link shows only on an open card that has something to walk through", (t) => {
+test("the Step by step link sits in the header row of an open card that has a timer or four open steps, stays until the fold, and does not come back stale", (t) => {
   const parent = routine("Morning care");
-  const start = (view: { tree: unknown }) => find(view.tree as never, (element) => element.props.className === "rt-start").length;
+  const steps = ["Cleanse", "Tone", "Serum", "Cream", "Mist"].map((title) => step(parent, title));
+  const ticked = (count: number) => steps.map((row, index) => (index < count ? { ...row, data: { done_a: DAY } } : row));
+  const go = (view: { tree: unknown }) => find(view.tree as never, (element) => String(element.props.className).includes("rt-go"));
+  const word = (view: { tree: unknown }) => go(view).map(textOf);
   const none = mountBlock(t, parent, 1);
-  assert.equal(start(none.view), 0);
-  const some = mountBlock(t, parent, 1, 2, [step(parent, "Cleanse")]);
-  assert.equal(start(some.view), 1);
-  some.progress(2);
-  assert.equal(start(some.view), 1);
+  assert.equal(go(none.view).length, 0);
+  const short = mountBlock(t, parent, 0, 3, steps.slice(0, 3));
+  assert.equal(go(short.view).length, 0);
+  const some = mountBlock(t, parent, 0, 5, steps);
+  assert.deepEqual(word(some.view), [copy.start.open]);
+  assert.equal(find(some.view.tree, (element) => element.props.className === "rt-start").length, 0);
+  assert.equal(go(some.view)[0].props["aria-label"], `${copy.start.open}: Morning care`);
+  some.view.update({ block: block(parent, 1, 5, ticked(1)) });
+  assert.deepEqual(word(some.view), [copy.start.resume]);
+  some.view.update({ block: block(parent, 4, 5, ticked(4)) });
+  assert.deepEqual(word(some.view), [copy.start.resume]);
+  some.view.update({ block: block(parent, 5, 5, ticked(5)) });
   assert.equal(some.stateOf(), "settling");
+  assert.deepEqual(word(some.view), [copy.start.resume]);
   mock.timers.tick(SETTLE_MS);
-  assert.equal(start(some.view), 0);
+  assert.equal(some.stateOf(), "folded");
+  assert.equal(go(some.view).length, 0);
   find(some.view.tree, (element) => element.props.className === "rt-fold")[0].props.onClick();
   assert.equal(some.stateOf(), "kept");
-  assert.equal(start(some.view), 0);
+  assert.equal(go(some.view).length, 0);
+  some.view.update({ block: block(parent, 4, 5, ticked(4)) });
+  assert.equal(some.stateOf(), "open");
+  assert.equal(go(some.view).length, 0);
+});
+
+test("a ticked row never makes the offer vanish before the fold, so the header row keeps its height", (t) => {
+  const parent = routine("Morning care");
+  const steps = ["Cleanse", "Tone", "Serum", "Cream", "Mist"].map((title) => step(parent, title));
+  const ticked = (count: number) => steps.map((row, index) => (index < count ? { ...row, data: { done_a: DAY } } : row));
+  const go = (view: { tree: unknown }) => find(view.tree as never, (element) => String(element.props.className).includes("rt-go")).length;
+  const { view } = mountBlock(t, parent, 0, 5, steps);
+  for (let count = 1; count < 5; count++) {
+    view.update({ block: block(parent, count, 5, ticked(count)) });
+    assert.equal(go(view), 1, `after ${count} ticks`);
+  }
 });
 
 test("an open card shows its progress only when there is something to count", (t) => {
@@ -573,7 +600,6 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
     "0 of 1",
     "Mark Dim the lights as done",
     "Dim the lights",
-    "Start",
     "Done today",
     "Morning care",
     "Done",
@@ -594,7 +620,7 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
 
 test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
   const open = routine("Evening wind down", "evening");
-  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "Start", "All routines"]);
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
   assert.deepEqual(await textsOf([]), ["Today · Mon, 26 Oct", copy.emptyHome, copy.create]);
   const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
   assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Today · Mon, 26 Oct", copy.nothingToday, "All routines"]);

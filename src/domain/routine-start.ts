@@ -1,5 +1,5 @@
 import type { Side } from "../../shared/api.ts";
-import { isDone, progress } from "../../shared/routines.ts";
+import { actionOccursOn, isDone, progress } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 
 export type Page = ItemRow[];
@@ -14,6 +14,19 @@ export const pagesOf = (actions: readonly ItemRow[]): Page[] => {
   }
   return found;
 };
+
+const MIN_STEPS = 4;
+
+export type Offer = "start" | "continue";
+
+export const offerOf = (routine: ItemRow, actions: readonly ItemRow[], side: Side, day: string): Offer | null => {
+  const todays = actions.filter((action) => actionOccursOn(routine, action, day));
+  const open = todays.filter((action) => (action.kind === "step" || action.kind === "timer") && !isDone(action, side, day));
+  if (!open.some((action) => action.kind === "timer") && open.length < MIN_STEPS) return null;
+  return progress(todays, side, day).done > 0 ? "continue" : "start";
+};
+
+export const heldOffer = (now: Offer | null, held: Offer | null, release: boolean): Offer | null => (release ? null : (now ?? held));
 
 export const isOpen = (page: Page, side: Side, day: string) => {
   const { done, total } = progress(page, side, day);

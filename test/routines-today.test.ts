@@ -131,13 +131,12 @@ const rows = () => {
 test("Today draws a finished routine as one folded row with a check, Done and no Start, after the open ones", async () => {
   const html = await render(rows());
   const finishedBlock = /<div class="rt-block" data-fold="folded">(.*?)<\/div><\/div>/s.exec(html)?.[1] ?? "";
-  assert.match(finishedBlock, /<button type="button" class="rt-fold" aria-expanded="false" aria-label="Morning care done">/);
+  assert.match(finishedBlock, /<button type="button" class="rt-fold" data-opens="#\/routines\/[0-9a-f-]+\/start" aria-expanded="false" aria-label="Morning care done">/);
   assert.match(finishedBlock, /<span class="rt-tick" aria-hidden="true"><svg/);
   assert.match(finishedBlock, /<span class="rt-state">Done<\/span>/);
   assert.match(html, /<div hidden="">/);
   assert.match(html, /<p class="rt-label">Done today<\/p>/);
-  assert.equal([...html.matchAll(/\/start/g)].length, 3);
-  assert.equal(html.includes("Start Morning care"), false);
+  assert.doesNotMatch(finishedBlock, /href="[^"]*\/start"|Step by step|Continue/);
   assert.ok(html.indexOf("Evening wind down") < html.indexOf("Done today"));
   assert.ok(html.indexOf("Morning care") > html.indexOf("Done today"));
 });
@@ -212,7 +211,7 @@ test("Reset counts sits in the More menu, only while a counter has a count, befo
 test("the detail says Done today when everything is ticked and clears counters from the menu", () => {
   const detail = read("views/routine.tsx");
   assert.match(detail, /\{today && total > 0 && ` · \$\{finished\(\{ done, total \}\) \? copy\.doneToday : copy\.progress\(done, total\)\}`\}/);
-  assert.match(detail, /\{today && !away && !finished\(\{ done, total \}\) && pagesOf\(todays\)\.length > 0 && \(/);
+  assert.match(detail, /\{offer !== null && \(/);
   assert.match(detail, /const counted = todays\.filter\(\(action\) => action\.kind === "counter" && count\(action, keyFor\(routine\.who, me\), day\) > 0\);/);
   assert.match(detail, /resetCounts: counted\.length > 0 \? guard\(\(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.clear\(routine, counted\)\)\)\)\) : undefined/);
 });
@@ -307,4 +306,42 @@ test("a partner ticking the last step of my routine finishes it on my side, with
   assert.equal(finished(blocksOf()[0].progress), true);
   assert.equal(a.store.getSnapshot().pending, pending);
   assert.deepEqual(a.row(children[1].id).data, { done_a: DAY });
+});
+
+test("Today puts one compact Step by step link in the header row of a routine with a timer or four open steps, and none under the card", async () => {
+  const long = routine("Skincare", "morning");
+  const timed = routine("Mask night", "evening");
+  const html = await render([
+    long,
+    ...["Cleanse", "Tone", "Serum", "Cream"].map((title) => step(long, title)),
+    timed,
+    step(timed, "Dry the face"),
+    item({ kind: "timer", status: null, parent_id: timed.id, title: "Mask", data: { minutes: 10 } }),
+  ]);
+  const head = (title: string) => new RegExp(`<div class="rt-head"><h3><a [^>]*>${title}</a>.*?</div>`, "s").exec(html)?.[0] ?? "";
+  assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg>Step by step<\/a><\/div>$/s);
+  assert.match(head("Mask night"), /aria-label="Step by step: Mask night"/);
+  assert.equal([...html.matchAll(/\/start"/g)].length, 2);
+  assert.equal(html.includes("rt-start"), false);
+});
+
+test("Today reads Continue once a step is ticked, and offers nothing on items, a single counter, a short list or a finished routine", async () => {
+  const long = routine("Skincare", "morning");
+  const bag = routine("Office bag", "morning");
+  const vitamins = routine("Iron supplement", "evening");
+  const short = routine("Stretch", "evening");
+  const html = await render([
+    long,
+    step(long, "Cleanse", { done_a: DAY }),
+    ...["Tone", "Serum", "Cream", "Mist"].map((title) => step(long, title)),
+    bag,
+    ...["Keys", "Wallet", "Badge", "Laptop", "Charger"].map((title) => item({ kind: "pack", status: null, parent_id: bag.id, title })),
+    vitamins,
+    counter(vitamins, "Iron", 2),
+    short,
+    ...["One", "Two", "Three"].map((title) => step(short, title)),
+  ]);
+  assert.match(html, /aria-label="Continue: Skincare"[^>]*>(?:(?!<\/a>).)*Continue<\/a>/s);
+  assert.equal([...html.matchAll(/\/start"/g)].length, 1);
+  assert.equal(html.includes("Step by step"), false);
 });

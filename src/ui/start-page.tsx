@@ -28,15 +28,17 @@ export type Moves = {
   next: () => void;
 };
 
-type Props = Moves & { page: ItemRow[] };
+type Props = Moves & { page: ItemRow[]; last: boolean };
 
 const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string" ? (row.data[key] as string) : null);
 
-function Timing({ action, minutes, finished, routine, me, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean }) {
+function Timing({ action, minutes, finished, last, routine, me, say, done, next }: Moves & { action: ItemRow; minutes: number; finished: boolean; last: boolean }) {
   const [timer, setTimer] = useState(() => timers.read(me, routine.id, action.id));
   const now = useNow(timer !== null);
   const current = phase(timer, now);
   const body = useRef<HTMLDivElement>(null);
+  const forward = last ? start.finish : start.next;
+  const complete = last ? start.finish : start.done;
   const seen = useRef<string | null>(null);
 
   const set = (next: Timer | null) => {
@@ -72,7 +74,7 @@ function Timing({ action, minutes, finished, routine, me, say, done, next }: Mov
           {start.done}
         </p>
         <button type="button" className="start-main" data-primary onClick={next}>
-          {start.next}
+          {forward}
         </button>
       </div>
     );
@@ -90,7 +92,7 @@ function Timing({ action, minutes, finished, routine, me, say, done, next }: Mov
               {start.timer.start(minutes)}
             </button>
             <button type="button" className="secondary start-alt" onClick={() => done(action)}>
-              {start.done}
+              {complete}
             </button>
           </div>
         </>
@@ -115,7 +117,7 @@ function Timing({ action, minutes, finished, routine, me, say, done, next }: Mov
               {start.timer.cancel}
             </button>
             <button type="button" className="start-main" onClick={() => done(action, () => set(null))}>
-              {start.done}
+              {complete}
             </button>
           </div>
         </>
@@ -125,7 +127,7 @@ function Timing({ action, minutes, finished, routine, me, say, done, next }: Mov
           <p className="start-over">{start.timer.ended}</p>
           <div className="start-do">
             <button type="button" className="start-main" data-primary onClick={() => done(action, () => set(null))}>
-              {start.done}
+              {complete}
             </button>
             <button type="button" className="secondary start-alt" onClick={() => set(extend(timer!, Date.now()))}>
               {start.timer.add}
@@ -141,7 +143,9 @@ function Timing({ action, minutes, finished, routine, me, say, done, next }: Mov
 }
 
 export function StartPage(props: Props) {
-  const { page, routine, side, day, tick, plus, done, next } = props;
+  const { page, routine, side, day, last, tick, plus, done, next } = props;
+  const forward = last ? start.finish : start.next;
+  const complete = last ? start.finish : start.done;
   const [action] = page;
   const link = word(action, "url");
 
@@ -167,7 +171,7 @@ export function StartPage(props: Props) {
         </ul>
         <div className="start-do">
           <button type="button" className="start-main" data-primary onClick={next}>
-            {start.next}
+            {forward}
           </button>
         </div>
       </>
@@ -185,7 +189,7 @@ export function StartPage(props: Props) {
         {head}
         <div className="start-do">
           <button type="button" className="start-main" data-primary onClick={next}>
-            {start.next}
+            {forward}
           </button>
         </div>
       </>
@@ -205,7 +209,7 @@ export function StartPage(props: Props) {
             {copy.plusLabel}
           </button>
           <button type="button" className={lead === "next" ? "start-main" : "secondary start-alt"} data-primary={lead === "next" || undefined} onClick={next}>
-            {start.next}
+            {forward}
           </button>
         </div>
       </>
@@ -242,7 +246,7 @@ export function StartPage(props: Props) {
       )}
       <div className="start-do">
         <button type="button" className="start-main" data-primary onClick={() => (lead === "next" ? next() : done(action))}>
-          {lead === "next" ? start.next : start.done}
+          {lead === "next" ? forward : complete}
         </button>
         {open}
       </div>

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAY_CODES, weekDates } from "../shared/routines.ts";
 import type { ItemRow } from "../shared/tables.ts";
-import { SETTLE_MS, clampTo, follow, hasWork, isOpen, leadOf, openCount, pagesOf, placeAt, placeOf, position, screenOf, settled } from "../src/domain/routine-start.ts";
+import { SETTLE_MS, clampTo, follow, hasWork, heldOffer, isOpen, leadOf, offerOf, openCount, pagesOf, placeAt, placeOf, position, screenOf, settled } from "../src/domain/routine-start.ts";
 import { ADD_MS, FRESH_MS, STALE_MS, begin, clock, extend, parse, phase, share, timerKey } from "../src/domain/routine-timer.ts";
 import { weekStrip } from "../src/domain/routines.ts";
 import { keepAwake } from "../src/domain/wake-lock.ts";
@@ -512,4 +512,78 @@ test("the button that leads a page is Done for something to tick, Next once it i
   assert.equal(lead({ ...counter, data: { done_a: DAY, value_a: 2 } }), "next");
   assert.equal(lead({ ...counter, data: { done_a: "2026-10-25", value_a: 2 } }), "plus");
   for (const kind of ["text", "day_type", "pack", "block"]) assert.equal(lead(action(r, "item 4", kind)), "next");
+});
+
+const steps = (parent: ItemRow, count: number, kind = "step") => Array.from({ length: count }, (_, at) => action(parent, `item ${at + 1}`, kind));
+
+test("Step by step is offered for a timer or four open steps, and for nothing else", () => {
+  const r = routine();
+  assert.equal(offerOf(r, steps(r, 3), "a", DAY), null);
+  assert.equal(offerOf(r, steps(r, 4), "a", DAY), "start");
+  assert.equal(offerOf(r, [action(r, "item 1"), action(r, "item 2", "timer", { data: { minutes: 5 } })], "a", DAY), "start");
+  assert.equal(offerOf(r, [action(r, "item 1", "timer", { data: { minutes: 5 } })], "a", DAY), "start");
+  assert.equal(offerOf(r, [], "a", DAY), null);
+  assert.equal(offerOf(r, steps(r, 1), "a", DAY), null);
+});
+
+test("an items-only, a counter-only, a note-only and a finished routine are never offered it", () => {
+  const r = routine();
+  assert.equal(offerOf(r, steps(r, 6, "pack"), "a", DAY), null);
+  assert.equal(offerOf(r, [action(r, "item 1", "counter", { qty: 2 })], "a", DAY), null);
+  assert.equal(offerOf(r, steps(r, 5, "counter"), "a", DAY), null);
+  assert.equal(offerOf(r, [...steps(r, 5, "text"), ...steps(r, 5, "block"), ...steps(r, 5, "day_type")], "a", DAY), null);
+  assert.equal(offerOf(r, [...steps(r, 3), ...steps(r, 6, "pack")], "a", DAY), null);
+  assert.equal(offerOf(r, steps(r, 4).map((row) => ticked(row)), "a", DAY), null);
+  const timer = action(r, "item 1", "timer", { data: { minutes: 5 } });
+  assert.equal(offerOf(r, [ticked(timer)], "a", DAY), null);
+  assert.equal(offerOf(r, [ticked(timer), action(r, "item 2")], "a", DAY), null);
+});
+
+test("a paused routine, a routine that does not run today and an action that does not run today never count", () => {
+  const paused = routine({ paused_until: "2026-10-30" });
+  assert.equal(offerOf(paused, steps(paused, 5), "a", DAY), null);
+  const lapsed = routine({ paused_until: DAY });
+  assert.equal(offerOf(lapsed, steps(lapsed, 5), "a", DAY), "start");
+  const tuesday = routine({ days: "TU" });
+  assert.equal(offerOf(tuesday, steps(tuesday, 5), "a", DAY), null);
+  assert.equal(offerOf(tuesday, steps(tuesday, 5), "a", "2026-10-27"), "start");
+  const r = routine();
+  const mixed = [...steps(r, 3), action(r, "item 4", "step", { data: { days: "TU" } })];
+  assert.equal(offerOf(r, mixed, "a", DAY), null);
+  assert.equal(offerOf(r, mixed, "a", "2026-10-27"), "start");
+  const other = routine();
+  assert.equal(offerOf(r, steps(other, 5), "a", DAY), null);
+  const elsewhere = [...steps(r, 4), ticked(action(r, "item 5", "step", { data: { days: "TU" } }))];
+  assert.equal(offerOf(r, elsewhere, "a", DAY), "start");
+});
+
+test("it reads Continue once something is ticked, and goes away when fewer than four steps are left", () => {
+  const r = routine();
+  const five = steps(r, 5);
+  assert.equal(offerOf(r, [ticked(five[0]), ...five.slice(1)], "a", DAY), "continue");
+  assert.equal(offerOf(r, [ticked(five[0], "2026-10-25"), ...five.slice(1)], "a", DAY), "start");
+  assert.equal(offerOf(r, [ticked(five[0]), ticked(five[1]), ...five.slice(2)], "a", DAY), null);
+  const timer = action(r, "item 6", "timer", { data: { minutes: 5 } });
+  assert.equal(offerOf(r, [ticked(five[0]), ticked(five[1]), ticked(five[2]), ticked(five[3]), ticked(five[4]), timer], "a", DAY), "continue");
+  const pack = action(r, "item 7", "pack");
+  assert.equal(offerOf(r, [ticked(pack), ...five], "a", DAY), "continue");
+});
+
+test("ticks are read for the side that is asking", () => {
+  const r = routine({}, { who: "both" });
+  const four = steps(r, 4);
+  const theirs = four.map((row) => ({ ...row, data: { done_a: DAY } }));
+  assert.equal(offerOf(r, theirs, "a", DAY), null);
+  assert.equal(offerOf(r, theirs, "b", DAY), "start");
+  assert.equal(offerOf(r, [{ ...four[0], data: { done_a: DAY } }, ...four.slice(1)], "b", DAY), "start");
+  assert.equal(offerOf(r, [{ ...four[0], data: { done_b: DAY } }, ...four.slice(1)], "b", DAY), null);
+});
+
+test("an offer already on screen stays while the routine is worked down, and goes when it is finished or stops running", () => {
+  assert.equal(heldOffer("start", null, false), "start");
+  assert.equal(heldOffer("continue", "start", false), "continue");
+  assert.equal(heldOffer(null, "continue", false), "continue");
+  assert.equal(heldOffer(null, null, false), null);
+  assert.equal(heldOffer(null, "continue", true), null);
+  assert.equal(heldOffer("start", "start", true), null);
 });

@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
-import { pagesOf } from "../domain/routine-start.ts";
+import { offerOf } from "../domain/routine-start.ts";
 import { actionsOf, finished, momentOf, onDemand, weekStrip } from "../domain/routines.ts";
 import type { Block } from "../domain/routines.ts";
 import { useWriteLock } from "../hooks/use-write-lock.ts";
+import { useHeld } from "../hooks/use-held.ts";
 import { Icon } from "../ui/icons.tsx";
 import { RoutineAction } from "../ui/routine-action.tsx";
 import type { Flows } from "../ui/routine-flows.ts";
@@ -71,6 +72,8 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
     if (fold === "folded" || fold === "open") focus.current = null;
   }, [fold]);
   const folding = fold === "folded" || fold === "kept";
+  const offer = useHeld(offerOf(routine, actions, side, day), folding, day);
+  const go = offer === "continue" ? copy.start.resume : copy.start.open;
   const strip = weekStrip(routine, actionsOf(items, routine), day, side);
   const again = () => {
     focus.current = "link";
@@ -83,25 +86,41 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
       <span className="visually-hidden" role="status">
         {said ? copy.finished(name) : ""}
       </span>
-      <h3>
-        {folding ? (
-          <button type="button" ref={toggle} className="rt-fold" aria-expanded={fold === "kept"} aria-label={copy.finished(name)} onClick={() => setFold(fold === "kept" ? "folded" : "kept")}>
-            <span className="rt-tick" aria-hidden="true">
-              <Icon name="check" />
-            </span>
-            <span className="rt-name">{name}</span>
-            <span className="rt-state">{copy.done}</span>
-          </button>
-        ) : (
-          <>
-            <a ref={link} href={`#/routines/${routine.id}`}>
-              {name}
-            </a>
-            <span>{momentLabel(momentOf(routine))}</span>
-            {progress.total > 0 && <span>{copy.progress(progress.done, progress.total)}</span>}
-          </>
+      <div className="rt-head">
+        <h3>
+          {folding ? (
+            <button
+              type="button"
+              ref={toggle}
+              className="rt-fold"
+              data-opens={`#/routines/${routine.id}/start`}
+              aria-expanded={fold === "kept"}
+              aria-label={copy.finished(name)}
+              onClick={() => setFold(fold === "kept" ? "folded" : "kept")}
+            >
+              <span className="rt-tick" aria-hidden="true">
+                <Icon name="check" />
+              </span>
+              <span className="rt-name">{name}</span>
+              <span className="rt-state">{copy.done}</span>
+            </button>
+          ) : (
+            <>
+              <a ref={link} href={`#/routines/${routine.id}`}>
+                {name}
+              </a>
+              <span>{momentLabel(momentOf(routine))}</span>
+              {progress.total > 0 && <span>{copy.progress(progress.done, progress.total)}</span>}
+            </>
+          )}
+        </h3>
+        {offer !== null && (
+          <a className="button secondary rt-go" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(go, routine.title)}>
+            <Icon name="play" />
+            {go}
+          </a>
         )}
-      </h3>
+      </div>
       <div hidden={fold === "folded"}>
         {strip !== null && <RoutineWeek strip={strip} compact />}
         <ul className="rows">
@@ -111,14 +130,6 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
               <RoutineAction key={action.id} routine={routine} action={action} flows={flows} me={me} today={day} active={actionOccursOn(routine, action, day)} />
             ))}
         </ul>
-        {!folding && pagesOf(actions).length > 0 && (
-          <p className="rt-start">
-            <a className="button secondary" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(routine.title)}>
-              <Icon name="play" />
-              {copy.start.open}
-            </a>
-          </p>
-        )}
         {folding && (
           <p className="rt-after">
             <a href={`#/routines/${routine.id}`} aria-label={copy.openRoutineNamed(routine.title)}>

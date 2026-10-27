@@ -108,12 +108,14 @@ export const startPlace = (kept: Places, hide: (text: string) => boolean, rowsRe
 };
 
 const aim = ({ from, row, tab: byTab }: Landing, heading: HTMLElement | null) => {
-  const link = row ? Array.from(document.querySelectorAll<HTMLAnchorElement>("main a")).find((one) => one.getAttribute("href") === `#${from}`) : undefined;
+  const link = row ? Array.from(document.querySelectorAll<HTMLElement>("main a, main [data-opens]")).find((one) => (one.getAttribute("href") ?? one.getAttribute("data-opens")) === `#${from}`) : undefined;
   let shut: Element | null = link?.closest(SHUT) ?? null;
   for (let outer = shut; outer !== null; outer = outer.parentElement?.closest(SHUT) ?? null) shut = outer;
   for (const target of [link, shut?.querySelector<HTMLElement>("summary"), heading]) {
-    if (!target || !seen(target)) continue;
-    target.focus({ preventScroll: true });
+    if (!target) continue;
+    const shown = seen(target);
+    if (!shown && !(target === link && link.hasAttribute("data-opens"))) continue;
+    target.focus({ preventScroll: shown });
     if (document.activeElement === target) return;
   }
   if (!byTab) Array.from(document.querySelectorAll<HTMLElement>(TABBABLE)).find(seen)?.focus({ preventScroll: true });
@@ -150,6 +152,8 @@ const restore = (there: Landing, focus: boolean) => {
   };
   step();
 };
+
+export const cameFrom = () => memory.entries[here.key]?.from ?? null;
 
 export const landPlace = (how: "first" | "move" | "beside") => {
   if (landed === here.key) return;
