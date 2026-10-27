@@ -18,6 +18,7 @@
 
 .setl > li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s3);
   min-height: var(--row-min);
@@ -29,9 +30,13 @@
 }
 
 .setl .v {
-  flex: 1 1 auto;
+  flex: 1 1 8rem;
   min-width: 0;
   font-weight: 550;
+}
+
+.setl > li > button {
+  margin-left: auto;
 }
 
 .setl small {
@@ -166,8 +171,8 @@
 
 .out svg {
   flex: none;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--icon-m);
+  height: var(--icon-m);
 }
 
 .feed > h2 {

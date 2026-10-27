@@ -217,7 +217,7 @@ test("the detail says Done today when everything is ticked and clears counters f
   assert.match(detail, /\{today && total > 0 && ` · \$\{finished\(\{ done, total \}\) \? copy\.doneToday : copy\.progress\(done, total\)\}`\}/);
   assert.match(detail, /\{today && !away && !finished\(\{ done, total \}\) && pagesOf\(todays\)\.length > 0 && \(/);
   assert.match(detail, /const counted = todays\.filter\(\(action\) => action\.kind === "counter" && count\(action, keyFor\(routine\.who, me\), day\) > 0\);/);
-  assert.match(detail, /resetCounts: counted\.length > 0 \? \(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.clear\(routine, counted\)\)\)\) : undefined/);
+  assert.match(detail, /resetCounts: counted\.length > 0 \? guard\(\(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.clear\(routine, counted\)\)\)\)\) : undefined/);
 });
 
 const world = async (server: ReturnType<typeof createServer>, me: Side) => {

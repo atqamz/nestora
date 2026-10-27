@@ -245,10 +245,10 @@
 
 .stop-h svg {
   flex: none;
-  width: 0.9375rem;
-  height: 0.9375rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
   margin-right: var(--s1);
-  stroke-width: 2.2;
+  stroke-width: var(--stroke-s);
   color: var(--route);
 }
 
@@ -290,6 +290,7 @@
 .group > h3 {
   display: flex;
   align-items: baseline;
+  overflow-wrap: anywhere;
   gap: var(--s2);
   margin: 0 0 var(--s2);
   font-size: var(--fs-meta);
@@ -336,6 +337,24 @@
   display: block;
   color: var(--ink-2);
   font-size: var(--fs-micro);
+}
+
+@media (max-width: 18.5rem) {
+  .hero {
+    --gutter: var(--s2);
+  }
+
+  .journey-tabs {
+    margin-inline: var(--s2);
+  }
+
+  .spine {
+    padding-right: var(--s2);
+  }
+
+  .loose {
+    padding-left: var(--s2);
+  }
 }
 
 @media (min-width: 62.5rem) {

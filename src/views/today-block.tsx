@@ -5,6 +5,7 @@ import type { ItemRow } from "../../shared/tables.ts";
 import { pagesOf } from "../domain/routine-start.ts";
 import { actionsOf, finished, momentOf, onDemand, weekStrip } from "../domain/routines.ts";
 import type { Block } from "../domain/routines.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Icon } from "../ui/icons.tsx";
 import { RoutineAction } from "../ui/routine-action.tsx";
 import type { Flows } from "../ui/routine-flows.ts";
@@ -30,6 +31,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
   const name = label === null ? routine.title : `${routine.title} · ${label}`;
   const [fold, setFold] = useState<Fold>(complete ? "folded" : "open");
   const [said, setSaid] = useState(false);
+  const { locked, guard } = useWriteLock();
   const card = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const link = useRef<HTMLAnchorElement>(null);
@@ -123,7 +125,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
               {copy.openRoutine}
             </a>
             {onDemand(block) && (
-              <button type="button" className="secondary" aria-label={copy.againNamed(routine.title)} onClick={again}>
+              <button type="button" className="secondary" aria-label={copy.againNamed(routine.title)} aria-disabled={locked || undefined} onClick={guard(again)}>
                 {copy.again}
               </button>
             )}

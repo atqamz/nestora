@@ -4,12 +4,13 @@ import { Icon } from "./icons.tsx";
 import { text } from "./text.ts";
 
 export function SyncBadge() {
-  const { link, pending, rejected, storage } = useSnapshot();
-  const state = badgeFor({ storage, link, pending, rejected: rejected.length });
+  const { link, pending, rejected, storage, paused } = useSnapshot();
+  const state = badgeFor({ storage, link, pending, rejected: rejected.length, paused });
   const labels = {
     storage: text.sync.storage,
     login: text.sync.login,
     mismatch: text.notice.reload,
+    paused: text.sync.paused,
     rejected: text.sync.rejected(rejected.length),
     offline: text.sync.offline(pending),
     pending: text.sync.pending,

@@ -108,7 +108,12 @@ test("every colour token a rule uses has a contrast pair, except the decorative 
 
 test("only decorative or disabled rules use opacity, so a text pair never hides behind it", () => {
   const rules = [...sources.matchAll(/([^{}]+)\{[^{}]*\bopacity:\s*(?!1\b)[\d.]+/g)].map(([, selector]) => selector.replace(/\s+/g, " ").trim());
-  assert.deepEqual(rules, ['.sync[data-state="pending"] a::before, .sync[data-state="offline"] a::before', 'button:disabled, button[aria-disabled="true"]', ".av img"]);
+  assert.deepEqual(rules, [
+    '.sync[data-state="pending"] a::before, .sync[data-state="paused"] a::before, .sync[data-state="offline"] a::before',
+    'button:disabled, button[aria-disabled="true"]',
+    '.check input:disabled, .check input[aria-disabled="true"]',
+    ".av img",
+  ]);
 });
 
 test("a chosen dark theme has exactly the tokens of the system dark theme, so the two cannot drift", () => {

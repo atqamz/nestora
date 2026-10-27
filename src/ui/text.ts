@@ -284,6 +284,7 @@ export const text = {
     cleared: "cleared",
     yes: "yes",
     pending: "Saving",
+    paused: "Paused",
     offline: (n: number) => (n > 0 ? "Offline, saved on this phone" : "Offline"),
     rejected: (n: number) => `${plural(n, "change")} ${n === 1 ? "needs" : "need"} a look`,
     login: "Log in again",

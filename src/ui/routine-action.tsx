@@ -4,6 +4,7 @@ import { count, isDone, keyFor } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Avatar } from "./avatar.tsx";
 import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
@@ -21,6 +22,7 @@ const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string"
 export function RoutineAction({ routine, action, flows, me, today, active, full }: Props) {
   const { label } = usePartner();
   const { once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const side = keyFor(routine.who, me);
   const other = routine.who === "both" ? (me === "a" ? "b" : "a") : null;
@@ -105,7 +107,7 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
           </span>
         ) : (
           <label className="check">
-            <input type="checkbox" checked={done} disabled={!active} onChange={() => run(() => flows.toggle(routine, action))} />
+            <input type="checkbox" checked={done} disabled={!active} aria-disabled={locked || undefined} onChange={guard(() => run(() => flows.toggle(routine, action)))} />
             <Icon name="check" />
             <span className="visually-hidden">{done ? text.reopen(action.title) : text.complete(action.title)}</span>
           </label>
@@ -124,11 +126,11 @@ export function RoutineAction({ routine, action, flows, me, today, active, full 
             )}
             {action.kind === "counter" && (
               <span className="rt-btns">
-                <button type="button" ref={minus} className="pill rt-minus" disabled={!active} aria-disabled={taken === 0 || undefined} aria-label={copy.minus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={() => taken > 0 && run(() => flows.minus(routine, action))}>
+                <button type="button" ref={minus} className="pill rt-minus" disabled={!active} aria-disabled={taken === 0 || locked || undefined} aria-label={copy.minus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={guard(() => taken > 0 && run(() => flows.minus(routine, action)))}>
                   {copy.minusLabel}
                 </button>
                 {(!reached || full) && (
-                  <button type="button" className="pill rt-plus" disabled={!active} aria-label={copy.plus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={add}>
+                  <button type="button" className="pill rt-plus" disabled={!active} aria-disabled={locked || undefined} aria-label={copy.plus(action.title)} onKeyDown={(event) => event.repeat && event.preventDefault()} onClick={guard(add)}>
                     {copy.plusLabel}
                   </button>
                 )}

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { text } from "../src/ui/text.ts";
-import { cascade } from "./css.ts";
+import { cascade, sheet } from "./css.ts";
 import { item } from "./domain-rows.ts";
 import { dom, find, mount, textOf } from "./hooks.ts";
 import { load, markupOf } from "./render.ts";
@@ -489,7 +489,9 @@ test("a folded card offers Open routine with the routine's title as its name", a
   }
 });
 
-const at = (selector: string, rem: number) => cascade("views/routines.css", selector, rem);
+const routinesCss = sheet("views/routines.css");
+
+const at = (selector: string, rem: number) => cascade(routinesCss, selector, rem);
 
 const LARGE = [10, 12.2, 18.5];
 
@@ -548,7 +550,7 @@ test("the after row keeps a full-size target on its link and a quiet spacing aro
   assert.equal(at(".rt-after a", 20).get("align-items"), "center");
   assert.equal(at(".rt-after", 20).get("margin"), "var(--s2) 0 var(--s3)");
   assert.equal(at(".rt-label", 20).get("margin"), "var(--s5) 0 var(--s1)");
-  assert.equal(at(".rt-count.rt-reached svg", 20).get("width"), "24px");
+  assert.equal(at(".rt-count.rt-reached svg", 20).get("width"), "var(--icon-l)");
 });
 
 const PINS: Record<string, Record<string, string>> = {
@@ -557,7 +559,7 @@ const PINS: Record<string, Record<string, string>> = {
   '.rt-block .rt-fold[aria-expanded="true"]::after': { transform: "translateY(2px) rotate(-135deg)" },
   ".rt-block h3 .rt-fold": { "justify-content": "flex-start", gap: "var(--s2)", width: "100%", "min-height": "var(--row-min)", padding: "var(--s2) var(--s3) var(--s2) var(--s1)", "border-color": "transparent", "border-radius": "var(--r-group)", background: "var(--surface)", "box-shadow": "0 0 0 1px var(--line)", color: "var(--ink-2)", "font-weight": "550", "line-height": "1.3", "text-align": "left" },
   ".rt-block h3 .rt-tick": { display: "grid", flex: "none", "place-items": "center", width: "var(--target-min)", "min-width": "0", height: "var(--target-min)", margin: "0" },
-  ".rt-tick svg": { "box-sizing": "border-box", width: "24px", height: "24px", padding: "3px", "border-radius": "50%", background: "var(--route)", color: "var(--bg)", "stroke-width": "3" },
+  ".rt-tick svg": { "box-sizing": "border-box", width: "var(--icon-l)", height: "var(--icon-l)", padding: "3px", "border-radius": "50%", background: "var(--route)", color: "var(--bg)", "stroke-width": "var(--stroke-s)" },
   ".rt-block h3 .rt-name": { flex: "1 1 0", "min-width": "0", margin: "0", "overflow-wrap": "break-word", color: "var(--ink-2)", "font-weight": "550", "text-wrap": "pretty" },
   ".rt-block h3 .rt-state": { flex: "none", "min-width": "0", margin: "0", "font-size": "var(--fs-meta)", "font-weight": "600" },
   ".rt-label": { margin: "var(--s5) 0 var(--s1)", color: "var(--ink-2)", "font-size": "var(--fs-meta)", "font-weight": "700" },

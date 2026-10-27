@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Icon } from "./icons.tsx";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
@@ -10,10 +10,12 @@ type Props = {
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
   foot?: ReactNode;
   dismissible?: true;
+  className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 };
 
-export function Modal({ title, onClose, onSubmit, foot, dismissible, children }: Props) {
+export function Modal({ title, onClose, onSubmit, foot, dismissible, className, style, children }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
   useSheet(dialog, true, onClose);
@@ -43,7 +45,8 @@ export function Modal({ title, onClose, onSubmit, foot, dismissible, children }:
   return (
     <dialog
       ref={dialog}
-      className="add-sheet"
+      className={className ? `add-sheet ${className}` : "add-sheet"}
+      style={style}
       aria-labelledby={heading}
       onClose={(event) => event.target === event.currentTarget && onClose()}
       onClick={(event) => {

@@ -88,10 +88,11 @@ test("the whole Today block collapses by its own choice only, so a tick never cl
 test("a tick or a tap leaves keyboard focus on its control: nothing is disabled while a write runs, and the guard refuses a second tap", () => {
   const source = read("ui/routine-action.tsx");
   assert.doesNotMatch(source, /disabled=\{[^}]*busy/);
-  assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} onChange=\{\(\) => run\(/);
-  assert.match(source, /className="pill rt-plus" disabled=\{!active\} aria-label/);
-  assert.match(source, /aria-disabled=\{taken === 0 \|\| undefined\}/);
-  assert.match(source, /onClick=\{\(\) => taken > 0 && run\(/);
+  assert.match(source, /<input type="checkbox" checked=\{done\} disabled=\{!active\} aria-disabled=\{locked \|\| undefined\} onChange=\{guard\(\(\) => run\(/);
+  assert.match(source, /className="pill rt-plus" disabled=\{!active\} aria-disabled=\{locked \|\| undefined\} aria-label/);
+  assert.match(source, /aria-disabled=\{taken === 0 \|\| locked \|\| undefined\}/);
+  assert.match(source, /onClick=\{guard\(add\)\}/);
+  assert.match(source, /onClick=\{guard\(\(\) => taken > 0 && run\(/);
   assert.match(source, /const run = \(work: [^\n]*\) => once\(/);
   assert.match(read("ui/ui.css"), /button:disabled,\s*button\[aria-disabled="true"\] \{\s*opacity: 0\.6;/);
 });

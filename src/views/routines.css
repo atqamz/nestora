@@ -6,7 +6,7 @@
 }
 
 .rt-tools > * {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 }
@@ -63,8 +63,9 @@
 
 .rt-link svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
   color: var(--ink-2);
 }
 
@@ -195,6 +196,7 @@
 
 .rt-block h3 {
   margin: 0 0 var(--s1);
+  overflow-wrap: anywhere;
   line-height: inherit;
   font-size: var(--fs-meta);
   font-weight: 700;
@@ -288,6 +290,27 @@
   flex: 1 1 8rem;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 18.5rem) {
+  .rt-slot {
+    min-width: 0;
+  }
+
+  .rt-slot-b {
+    display: block;
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .rt-slot-b,
+  .rt-slot-b > span {
+    overflow-wrap: break-word;
+  }
+
+  .rt-slot-b > span {
+    display: block;
+  }
 }
 
 .rt-slot[data-state="done"],
@@ -443,6 +466,12 @@
   list-style: none;
 }
 
+@media (max-width: 18.5rem) {
+  .rt-week {
+    grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+  }
+}
+
 .rt-week li {
   display: grid;
   gap: 2px;
@@ -470,8 +499,9 @@
 
 .rt-week-d svg {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-s);
+  height: var(--icon-s);
+  stroke-width: var(--stroke-s);
 }
 
 .rt-week-l {
@@ -518,6 +548,15 @@
   margin: 0;
   font-size: var(--fs-station);
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 18.5rem) {
+  .start-name {
+    flex: 1 1 0;
+    min-width: auto;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
 }
 
 .start-pos,
@@ -800,13 +839,13 @@
 .rt-count.rt-reached svg,
 .rt-tick svg {
   box-sizing: border-box;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-l);
+  height: var(--icon-l);
   padding: 3px;
   border-radius: 50%;
   background: var(--route);
   color: var(--bg);
-  stroke-width: 3;
+  stroke-width: var(--stroke-s);
 }
 
 .rt-block h3 .rt-name {

@@ -33,7 +33,7 @@ export const whereLabel = (copy: ItemRow, places: Places): string | null => {
 function Chip({ label, name, onPick }: { label: string; name?: string; onPick?: () => void }) {
   const inside = (
     <>
-      <Icon name="place" />
+      <Icon name="pin" />
       <span>{label}</span>
       {onPick && <Icon name="down" />}
     </>

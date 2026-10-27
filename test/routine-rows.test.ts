@@ -123,7 +123,7 @@ test("the edit sheet no longer carries Delete or the Paused until date", () => {
 
 test("the More menu is the native modal: its first item takes focus, the keys go through menuTarget, and an item closes the dialog before it runs so focus returns to the button", () => {
   const menu = read("ui/menu.tsx");
-  assert.match(menu, /<Modal title=\{text\.menu\.more\} onClose=\{\(\) => setOpen\(false\)\}>/);
+  assert.match(menu, /<Modal title=\{text\.menu\.more\} onClose=\{\(\) => setOpen\(false\)\} dismissible className="menu-sheet" style=\{anchor\}>/);
   assert.match(menu, /role="menu" aria-label=\{name\} onKeyDown=\{move\}/);
   assert.match(menu, /data-first=\{index === 0 \? "" : undefined\}/);
   assert.match(menu, /menuTarget\(event\.key, entries\.indexOf\(document\.activeElement as HTMLElement\), entries\.length\)/);

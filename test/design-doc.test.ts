@@ -12,8 +12,6 @@ const declared = (name: string) => new RegExp(`${name}:\\s*([^;]+);`).exec(light
 const section = (key: string) =>
   [...(new RegExp(`^${key}:\\n((?:  .*\\n)+)`, "m").exec(front)?.[1] ?? "").matchAll(/^  ([\w-]+): "([^"]+)"/gm)];
 
-const planned = new Set(["--icon-s", "--icon-m", "--icon-l"]);
-
 test("every colour, radius and spacing step in the DESIGN.md frontmatter matches its light-theme token", () => {
   const groups: [string, string][] = [["colors", "--"], ["rounded", "--r-"], ["spacing", "--"]];
   for (const [key, prefix] of groups) {
@@ -25,14 +23,10 @@ test("every colour, radius and spacing step in the DESIGN.md frontmatter matches
   }
 });
 
-test("every custom property named in DESIGN.md exists in the CSS, except the planned icon sizes", () => {
+test("every custom property named in DESIGN.md exists in the CSS", () => {
   const named = new Set([...doc.matchAll(/`(--[a-z0-9-]+)[`;:,)]/g)].map((m) => m[1]!));
   assert.ok(named.size > 25);
   for (const name of named) {
-    if (planned.has(name)) {
-      assert.equal(css.includes(`${name}:`), false, `${name} now exists: drop it from planned and DESIGN.md Target note`);
-    } else {
-      assert.match(css, new RegExp(`${name}:`), name);
-    }
+    assert.match(css, new RegExp(`${name}:`), name);
   }
 });

@@ -2,10 +2,10 @@ import { screenOf } from "./routes.ts";
 import type { Screen } from "./routes.ts";
 import { text } from "./text.ts";
 
-type Item = { section: string; icon: "place" | "heart" | "clock" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
+type Item = { section: string; icon: "home" | "heart" | "clock" | "book" | "settings"; label: string; screens: readonly Screen[]; rail?: true };
 
 const items: Item[] = [
-  { section: "", icon: "place", label: text.nav.home, screens: ["home"] },
+  { section: "", icon: "home", label: text.nav.home, screens: ["home"] },
   { section: "marriage", icon: "heart", label: text.nav.marriage, screens: ["marriage", "tasks", "money", "payments", "people"] },
   { section: "routines", icon: "clock", label: text.nav.routines, screens: ["routines"] },
   { section: "books", icon: "book", label: text.nav.library, screens: ["books", "movies", "series"] },

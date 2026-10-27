@@ -7,6 +7,7 @@ import { pagesOf } from "../domain/routine-start.ts";
 import { actionsOf, finished, momentOf, runs, weekStrip } from "../domain/routines.ts";
 import { weekOf } from "../domain/timetable.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { Who } from "../ui/avatar.tsx";
@@ -48,6 +49,7 @@ type PageProps = Open & { me: Side; day: string; flows: Flows; setSheet: (sheet:
 
 function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) {
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const away = paused(routine, day);
   const today = occursOn(routine, day);
@@ -96,7 +98,8 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
           items={routineMenu({
             away,
             open: setSheet,
-            resetCounts: counted.length > 0 ? () => void once(async () => setFailure(failureOf(await flows.clear(routine, counted)))) : undefined,
+            resetCounts: counted.length > 0 ? guard(() => void once(async () => setFailure(failureOf(await flows.clear(routine, counted))))) : undefined,
+            locked,
             resume: () => void once(async () => setFailure(failureOf(await flows.resume(routine)))),
             remove: () => void once(async () => setFailure(failureOf(await flows.remove(routine)))),
           })}
