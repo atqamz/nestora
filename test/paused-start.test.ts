@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { overlay } from "../src/ui/overlay.ts";
 import { text } from "../src/ui/text.ts";
+import { begin } from "../src/domain/routine-timer.ts";
 import { item } from "./domain-rows.ts";
 import { find, mount } from "./mount.ts";
 import { markupOf } from "./render.ts";
@@ -64,7 +65,7 @@ const routine = () => item({ kind: "routine", status: null, who: "a", title: "Mo
 
 const child = (parent: ItemRow, kind: string, title: string, fields: Partial<ItemRow> = {}) => item({ kind, status: null, parent_id: parent.id, title, ...fields });
 
-type Case = { name: string; rows: (parent: ItemRow) => ItemRow[]; pick: (props: any) => boolean; fire: "onClick" | "onChange" };
+type Case = { timer?: "running" | "ended"; name: string; rows: (parent: ItemRow) => ItemRow[]; pick: (props: any) => boolean; fire: "onClick" | "onChange" };
 
 const button = (label: string) => (props: any) => props.type === "button" && String(props.children) === label;
 
@@ -74,6 +75,8 @@ const cases: Case[] = [
   { name: "a counter's plus", rows: (parent) => [child(parent, "counter", "Water", { qty: 3, data: null })], pick: (props) => props["aria-label"] === text.routines.plus("Water"), fire: "onClick" },
   { name: "a pack item's tick", rows: (parent) => [child(parent, "pack", "Keys"), child(parent, "pack", "Wallet")], pick: (props) => props.type === "checkbox", fire: "onChange" },
   { name: "Finish on a timer that has not started", rows: (parent) => [child(parent, "timer", "Rinse", { data: { minutes: 2 } })], pick: (props) => props.type === "button" && String(props.children) === text.routines.start.finish && String(props.className ?? "").includes("secondary"), fire: "onClick" },
+  { timer: "running", name: "Finish on a running timer", rows: (parent) => [child(parent, "timer", "Rinse", { data: { minutes: 2 } })], pick: (props) => props.type === "button" && String(props.children) === text.routines.start.finish && String(props.className) === "start-main", fire: "onClick" },
+  { timer: "ended", name: "Finish on a timer that ran out", rows: (parent) => [child(parent, "timer", "Rinse", { data: { minutes: 2 } })], pick: (props) => props.type === "button" && String(props.children) === text.routines.start.finish && String(props.className) === "start-main", fire: "onClick" },
 ];
 
 for (const paused of [true, false]) {
@@ -82,6 +85,7 @@ for (const paused of [true, false]) {
       around(t, paused);
       const parent = routine();
       stage([parent, ...one.rows(parent)]);
+      if (one.timer) (timers as Record<string, unknown>).read = () => begin(2, Date.now() - (one.timer === "ended" ? 180_000 : 0));
       const view = mount<Record<string, any>>(RoutineStart, { id: parent.id });
       const session = find(view.tree as never, (_, type) => (type as { name?: string }).name === "Session")[0];
       assert.ok(session, "Session");
@@ -116,5 +120,24 @@ for (const paused of [true, false]) {
     assert.equal(note.length, 1);
     const shown = mount<Record<string, any>>(note[0].type as never, note[0].props);
     assert.equal(find(shown.tree as never, (props) => props.id === "paused-note").length, paused ? 1 : 0);
+  });
+}
+
+for (const paused of [true, false]) {
+  test(`ui/start-page.tsx: Next on a finished step ${paused ? "stays a plain button while paused" : "is a plain button when live"}, since it writes nothing`, async (t) => {
+    around(t, paused);
+    const parent = routine();
+    stage([parent, child(parent, "step", "Cleanse"), child(parent, "step", "Tone")]);
+    const view = mount<Record<string, any>>(RoutineStart, { id: parent.id });
+    const session = find(view.tree as never, (_, type) => (type as { name?: string }).name === "Session")[0];
+    const inner = mount<Record<string, any>>(session.type as never, session.props);
+    const shown = find(inner.tree as never, (_, type) => type === StartPage)[0];
+    const finished = child(parent, "step", "Cleanse", { data: { done_a: shown.props.day } });
+    const page = mount<Record<string, any>>(StartPage, { ...shown.props, page: [finished] });
+    const next = find(page.tree as never, (props) => props.type === "button" && String(props.children) === text.routines.start.next)[0] as ReactElement<any>;
+    assert.equal(next.props["aria-disabled"], undefined);
+    next.props.onClick();
+    await settle();
+    assert.deepEqual([writes, announced.mock.callCount()], [[], 0]);
   });
 }
