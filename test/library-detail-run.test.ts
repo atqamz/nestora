@@ -57,7 +57,7 @@ const around = (t: { after: (fn: () => void) => void }, paused = false) => {
     delete globals.location;
     delete globals.document;
     overlay.dismissToast();
-    for (const key of ["update", "remove", "many", "restore"]) delete stub[key];
+    for (const key of ["update", "remove", "many", "restore", "create"]) delete stub[key];
     stage([]);
   });
   return { calls, removed, many };
@@ -218,4 +218,103 @@ test("a shop link on a wish book reads as its host and keeps the whole URL as it
   assert.match(link, />shop\.example\.test<\/a>$/);
   assert.equal(html.split(">").some((chunk) => chunk.startsWith("https://")), false);
   stage([]);
+});
+
+const plain = (html: string) => html.replace(/<link rel="preload"[^>]*\/>/g, "");
+
+const bookHtml = async (row: ItemRow, rows: ItemRow[] = [], route = "books") => {
+  stage([row, ...rows]);
+  const html = plain(await markupOf("views/books.tsx", ({ Books }) => createElement(Books, { route, id: row.id })));
+  stage([]);
+  return html;
+};
+
+const movieHtml = async (row: ItemRow, kind = "movie") => {
+  stage([row]);
+  const html = plain(await markupOf("views/screens.tsx", ({ Screens }) => createElement(Screens, { kind, id: row.id })));
+  stage([]);
+  return html;
+};
+
+const factNames = (html: string) => [...html.matchAll(/<dt>([^<]*)<\/dt>/g)].map((match) => match[1]);
+
+test("a shelf book puts its cover, title and the lookup lines in the frame's head and lists only what is not already there", async () => {
+  const row = book({ group_key: "Harbor Cycle", note: "Lent.", data: { author: "Ana Lestari", original_title: "Garam", series: "Harbor Cycle", series_no: 2, isbn: "9780306406157", language: "id", rated_elsewhere: "4 of 5", priority: "high", gift: true, shop: "Pasar", shop_url: "https://shop.example.test/x" }, who: "b", amount: 5000 });
+  const html = await bookHtml(row);
+  assert.match(html, /^<p class="trail"><a href="#\/books"><svg[^]*?<\/svg>Shelf<\/a><\/p><div class="bk-head"><span class="cover"[^>]*>SB<\/span><div class="bk-id"><h1 tabindex="-1">Slow Bread<\/h1><p class="bk-sub">Original title: Garam<\/p><p class="bk-sub">Ana Lestari<\/p><p class="hint">Harbor Cycle #2 · Harbor Cycle · ISBN 9780306406157<\/p><p class="hint">[^<]*4 of 5[^<]*<\/p><\/div><\/div>/);
+  assert.deepEqual(factNames(html), ["Language", "Notes"]);
+});
+
+test("a wish book lists its wish fields, and the same fields on a book already on the shelf stay out of the list", async () => {
+  const data = { author: "Kiki", language: "id", priority: "high", gift: true, shop: "Pasar", shop_url: "https://shop.example.test/x" };
+  const wish = await bookHtml(book({ status: "wish", who: "b", amount: 5000, data }), [], "wishlist");
+  assert.match(wish, /^<p class="trail"><a href="#\/wishlist"><svg[^]*?<\/svg>Wishlist<\/a><\/p>/);
+  assert.equal(factNames(wish).length, 7);
+  assert.deepEqual(factNames(await bookHtml(book({ who: "b", amount: 5000, data }))), ["Language"]);
+});
+
+test("a book shows its copies and the first-copy button, or the empty line and the add-first button", async () => {
+  const row = book();
+  const empty = await bookHtml(row);
+  assert.match(empty, new RegExp(`<p class="empty">${text.books.noCopy}</p>`));
+  assert.match(empty, new RegExp(`${text.books.addFirstCopy}</button>`));
+  assert.doesNotMatch(empty, /class="copies"/);
+  const full = await bookHtml(row, [item({ kind: "copy", parent_id: row.id, status: "here", title: "Slow Bread" })]);
+  assert.match(full, /<ul class="copies">/);
+  assert.match(full, new RegExp(`${text.books.addCopy}</button>`));
+  assert.doesNotMatch(full, /class="empty"/);
+});
+
+test("the blurb gets its own About section, and none without one", async () => {
+  assert.match(await bookHtml(book({ data: { blurb: "A quiet story." } })), /<h2 id="bk-about">About<\/h2><p class="bk-text-block">A quiet story\.<\/p>/);
+  assert.doesNotMatch(await bookHtml(book()), /bk-about/);
+});
+
+test("a movie's head holds its original title, year and owner, and the facts list leaves them out and keeps the note", async () => {
+  const html = await movieHtml(movie({ who: "a", note: "Seen.", data: { year: 2004, original_title: "Veer" } }));
+  assert.match(html, /^<p class="trail"><a href="#\/movies"><svg[^]*?<\/svg>Movies<\/a><\/p><div class="bk-head"><span class="cover"[^>]*>MF<\/span><div class="bk-id"><h1 tabindex="-1">Midnight Ferry<\/h1><p class="bk-sub">Original title: Veer<\/p><p class="hint facts"><span>2004<\/span>/);
+  assert.deepEqual(factNames(html), ["Notes"]);
+  assert.match(html, /<span>2004<\/span><span class="who">/);
+  const bare = await movieHtml(movie({ data: {} }));
+  assert.doesNotMatch(bare, /bk-sub|hint facts/);
+  const owner = await movieHtml(movie({ who: "b", data: {} }));
+  assert.match(owner, /<p class="hint facts"><span class="who">/);
+  assert.doesNotMatch(owner, /<span>\d{4}<\/span>/);
+  const year = await movieHtml(movie({ who: "both", data: { year: 1999 } }));
+  assert.match(year, /<p class="hint facts"><span>1999<\/span><\/p>/);
+  assert.doesNotMatch(year, /class="who"/);
+  assert.match(await movieHtml(movie({ kind: "series" }), "series"), /^<p class="trail"><a href="#\/series">[^]*?Series<\/a>/);
+});
+
+test("a deleted movie keeps no Remove poster button, and an open one with a poster has it", async (t) => {
+  around(t);
+  const row = movie({ data: { cover: "https://image.tmdb.org/t/p/w185/x.jpg", tmdb: 910001, tmdb_at: "2026-10-20" } });
+  const removal = (view: { tree: unknown }) => find(view.tree as never, (_, type) => (type as { name?: string }).name === "PosterRemoval").length;
+  stage([row]);
+  const live = mount<Record<string, any>>(ScreenDetail, { kind: "movie", id: row.id });
+  assert.equal(removal(live), 1);
+  stage([]);
+  live.update({});
+  assert.equal(removal(live), 0);
+});
+
+test("a refused Got it shows the error in an alert and keeps focus where it is, a done one moves focus to the title", async (t) => {
+  const { calls } = around(t);
+  const focused: unknown[] = [];
+  doc.querySelector = (() => ({ focus: (options: unknown) => focused.push(options) })) as never;
+  t.after(() => void (doc.querySelector = () => null));
+  const row = book({ status: "wish" });
+  stage([row]);
+  const live = mount<Record<string, any>>(BookDetail, { id: row.id });
+  const got = find(live.tree as never, (props) => props.className === "got")[0];
+  stub.create = async () => ok;
+  stub.update = async () => ({ ok: false, errors: ["Not now."] });
+  await got.props.onClick();
+  await settle();
+  assert.deepEqual(find(live.tree as never, (props) => props.role === "alert").map((element) => textOf(element.props.children)), ["Not now."]);
+  assert.deepEqual(focused, []);
+  stub.update = async (table: string, id: string, change: Record<string, unknown>) => (calls.push([table, id, change]), ok);
+  await find(live.tree as never, (props) => props.className === "got")[0].props.onClick();
+  await settle();
+  assert.deepEqual(focused, [{ preventScroll: true }]);
 });
