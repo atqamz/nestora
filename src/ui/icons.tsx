@@ -108,6 +108,12 @@ const paths = {
   trash: <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" />,
   reset: <path d="M4 12a8 8 0 1 1 2.6 5.9M4 20v-5h5" />,
   play: <path d="M8 5v14l11-7z" />,
+  resume: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m10.5 8.5 5 3.5-5 3.5z" />
+    </>
+  ),
   pause: (
     <>
       <rect x="14" y="3" width="5" height="18" rx="1" />

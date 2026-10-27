@@ -332,10 +332,10 @@ html:has(dialog[open]) {
 
 @media (min-width: 62.5rem) {
   .add-sheet.menu-sheet {
-    inset: var(--menu-top) var(--menu-right) auto auto;
+    inset: var(--menu-top, auto) var(--menu-right) var(--menu-bottom, auto) auto;
     width: 15rem;
-    max-height: calc(100dvh - var(--menu-top) - var(--s4));
-    margin: var(--s1) 0 0;
+    max-height: calc(var(--menu-room) - var(--s4) - var(--s1));
+    margin: var(--s1) 0;
     border: 1px solid var(--line);
     border-radius: var(--r-group);
     box-shadow: 0 12px 32px -12px color-mix(in oklch, var(--shade) 45%, transparent);

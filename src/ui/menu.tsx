@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
-import { menuAnchor, menuTarget } from "../domain/menu.ts";
+import { menuAnchor, menuHeight, menuTarget } from "../domain/menu.ts";
 import type { MenuItem } from "../domain/menu.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
@@ -11,7 +11,8 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<CSSProperties>();
   const show = (event: MouseEvent<HTMLButtonElement>) => {
-    setAnchor(menuAnchor(event.currentTarget.getBoundingClientRect(), document.documentElement.clientWidth) as CSSProperties);
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    setAnchor(menuAnchor(event.currentTarget.getBoundingClientRect(), { width: innerWidth, height: innerHeight }, menuHeight(items.length, rem)) as CSSProperties);
     setOpen(true);
   };
   const move = (event: KeyboardEvent<HTMLDivElement>) => {

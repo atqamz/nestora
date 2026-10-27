@@ -237,7 +237,12 @@ a {
   box-shadow: 0 6px 16px -6px color-mix(in oklch, var(--shade) 50%, transparent);
 }
 
-.tabs svg,
+.tabs :is(a, .tab-add) svg {
+  width: min(var(--icon-l), 28px);
+  height: min(var(--icon-l), 28px);
+  stroke-width: var(--stroke-l);
+}
+
 .rail svg {
   width: var(--icon-l);
   height: var(--icon-l);
