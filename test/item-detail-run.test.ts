@@ -200,10 +200,10 @@ test("a menu item marked locked renders aria-disabled and stays a live menuitem,
   around(t);
   const { Menu } = await load("ui/menu.tsx");
   const globals = globalThis as Record<string, unknown>;
-  Object.assign(globals, { getComputedStyle: () => ({ fontSize: "16px" }), innerWidth: 390, innerHeight: 800 });
+  Object.assign(globals, { getComputedStyle: () => ({ fontSize: "16px" }), innerWidth: 390, innerHeight: 800, addEventListener: () => undefined, removeEventListener: () => undefined });
   Object.assign(doc, { documentElement: {} });
   t.after(() => {
-    for (const key of ["getComputedStyle", "innerWidth", "innerHeight"]) delete globals[key];
+    for (const key of ["getComputedStyle", "innerWidth", "innerHeight", "addEventListener", "removeEventListener"]) delete globals[key];
   });
   const run = () => undefined;
   const view = mount<Record<string, any>>(Menu, {
@@ -213,7 +213,9 @@ test("a menu item marked locked renders aria-disabled and stays a live menuitem,
       { id: "copy", icon: "copy", label: "Copy", run },
     ],
   });
-  find(view.tree as never, (props) => props["aria-haspopup"] === "menu")[0].props.onClick({ currentTarget: { getBoundingClientRect: () => ({ top: 10, bottom: 50, right: 380 }) } });
+  const more = find(view.tree as never, (props) => props["aria-haspopup"] === "menu")[0];
+  more.props.ref.current.getBoundingClientRect = () => ({ top: 10, bottom: 50, right: 380 });
+  more.props.onClick();
   const entries = find(view.tree as never, (props) => props.role === "menuitem");
   assert.deepEqual(entries.map((entry) => [textOf(entry.props.children), entry.props["aria-disabled"]]), [["Delete", true], ["Copy", undefined]]);
 });

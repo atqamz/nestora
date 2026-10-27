@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
-import { menuAnchor, menuHeight, menuTarget } from "../domain/menu.ts";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
+import { menuAnchor, menuSpace, menuTarget } from "../domain/menu.ts";
 import type { MenuItem } from "../domain/menu.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
@@ -10,11 +10,16 @@ import { text } from "./text.ts";
 export function Menu({ name, items }: { name: string; items: readonly MenuItem[] }) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<CSSProperties>();
-  const show = (event: MouseEvent<HTMLButtonElement>) => {
+  const more = useRef<HTMLButtonElement>(null);
+  const place = () => {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    setAnchor(menuAnchor(event.currentTarget.getBoundingClientRect(), { width: innerWidth, height: innerHeight }, menuHeight(items.length, rem)) as CSSProperties);
-    setOpen(true);
+    setAnchor(menuAnchor(more.current!.getBoundingClientRect(), { width: innerWidth, height: innerHeight }, menuSpace(items.length, rem)) as CSSProperties);
   };
+  useEffect(() => {
+    if (!open) return;
+    addEventListener("resize", place);
+    return () => removeEventListener("resize", place);
+  }, [open, items.length]);
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     const entries = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
     const to = menuTarget(event.key, entries.indexOf(document.activeElement as HTMLElement), entries.length);
@@ -24,7 +29,10 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
   };
   return (
     <>
-      <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={open} aria-label={name} onClick={show}>
+      <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={open} aria-label={name} ref={more} onClick={() => {
+          place();
+          setOpen(true);
+        }}>
         <Icon name="more" />
         {text.menu.more}
       </button>
