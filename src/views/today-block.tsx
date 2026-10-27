@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Side } from "../../shared/api.ts";
 import { actionOccursOn } from "../../shared/routines.ts";
 import type { ItemRow } from "../../shared/tables.ts";
@@ -35,6 +35,7 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
   const { locked, guard } = useWriteLock();
   const card = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
+  const body = useId();
   const focus = useRef<"toggle" | null>(null);
   if (!complete && fold !== "open") {
     setFold("open");
@@ -95,6 +96,7 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
             data-opens={folding ? `#/routines/${routine.id}/start` : undefined}
             data-replaces={folding ? undefined : `#/routines/${routine.id}/start`}
             aria-expanded={expanded}
+            aria-controls={body}
             aria-label={folding ? copy.finished(name) : undefined}
             onClick={() => onToggle(toggle.current)}
           >
@@ -122,8 +124,13 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
             </span>
           </a>
         )}
+        {expanded && (
+          <a className="rt-open" href={`#/routines/${routine.id}`} aria-label={copy.openRoutineNamed(routine.title)}>
+            {copy.openRoutine}
+          </a>
+        )}
       </div>
-      <div hidden={!expanded}>
+      <div id={body} hidden={!expanded}>
         {strip !== null && <RoutineWeek strip={strip} compact />}
         <ul className="rows">
           {actions
@@ -132,16 +139,11 @@ export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, o
               <RoutineAction key={action.id} routine={routine} action={action} flows={flows} me={me} today={day} active={actionOccursOn(routine, action, day)} />
             ))}
         </ul>
-        {expanded && (
+        {expanded && onDemand(block) && (
           <p className="rt-after">
-            <a href={`#/routines/${routine.id}`} aria-label={copy.openRoutineNamed(routine.title)}>
-              {copy.openRoutine}
-            </a>
-            {onDemand(block) && (
-              <button type="button" className="secondary" aria-label={copy.againNamed(routine.title)} aria-disabled={locked || undefined} onClick={guard(again)}>
-                {copy.again}
-              </button>
-            )}
+            <button type="button" className="secondary" aria-label={copy.againNamed(routine.title)} aria-disabled={locked || undefined} onClick={guard(again)}>
+              {copy.again}
+            </button>
           </p>
         )}
       </div>

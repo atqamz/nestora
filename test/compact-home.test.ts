@@ -1,4 +1,4 @@
-import { test, mock, beforeEach } from "node:test";
+import { test, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -19,8 +19,17 @@ const copy = text.routines;
 
 const { TodayBlock } = await load("views/today-block.tsx");
 const { Today, forget } = await load("views/today.tsx");
+const { LateLine } = await load("views/week.tsx");
+
+const mounted: { unmount: () => void }[] = [];
 
 beforeEach(() => forget());
+
+afterEach(() => {
+  for (const view of mounted.splice(0)) view.unmount();
+  mock.timers.reset();
+  delete (globalThis as any).scrollBy;
+});
 
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -101,6 +110,7 @@ const mountToday = (items: ItemRow[], utcHour: number) => {
   stage(items);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, utcHour) });
   const view = mount(Today, {}, document);
+  mounted.push(view);
   mock.timers.reset();
   return view;
 };
@@ -211,20 +221,142 @@ test("Back finds the same row open: the choice survives leaving Home, falls back
   void evening;
 });
 
-test("opening a row keeps the tapped header where the thumb is by scrolling the page by what moved above it", () => {
-  const { all, bag } = home();
-  const view = mountToday(all, 3);
+const HEAD = 60;
+
+const pageOf = (view: { tree: unknown }, bodies: Record<string, number>, around: { above: number; below: number; viewport: number }) => {
+  let scroll = 0;
+  const order = () => blocksOf(view).map((element) => String(element.key));
+  const bodyOf = (id: string) => (openIds(view).includes(id) ? bodies[id] ?? 244 : 0);
+  const height = () => around.above + order().length * HEAD + order().reduce((sum, id) => sum + bodyOf(id), 0) + around.below;
+  const max = () => Math.max(0, height() - around.viewport);
+  const y = () => (scroll = Math.min(scroll, max()));
+  const top = (id: string) => {
+    const index = order().indexOf(id);
+    return around.above + index * HEAD + order().slice(0, index).reduce((sum, other) => sum + bodyOf(other), 0) - y();
+  };
   const calls: unknown[] = [];
-  (globalThis as any).scrollBy = (options: unknown) => void calls.push(options);
-  const tops = [500, 380];
-  const box = { getBoundingClientRect: () => ({ top: tops.shift() ?? 380 }) };
-  byKey(view, bag.id).props.onToggle(box);
-  assert.deepEqual(calls, [{ top: -120, behavior: "instant" }]);
-  tops.push(380, 380);
-  byKey(view, bag.id).props.onToggle(box);
-  assert.equal(calls.length, 1);
-  delete (globalThis as any).scrollBy;
-  view.unmount();
+  (globalThis as any).scrollBy = (options: { top: number }) => {
+    calls.push(options);
+    scroll = Math.max(0, Math.min(max(), y() + options.top));
+  };
+  return {
+    calls,
+    scrollTo: (to: number) => void (scroll = Math.max(0, Math.min(max(), to))),
+    atBottom: () => (scroll = max()),
+    scrolled: y,
+    tap: (id: string) => {
+      const before = top(id);
+      byKey(view, id).props.onToggle({ getBoundingClientRect: () => ({ top: top(id) }) });
+      return { before, after: top(id) };
+    },
+  };
+};
+
+const AROUND = { above: 200, below: 600, viewport: 780 };
+
+const settled = (view: { tree: unknown }, id: string, bodies: Record<string, number> = {}, scroll: number | "bottom" = 0) => {
+  const page = pageOf(view, bodies, AROUND);
+  if (scroll === "bottom") page.atBottom();
+  else page.scrollTo(scroll);
+  return page;
+};
+
+test("a tap on a row below the open one collapses the open one only when the page can scroll by its height, otherwise the open row stays and nothing under the thumb moves", () => {
+  const { all, morning, bag } = home();
+  const top = mountToday(all, 3);
+  const fresh = settled(top, bag.id, { [morning.id]: 244 }, 0);
+  const first = fresh.tap(bag.id);
+  assert.equal(first.after, first.before);
+  assert.deepEqual(openIds(top).sort(), [morning.id, bag.id].sort());
+  top.unmount();
+  forget();
+  const deep = mountToday(all, 3);
+  const scrolled = settled(deep, bag.id, { [morning.id]: 244 }, 244);
+  const second = scrolled.tap(bag.id);
+  assert.equal(second.after, second.before);
+  assert.deepEqual(openIds(deep), [bag.id]);
+  deep.unmount();
+  forget();
+  const short = mountToday(all, 3);
+  const almost = settled(short, bag.id, { [morning.id]: 244 }, 243);
+  const third = almost.tap(bag.id);
+  assert.equal(third.after, third.before);
+  assert.deepEqual(openIds(short).sort(), [morning.id, bag.id].sort());
+});
+
+test("a tap on a row above the open one opens it and collapses the open one below it without moving the tapped header", () => {
+  const { all, morning, evening } = home();
+  const view = mountToday(all, 11);
+  assert.deepEqual(openIds(view), [evening.id]);
+  const page = settled(view, morning.id, { [evening.id]: 400 }, 0);
+  const moved = page.tap(morning.id);
+  assert.equal(moved.after, moved.before);
+  assert.deepEqual(openIds(view), [morning.id]);
+  assert.deepEqual(page.calls, []);
+});
+
+test("at the bottom of the page a tap above the open row leaves it open when closing it would shorten the page under the thumb", () => {
+  const { all, morning, evening } = home();
+  const view = mountToday(all, 11);
+  const page = settled(view, morning.id, { [morning.id]: 100, [evening.id]: 400 }, "bottom");
+  const bottom = page.scrolled();
+  const moved = page.tap(morning.id);
+  assert.equal(moved.after, moved.before);
+  assert.deepEqual(openIds(view).sort(), [morning.id, evening.id].sort());
+  assert.equal(page.scrolled(), bottom);
+});
+
+test("the next tap applies the same rule to every row that is still open", () => {
+  const { all, morning, bag, evening } = home();
+  const view = mountToday(all, 3);
+  const page = settled(view, bag.id, {}, 0);
+  page.tap(bag.id);
+  page.scrollTo(300);
+  const stay = page.tap(evening.id);
+  assert.equal(stay.after, stay.before);
+  assert.deepEqual(openIds(view).sort(), [morning.id, bag.id, evening.id].sort());
+  page.tap(evening.id);
+  assert.deepEqual(openIds(view).sort(), [morning.id, bag.id].sort());
+  page.scrollTo(600);
+  const fold = page.tap(evening.id);
+  assert.equal(fold.after, fold.before);
+  assert.deepEqual(openIds(view), [evening.id]);
+  page.scrollTo(600);
+  const again = page.tap(bag.id);
+  assert.equal(again.after, again.before);
+  assert.deepEqual(openIds(view), [bag.id]);
+});
+
+test("closing the tapped row itself is never undone, even when the page shortens under it", () => {
+  const { all, morning } = home();
+  const view = mountToday(all, 3);
+  const page = settled(view, morning.id, {}, "bottom");
+  page.tap(morning.id);
+  assert.deepEqual(openIds(view), []);
+});
+
+test("a stale hold is spent: a fold after the tap does not scroll the page by a drift measured against the old node", () => {
+  const { all, morning, bag } = home();
+  const view = mountToday(all, 3);
+  const page = settled(view, bag.id, {}, 300);
+  page.tap(bag.id);
+  assert.deepEqual(openIds(view), [bag.id]);
+  const before = page.calls.length;
+  page.scrollTo(0);
+  byKey(view, bag.id).props.onFold();
+  assert.deepEqual(openIds(view), []);
+  assert.equal(page.calls.length, before);
+  void morning;
+});
+
+test("Back finds every row that was left open", () => {
+  const { all, morning, bag } = home();
+  const first = mountToday(all, 3);
+  settled(first, bag.id, {}, 0).tap(bag.id);
+  assert.deepEqual(openIds(first).sort(), [morning.id, bag.id].sort());
+  first.unmount();
+  const again = mountToday(all, 3);
+  assert.deepEqual(openIds(again).sort(), [morning.id, bag.id].sort());
 });
 
 test("the Done today group stays shut with its count, and opens by itself while a card in it is open again", () => {
@@ -263,6 +395,7 @@ const mountBlock = (expanded: boolean, done: number, total: number, extra: Recor
     { block: block(parent, done, total), items: [], flows: {}, me: "a", day: DAY, expanded, onToggle: (box: unknown) => void calls.push(box), onFold: () => undefined, ...extra },
     document,
   );
+  mounted.push(view);
   return { view, calls, parent };
 };
 
@@ -306,11 +439,32 @@ test("the Late line shows the count of what is late and names where it goes, and
   assert.equal(copy.title, "Routines");
 });
 
-test("the Late line moves focus to the Late heading and scrolls it into view without animation", () => {
-  const source = read("views/week.tsx");
-  assert.match(source, /<h3 id=\{id\} data-late=\{late\} tabIndex=\{-1\}>/);
-  assert.match(source, /group\?\.scrollIntoView\(\{ block: "start", behavior: "instant" \}\);\s*group\?\.focus\(\{ preventScroll: true \}\);/);
-  assert.match(source, /document\.getElementById\("week-overdue"\)/);
+test("the Late button scrolls the Late heading into view without animation and focuses it without a second scroll", () => {
+  const document = dom();
+  const calls: string[] = [];
+  const group = { scrollIntoView: (options: unknown) => void calls.push(`scroll ${JSON.stringify(options)}`), focus: (options: unknown) => void calls.push(`focus ${JSON.stringify(options)}`) };
+  const asked: string[] = [];
+  (document as any).getElementById = (id: string) => (asked.push(id), group);
+  stage([item({ kind: "task", title: "Venue tour", status: "todo", due_on: "2026-10-24" })]);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 3) });
+  const view = mount(LateLine, {}, document);
+  mounted.push(view);
+  mock.timers.reset();
+  const button = find(view.tree, (element) => element.type === "button")[0];
+  button.props.onClick();
+  assert.deepEqual(asked, ["week-overdue"]);
+  assert.deepEqual(calls, ['scroll {"block":"start","behavior":"instant"}', 'focus {"preventScroll":true}']);
+});
+
+test("the Late heading can take focus", async () => {
+  stage([item({ kind: "task", title: "Venue tour", status: "todo", due_on: "2026-10-24" })]);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 3) });
+  try {
+    const html = await markupOf("views/week.tsx", ({ Week }) => createElement(Week));
+    assert.match(html, /<h3 id="week-overdue" data-late="true" tabindex="-1">/);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("Home: the h1 is today's date and keeps Home as the page name, the Late line sits above Today and below the capture row", () => {

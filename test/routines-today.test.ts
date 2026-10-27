@@ -131,10 +131,13 @@ const rows = () => {
 test("Today draws a finished routine as one folded row with a check, Done and no Start, after the open ones", async () => {
   const html = await render(rows());
   const finishedBlock = /<div class="rt-block" data-fold="folded">(.*?)<\/div><\/div>/s.exec(html)?.[1] ?? "";
-  assert.match(finishedBlock, /<button type="button" class="rt-fold" data-opens="#\/routines\/[0-9a-f-]+\/start" aria-expanded="false" aria-label="Morning care done">/);
+  assert.match(finishedBlock, /<button type="button" class="rt-fold" data-opens="#\/routines\/[0-9a-f-]+\/start" aria-expanded="false" aria-controls="[^"]+" aria-label="Morning care done">/);
+  const body = /aria-controls="([^"]+)"/.exec(finishedBlock)?.[1] ?? "";
+  assert.notEqual(body, "");
+  assert.equal(html.includes(`<div id="${body}" hidden="">`), true);
   assert.match(finishedBlock, /<span class="rt-tick" aria-hidden="true"><svg/);
   assert.match(finishedBlock, /<span class="rt-state">Done<\/span>/);
-  assert.match(html, /<div hidden="">/);
+  assert.match(html, /<div id="[^"]+" hidden="">/);
   assert.match(html, /<details class="rt-done"><summary><span>Done today · 1<\/span><\/summary>/);
   assert.doesNotMatch(finishedBlock, /href="[^"]*\/start"|Step by step|Continue/);
   assert.ok(html.indexOf("Evening wind down") < html.indexOf("Done today"));
@@ -324,7 +327,7 @@ test("Today puts one compact Step by step link in the header row of a routine wi
     item({ kind: "timer", status: null, parent_id: timed.id, title: "Mask", data: { minutes: 10 } }),
   ]);
   const head = (title: string) => new RegExp(`<div class="rt-head"><h3><button [^>]*><span class="rt-name">${title}<span class="rt-sub">.*?</div>`, "s").exec(html)?.[0] ?? "";
-  assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg><span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span><\/a><\/div>$/s);
+  assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg><span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span><\/a><a class="rt-open" href="#\/routines\/[0-9a-f-]+" aria-label="Open routine: Skincare">Open routine<\/a><\/div>$/s);
   assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 1);
   assert.equal(html.includes("rt-start"), false);
 });

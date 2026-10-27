@@ -962,8 +962,9 @@
   margin: var(--s2) 0 var(--s3);
 }
 
-.rt-after a {
+.rt-open {
   display: inline-flex;
+  flex: none;
   align-items: center;
   min-height: var(--target-min);
 }

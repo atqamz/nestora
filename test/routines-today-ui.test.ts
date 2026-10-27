@@ -1,4 +1,4 @@
-import { test, mock, beforeEach } from "node:test";
+import { test, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
@@ -17,7 +17,14 @@ const { TodayBlock, SETTLE_MS, QUIET_MS, SETTLE_CAP_MS } = await load("views/tod
 const { RoutineAction } = await load("ui/routine-action.tsx");
 const { Today, forget } = await load("views/today.tsx");
 
+const mounted: { unmount: () => void }[] = [];
+
 beforeEach(() => forget());
+
+afterEach(() => {
+  for (const view of mounted.splice(0)) view.unmount();
+  mock.timers.reset();
+});
 
 const routine = (title: string, group_key = "morning") => item({ kind: "routine", status: null, who: "a", title, group_key, data: {} });
 
@@ -535,6 +542,7 @@ const today = async (items: ItemRow[]) => {
   stage(items);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   const view = mount(Today, {}, document);
+  mounted.push(view);
   mock.timers.reset();
   return view;
 };
@@ -592,7 +600,7 @@ test("an open card offers Open routine with the routine's title as its name, and
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   try {
     const html = await markupOf("views/today.tsx", ({ Today: view }) => createElement(view));
-    assert.match(html, /<a href="#\/routines\/[^"]+" aria-label="Open routine: Evening wind down">Open routine<\/a>/);
+    assert.match(html, /<a class="rt-open" href="#\/routines\/[^"]+" aria-label="Open routine: Evening wind down">Open routine<\/a>/);
     assert.equal(html.includes("Open routine: Morning care"), false);
   } finally {
     mock.timers.reset();
@@ -667,9 +675,9 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
     "1 of 2",
     "Evening wind down",
     "Evening · 0 of 1",
+    "Open routine",
     "Mark Dim the lights as done",
     "Dim the lights",
-    "Open routine",
     "Done today · 1",
     "Morning care",
     "Done",
@@ -687,7 +695,7 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
 
 test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
   const open = routine("Evening wind down", "evening");
-  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Routines", "0 of 1", "Evening wind down", "Evening · 0 of 1", "Mark Dim the lights as done", "Dim the lights", "Open routine", "All routines"]);
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Routines", "0 of 1", "Evening wind down", "Evening · 0 of 1", "Open routine", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
   assert.deepEqual(await textsOf([]), ["Routines", copy.emptyHome, copy.create]);
   const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
   assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Routines", copy.nothingToday, "All routines"]);
@@ -749,9 +757,9 @@ test("the folded row's boxes: full width button, a name that grows and never spl
   }
 });
 
-test("the after row keeps a full-size target on its link and a quiet spacing around the Done today group", () => {
-  assert.equal(at(".rt-after a", 20).get("min-height"), "var(--target-min)");
-  assert.equal(at(".rt-after a", 20).get("align-items"), "center");
+test("the Open routine link keeps a full-size target, the after row a quiet spacing and a quiet spacing around the Done today group", () => {
+  assert.equal(at(".rt-open", 20).get("min-height"), "var(--target-min)");
+  assert.equal(at(".rt-open", 20).get("align-items"), "center");
   assert.equal(at(".rt-after", 20).get("margin"), "var(--s2) 0 var(--s3)");
   assert.equal(at(".rt-done", 20).get("margin-top"), "var(--s4)");
   assert.equal(at(".rt-count.rt-reached svg", 20).get("width"), "var(--icon-l)");
@@ -772,7 +780,7 @@ const PINS: Record<string, Record<string, string>> = {
   ".rt-needed > summary": { color: "var(--ink-2)", "font-size": "var(--fs-meta)", "font-weight": "700" },
   ".rt-after": { display: "flex", "flex-wrap": "wrap", "align-items": "center", "justify-content": "space-between", gap: "var(--s2) var(--s4)", margin: "var(--s2) 0 var(--s3)" },
   ".rt-today summary": { display: "flex", "flex-wrap": "wrap", "list-style": "none", "align-items": "center", "justify-content": "space-between", gap: "var(--s3)", "min-height": "var(--target-min)", cursor: "pointer" },
-  ".rt-after a": { display: "inline-flex", "align-items": "center", "min-height": "var(--target-min)" },
+  ".rt-open": { display: "inline-flex", flex: "none", "align-items": "center", "min-height": "var(--target-min)" },
 };
 
 test("every declaration of the folded row, the disc, the chevron, the label, the group and the after row is pinned above the large text step", () => {

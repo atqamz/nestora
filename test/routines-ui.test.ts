@@ -103,7 +103,7 @@ test("the count of a counter is a polite live region, so a screen reader hears e
 
 test("the Today block opens again when the routine day changes", () => {
   const today = read("views/today.tsx");
-  assert.match(today, /const \[shown, setShown\] = useState\(day\);\s*if \(shown !== day\) \{\s*setShown\(day\);\s*setOpen\(!finished\);\s*setPick\(undefined\);\s*\}/);
+  assert.match(today, /const \[shown, setShown\] = useState\(day\);\s*if \(shown !== day\) \{\s*setShown\(day\);\s*setOpen\(!finished\);\s*setPicks\(undefined\);\s*\}/);
 });
 
 test("the flows write the day the screens show: the clock is read in one place, the day hook, and handed down", () => {

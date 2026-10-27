@@ -7,7 +7,7 @@ import { TodayBlock } from "./today-block.tsx";
 
 const copy = text.routines;
 
-let remembered: { day: string; id: string | null } | null = null;
+let remembered: { day: string; ids: string[] } | null = null;
 
 export const forget = () => {
   remembered = null;
@@ -22,23 +22,35 @@ export function Today() {
   const [open, setOpen] = useState(!finished);
   const [doneOpen, setDoneOpen] = useState(false);
   const { elapsed } = useRoutineClock();
-  const [pick, setPick] = useState<string | null | undefined>(() => (remembered?.day === day && (remembered.id === null || blocks.some(({ routine }) => routine.id === remembered!.id)) ? remembered.id : undefined));
+  const [picks, setPicks] = useState<string[] | undefined>(() => {
+    if (remembered?.day !== day) return undefined;
+    const ids = remembered.ids.filter((id) => blocks.some(({ routine }) => routine.id === id));
+    return ids.length > 0 || remembered.ids.length === 0 ? ids : undefined;
+  });
   const [shown, setShown] = useState(day);
   if (shown !== day) {
     setShown(day);
     setOpen(!finished);
-    setPick(undefined);
-  } else if (pick === undefined && blocks.length > 0) setPick(openFirst(blocks, elapsed));
+    setPicks(undefined);
+  } else if (picks === undefined && blocks.length > 0) {
+    const first = openFirst(blocks, elapsed);
+    setPicks(first === null ? [] : [first]);
+  }
   useEffect(() => {
-    if (pick !== undefined) remembered = { day, id: pick };
-  }, [day, pick]);
-  const held = useRef<{ box: HTMLElement; top: number } | null>(null);
+    if (picks !== undefined) remembered = { day, ids: picks };
+  }, [day, picks]);
+  const held = useRef<{ box: HTMLElement; top: number; others: string[] } | null>(null);
   useLayoutEffect(() => {
     const was = held.current;
     held.current = null;
-    const drift = was === null ? 0 : was.box.getBoundingClientRect().top - was.top;
-    if (drift !== 0) scrollBy({ top: drift, behavior: "instant" });
-  }, [pick]);
+    if (was === null || picks === undefined) return;
+    const drift = () => was.box.getBoundingClientRect().top - was.top;
+    if (drift() !== 0) scrollBy({ top: drift(), behavior: "instant" });
+    if (drift() !== 0 && was.others.some((id) => !picks.includes(id))) {
+      held.current = was;
+      setPicks([...new Set([...was.others, ...picks])]);
+    }
+  }, [picks]);
   const [seen, setSeen] = useState(() => unseen(day));
   const next = see(seen, blocks, day);
   if (next !== seen) setSeen(next);
@@ -54,12 +66,13 @@ export function Today() {
         flows={flows}
         me={me}
         day={day}
-        expanded={pick === id}
+        expanded={picks?.includes(id) === true}
         onToggle={(box) => {
-          if (box?.getBoundingClientRect) held.current = { box, top: box.getBoundingClientRect().top };
-          setPick((now) => (now === id ? null : id));
+          const before = picks ?? [];
+          if (box?.getBoundingClientRect) held.current = { box, top: box.getBoundingClientRect().top, others: before.filter((other) => other !== id) };
+          setPicks(before.includes(id) ? before.filter((other) => other !== id) : [id]);
         }}
-        onFold={() => setPick((now) => (now === id ? null : now))}
+        onFold={() => setPicks((now) => now?.filter((other) => other !== id))}
       />
     );
   };
