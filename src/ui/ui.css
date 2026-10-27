@@ -23,6 +23,11 @@ section {
   margin: 0;
 }
 
+.notice:focus {
+  outline: 2.5px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .hint {
   margin: 0;
   color: var(--ink-2);
@@ -440,6 +445,16 @@ fieldset.field {
 .check input:checked {
   border-color: var(--route);
   background: var(--route);
+}
+
+.check input:disabled,
+.check input[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.check input:disabled:not(:checked),
+.check input[aria-disabled="true"]:not(:checked) {
+  border-style: dashed;
 }
 
 .check svg {
