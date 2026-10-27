@@ -118,11 +118,27 @@ test("a link from the card lands on its row: the page focuses that row's Change 
     await visit("names", "body", [setting("partner_a_label", "Mo")]);
     assert.deepEqual([...rows].map(([id]) => id), ["set-b"]);
     rows.clear();
+    await visit("names", "body", [setting("partner_a_label", "Mo"), setting("partner_b_label", "Ra")]);
+    assert.deepEqual([...rows].map(([id]) => id), ["set-a"]);
+    rows.clear();
     await visit("akad", "field");
     await visit(undefined, "h1");
     await visit("elsewhere", "h1");
     assert.equal(rows.size, 0);
   })();
+});
+
+test("a card link followed while Settings is open moves focus to that row", async () => {
+  const focused: string[] = [];
+  const document = dom() as unknown as Record<string, unknown>;
+  document.getElementById = (id: string) => ({ querySelector: () => ({ focus: () => void focused.push(id) }) });
+  const { Settings } = await load("views/settings.tsx");
+  stage([], []);
+  document.activeElement = { tagName: "H1" };
+  const view = mount(Settings, {} as { row?: string }, document as never);
+  assert.deepEqual(focused, []);
+  view.update({ row: "akad" });
+  assert.deepEqual(focused, ["set-akad"]);
 });
 
 test("the settings rows carry the ids the card links to", () => {
@@ -166,6 +182,7 @@ test("a tick is named once: the checkbox is labelled by the row title, no hidden
   assert.match(line, new RegExp(`<span id="${taskId}" class="title">Book the venue</span>`));
   assert.doesNotMatch(line, /visually-hidden|Mark Book/);
   assert.doesNotMatch(read("ui/start-page.tsx"), /text\.(reopen|complete)/);
+  assert.match(read("ui/start-page.tsx"), /<span className="start-tick-t">\{item\.title\}<\/span>/);
   assert.equal("reopen" in text, false);
   assert.equal("complete" in text, false);
 });
@@ -289,6 +306,7 @@ test("Today on an empty phone offers one starter, which opens the new routine sh
   const starter = () => plain.find(view.tree as never, (props, type) => type === "button" && plain.textOf(props.children) === text.routines.starter)[0];
   const sheet = () => plain.find(view.tree as never, (_, type) => (type as { name?: string }).name === "RoutineSheet")[0];
   assert.ok(starter());
+  assert.equal(toggle.focused, 0);
   assert.equal(sheet(), undefined);
   assert.deepEqual(plain.find(view.tree as never, (props, type) => type === "a" && props.href === "#/routines"), []);
   (starter().props as { onClick: () => void }).onClick();
