@@ -37,7 +37,7 @@ test("the matches are a labelled list of real buttons that are at least a row ta
 });
 
 test("each match shows its poster, title, and original title with the year, and the list stays out of the way when there is nothing to show", () => {
-  assert.match(view, /<Cover book=\{\{ id: String\(hit\.tmdb\), title: hit\.title, data: \{ cover: hit\.cover \} \}\} \/>/);
+  assert.match(view, /<Cover book=\{\{ title: hit\.title, data: \{ cover: hit\.cover \} \}\} \/>/);
   assert.match(view, /\{sub !== "" && <span className="bk-by">\{sub\}<\/span>\}/);
   assert.match(view, /\{search\.hits\.length > 0 && \(/);
   assert.match(rule(css, ".look-note:empty"), /position:\s*absolute/);

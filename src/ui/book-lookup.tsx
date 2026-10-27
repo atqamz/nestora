@@ -50,7 +50,7 @@ export function BookLookup({ form }: { form: BookForm }) {
             {search.hits.map((hit) => (
               <li key={hit.work}>
                 <button type="button" className="hit" onClick={() => accept(hit)}>
-                  <Cover book={{ id: hit.work, title: hit.title, data: { cover: hit.cover } }} />
+                  <Cover book={{ title: hit.title, data: { cover: hit.cover } }} />
                   <span className="bk-text">
                     <span className="title">{hit.title}</span>
                     {(hit.author !== "" || hit.year !== null) && <span className="bk-by">{[hit.author, hit.year].filter(Boolean).join(" · ")}</span>}

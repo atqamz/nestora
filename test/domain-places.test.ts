@@ -120,18 +120,20 @@ test("reading now lists shelf books either partner is reading, with who, and ski
 });
 
 test("a generated cover takes initials from the first two words, or the first two letters of one word", () => {
-  assert.equal(coverOf({ id: "x", title: "Pangeran Kecil" }).initials, "PK");
-  assert.equal(coverOf({ id: "x", title: "Laskar" }).initials, "LA");
-  assert.equal(coverOf({ id: "x", title: "  “Le Petit Prince”" }).initials, "LP");
-  assert.equal(coverOf({ id: "x", title: "Émile" }).initials, "ÉM");
-  assert.equal(coverOf({ id: "x", title: "!!!" }).initials, "?");
-  assert.equal(coverOf({ id: "x", title: "Averyveryveryverylongtitlewithnospaces60" }).initials, "AV");
+  assert.equal(coverOf({ title: "Pangeran Kecil" }).initials, "PK");
+  assert.equal(coverOf({ title: "Laskar" }).initials, "LA");
+  assert.equal(coverOf({ title: "  “Le Petit Prince”" }).initials, "LP");
+  assert.equal(coverOf({ title: "Émile" }).initials, "ÉM");
+  assert.equal(coverOf({ title: "!!!" }).initials, "?");
+  assert.equal(coverOf({ title: "Averyveryveryverylongtitlewithnospaces60" }).initials, "AV");
 });
 
-test("a cover tone depends only on the row id and uses both tints across ids", () => {
-  const tones = [...Array(40).keys()].map((n) => coverOf({ id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`, title: "T" }).tone);
-  assert.deepEqual([...new Set(tones)].sort(), ["a", "b"]);
-  assert.equal(coverOf({ id: "same", title: "One" }).tone, coverOf({ id: "same", title: "Another" }).tone);
+test("a cover is tinted only by the row's real owner: a, b, and neutral for both, nobody or a lookup hit", () => {
+  assert.equal(coverOf({ title: "T", who: "a" }).tone, "a");
+  assert.equal(coverOf({ title: "T", who: "b" }).tone, "b");
+  for (const who of ["both", null, undefined, "", "c"]) assert.equal(coverOf({ title: "T", who }).tone, null, String(who));
+  const ids = [...Array(40).keys()].map((n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`);
+  assert.deepEqual(new Set(ids.map((id) => coverOf({ title: id }).tone)), new Set([null]));
 });
 
 test("the mover is the one who moved the copy, not whoever edited it last, and a copy without the mark has none", () => {
