@@ -10,6 +10,8 @@ class FakeElement {
   focused = 0;
   options: unknown;
   href: string | null;
+  opens: string | null = null;
+  replaces: string | null = null;
   tab: boolean;
   top = 100;
   height = 20;
@@ -21,7 +23,7 @@ class FakeElement {
     this.tab = tab;
   }
   getAttribute(name: string) {
-    return name === "href" ? this.href : null;
+    return name === "href" ? this.href : name === "data-opens" ? this.opens : name === "data-replaces" ? this.replaces : null;
   }
   getBoundingClientRect() {
     return { top: this.top, bottom: this.top + this.height, height: this.height };
@@ -31,6 +33,9 @@ class FakeElement {
   }
   querySelector(selector: string) {
     return selector === "summary" ? this.summary : null;
+  }
+  hasAttribute(name: string) {
+    return (name === "data-opens" && this.opens !== null) || (name === "data-replaces" && this.replaces !== null);
   }
   matches(selector: string) {
     return this.tab && selector === ".tabs a, .rail a, .brand, .pair";
@@ -91,7 +96,7 @@ Object.assign(globalThis, {
     get activeElement() {
       return world.focus;
     },
-    querySelectorAll: (selector: string) => (selector === "main details" ? world.open : selector === "main a" ? world.links : selector.includes("summary") ? world.tabbable : []),
+    querySelectorAll: (selector: string) => (selector === "main details" ? world.open : selector === "main a, main [data-opens], main [data-replaces]" ? world.links : selector.includes("summary") ? world.tabbable : []),
     querySelector: (selector: string) => (selector === "h1" ? world.heading : null),
   },
   history: {
@@ -128,8 +133,8 @@ const places = (side: "a" | "b" | null = world.side) => placeStore(held(), () =>
 let loads = 0;
 const load = async () => {
   world.listeners.clear();
-  const module = (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: Places, hidden: (route: string) => boolean, ready: () => boolean) => void; landPlace: (how: "first" | "move" | "beside") => void };
-  return { landPlace: module.landPlace, startPlace: (kept: Places, hidden: (route: string) => boolean = () => false, ready: () => boolean = () => true) => module.startPlace(kept, hidden, ready) };
+  const module = (await import(new URL(`../src/ui/place.ts?${loads++}`, import.meta.url).href)) as { startPlace: (kept: Places, hidden: (route: string) => boolean, ready: () => boolean) => void; landPlace: (how: "first" | "move" | "beside") => void; cameFrom: () => string | null };
+  return { cameFrom: module.cameFrom, landPlace: module.landPlace, startPlace: (kept: Places, hidden: (route: string) => boolean = () => false, ready: () => boolean = () => true) => module.startPlace(kept, hidden, ready) };
 };
 
 const reset = (hash: string) => {
@@ -1492,4 +1497,190 @@ test("no persisted write ever holds a hidden routine id, over random navigation 
     fire("pagehide");
     assert.deepEqual(leaks, []);
   }
+});
+
+test("leaving Start by Back returns to the screen it was opened from, with the scroll and the focus where they were", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE, "#/routines/r1/start"]);
+  world.y = 1500;
+  push("#/routines/r1/start");
+  page([]);
+  place.landPlace("move");
+  assert.equal(world.y, 0);
+  assert.equal(place.cameFrom(), "/");
+  back();
+  page([ROUTINE, "#/routines/r1/start"]);
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+  assert.equal(world.focus?.href, "#/routines/r1/start");
+  assert.equal(place.cameFrom(), null);
+});
+
+test("a folded row that stands for the routine takes the focus when its Start link is gone", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE, "#/routines/r1/start"]);
+  world.y = 1500;
+  push("#/routines/r1/start");
+  page([]);
+  place.landPlace("move");
+  back();
+  page(["#/books"]);
+  const folded = new FakeElement(null);
+  folded.opens = "#/routines/r1/start";
+  world.links = [new FakeElement("#/books"), folded];
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+  assert.equal(world.focus, folded);
+  assert.deepEqual(folded.options, { preventScroll: true });
+});
+
+test("a folded row that moved out of view is still focused, and brought into view", async () => {
+  reset("#/");
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE, "#/routines/r1/start"]);
+  world.y = 1500;
+  push("#/routines/r1/start");
+  page([]);
+  place.landPlace("move");
+  back();
+  page(["#/books"]);
+  const folded = new FakeElement(null);
+  folded.opens = "#/routines/r1/start";
+  folded.top = 5000;
+  world.links = [folded];
+  place.landPlace("move");
+  assert.equal(world.focus, folded);
+  assert.deepEqual(folded.options, { preventScroll: false });
+  const far = new FakeElement("#/routines/r1/start");
+  far.top = 5000;
+  reset("#/");
+  const again = await load();
+  again.startPlace(places());
+  page(["#/routines/r1/start"]);
+  push("#/routines/r1/start");
+  page([]);
+  again.landPlace("move");
+  back();
+  page([]);
+  world.links = [far];
+  again.landPlace("move");
+  assert.notEqual(world.focus, far);
+});
+
+const START = "#/routines/r1/start";
+
+const opened = async (from: string) => {
+  reset(from);
+  const place = await load();
+  place.startPlace(places());
+  page([ROUTINE, START]);
+  world.y = 1500;
+  push(START);
+  page([]);
+  place.landPlace("move");
+  back();
+  return place;
+};
+
+const standIn = (href: string | null, replaces: string | null, top = 100) => {
+  const one = new FakeElement(href);
+  one.replaces = replaces;
+  one.top = top;
+  return one;
+};
+
+test("Back from Start with its link gone focuses the routine's own title link, never the routine next to it", async () => {
+  const place = await opened("#/");
+  const next = standIn("#/routines/r3", "#/routines/r3/start", 40);
+  const own = standIn(ROUTINE, START, 300);
+  world.links = [next, own];
+  world.tabbable = [next, own];
+  world.heading = new FakeElement();
+  place.landPlace("move");
+  assert.equal(world.y, 1500);
+  assert.equal(world.focus, own);
+  assert.deepEqual(own.options, { preventScroll: true });
+  assert.equal(next.focused, 0);
+});
+
+test("Back from Start to the detail with the Start control gone focuses the control that took its place, and the heading only when nothing of the routine is left", async () => {
+  const place = await opened("#/routines/r1");
+  const edit = standIn(null, START);
+  world.links = [edit];
+  world.tabbable = [edit];
+  place.landPlace("move");
+  assert.equal(world.focus, edit);
+  const alone = await opened("#/routines/r1");
+  world.links = [];
+  world.tabbable = [];
+  alone.landPlace("move");
+  assert.equal(world.focus, world.heading);
+});
+
+test("the Start link, then a folded row, then the stand-in: the most exact match wins, and another routine's stand-in is ignored", async () => {
+  const place = await opened("#/");
+  const own = standIn(ROUTINE, START, 300);
+  const start = standIn(START, null, 320);
+  world.links = [own, start];
+  place.landPlace("move");
+  assert.equal(world.focus, start);
+  const next = await opened("#/");
+  const folded = standIn(null, null, 500);
+  folded.opens = START;
+  const other = standIn("#/routines/r2", "#/routines/r2/start", 100);
+  world.links = [other, standIn(ROUTINE, START, 300), folded];
+  next.landPlace("move");
+  assert.equal(world.focus, folded);
+  const stranger = await opened("#/");
+  const here = standIn("#/routines/r2", "#/routines/r2/start", 100);
+  world.links = [here];
+  world.tabbable = [];
+  stranger.landPlace("move");
+  assert.notEqual(world.focus, here);
+  assert.equal(world.focus, world.heading);
+});
+
+test("a routine that moved out of view is still found by its stand-in, and the page stays where it was", async () => {
+  const place = await opened("#/");
+  const own = standIn(ROUTINE, START, 5000);
+  world.links = [own];
+  world.tabbable = [];
+  place.landPlace("move");
+  assert.equal(world.focus, own);
+  assert.deepEqual(own.options, { preventScroll: true });
+  assert.equal(world.y, 1500);
+});
+
+test("Start opened from the routine goes back to the routine, and a Start with no screen of the app before it is not a place to go back to", async () => {
+  reset("#/routines");
+  const place = await load();
+  place.startPlace(places());
+  page(["#/routines/r1"]);
+  push("#/routines/r1");
+  page(["#/routines/r1/start"]);
+  world.y = 400;
+  push("#/routines/r1/start");
+  page([]);
+  place.landPlace("move");
+  assert.equal(place.cameFrom(), "/routines/r1");
+  back();
+  page(["#/routines/r1/start"]);
+  place.landPlace("move");
+  assert.equal(world.y, 400);
+  assert.equal(world.focus?.href, "#/routines/r1/start");
+  reset("#/routines/r1/start");
+  const direct = await load();
+  direct.startPlace(places());
+  assert.equal(direct.cameFrom(), null);
+  reset("#/");
+  const tabbed = await load();
+  tabbed.startPlace(places());
+  click(new FakeElement("#/routines/r1/start", true));
+  push("#/routines/r1/start");
+  assert.equal(tabbed.cameFrom(), null);
 });

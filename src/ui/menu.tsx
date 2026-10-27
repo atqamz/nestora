@@ -34,7 +34,7 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
           setOpen(true);
         }}>
         <Icon name="more" />
-        {text.menu.more}
+        <span className="menu-word">{text.menu.more}</span>
       </button>
       {open && (
         <Modal title={text.menu.more} onClose={() => setOpen(false)} dismissible className="menu-sheet" style={anchor}>

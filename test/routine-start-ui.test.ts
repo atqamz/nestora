@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import type { Offer } from "../src/domain/routine-start.ts";
+import { useHeld } from "../src/hooks/use-held.ts";
 import { text } from "../src/ui/text.ts";
+import { dom, mount } from "./hooks.ts";
+
+const Held = ({ now, release, day }: { now: Offer | null; release: boolean; day: string }) => ({ offer: useHeld(now, release, day) }) as never;
 
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
@@ -86,7 +91,7 @@ test("the countdown is not announced every second: it is a timer with live off, 
 test("focus moves to the new primary button on an advance, Escape exits, and a held key never repeats a button", () => {
   assert.match(start, /useEffect\(\(\) => \{\s*if \(!moved\.current\) return;\s*root\.current\?\.querySelector<HTMLElement>\("\[data-primary\]"\)\?\.focus\(\);\s*\}, \[current\]\);/);
   assert.match(start, /event\.key === "Escape" && !event\.defaultPrevented && exit\(\)/);
-  assert.match(start, /const exit = \(\) => \{\s*timers\.keep\(me, routine\.id, null\);\s*location\.replace\(`#\/routines\/\$\{routine\.id\}`\);\s*\};/);
+  assert.match(start, /const exit = \(\) => \{\s*timers\.keep\(me, routine\.id, null\);\s*if \(cameFrom\(\) === null\) location\.replace\(`#\/routines\/\$\{routine\.id\}`\);\s*else history\.back\(\);\s*\};/);
   assert.match(start, /onKeyDown=\{\(event\) => \{\s*if \(event\.repeat\) event\.preventDefault\(\);\s*\}\}/);
   assert.match(start, /setMessage\(clamped >= total \? "" : start\.announce\(/);
   assert.match(read("ui/routine-action.tsx"), /className="pill rt-plus"[^>]*onKeyDown=\{\(event\) => event\.repeat && event\.preventDefault\(\)\}/);
@@ -137,10 +142,13 @@ test("the week strip is a list of seven days, today is marked by aria-current, a
 
 test("the detail and the Today block lead into Start, and the strip shows on both", () => {
   const detail = read("views/routine.tsx");
-  assert.match(detail, /\{today && !away && !finished\(\{ done, total \}\) && pagesOf\(todays\)\.length > 0 && \(\s*<a className="button" href=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
+  assert.match(detail, /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\)/);
+  assert.match(detail, /\{offer !== null && \(\s*<a className="button rt-lead" href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}>/);
+  assert.match(detail, /<button type="button" className="secondary" data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\} onClick=\{\(\) => setSheet\("edit"\)\}>/);
   assert.match(detail, /\{strip !== null && <RoutineWeek strip=\{strip\} \/>\}/);
   const today = read("views/today-block.tsx");
-  assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(routine\.title\)\}/);
+  assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}/);
+  assert.match(today, /<a ref=\{link\} href=\{`#\/routines\/\$\{routine\.id\}`\} data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
   assert.match(today, /weekStrip\(routine, actionsOf\(items, routine\), day, side\)/);
   assert.match(today, /<RoutineWeek strip=\{strip\} compact \/>/);
 });
@@ -197,4 +205,80 @@ test("the status line and the screen read the end of the list from one value, an
   assert.match(start, /const page = screen\.kind === "page" \? screen\.page : undefined;/);
   assert.match(start, /\) : idle \? \(\s*<>\s*<h2 className="start-title">\{start\.nothing\}<\/h2>/);
   assert.match(start, /\{!idle && <span className="start-pos">/);
+});
+
+test("Step by step is named by what it does, Continue once something is ticked, and both names carry the routine", () => {
+  const { open, resume, openNamed } = text.routines.start;
+  assert.equal(open, "Step by step");
+  assert.equal(resume, "Continue");
+  assert.equal(openNamed(open, "Skincare"), "Step by step: Skincare");
+  assert.equal(openNamed(resume, "Skincare"), "Continue: Skincare");
+  for (const view of ["views/routine.tsx", "views/today-block.tsx"]) {
+    const source = read(view);
+    assert.match(source, /const go = offer === "continue" \? copy\.start\.resume : copy\.start\.open;/, view);
+    assert.doesNotMatch(source, /pagesOf/, view);
+  }
+  assert.match(read("views/today-block.tsx"), /<a className="button secondary rt-go"/);
+  assert.match(rule(".rt-go"), /min-height:\s*var\(--target-min\)/);
+});
+
+test("leaving Start goes back to where it was opened, and to the routine only when nothing in the app came before it", () => {
+  assert.match(start, /import \{ cameFrom \} from "..\/ui\/place\.ts";/);
+  assert.equal([...start.matchAll(/location\.replace\(/g)].length, 1);
+  assert.equal([...start.matchAll(/history\.back\(\)/g)].length, 1);
+  assert.equal([...start.matchAll(/onClick=\{exit\}/g)].length, 3);
+  assert.match(start, /const leave = \(event: KeyboardEvent\) => event\.key === "Escape" && !event\.defaultPrevented && exit\(\);/);
+  assert.match(read("ui/place.ts"), /export const cameFrom = \(\) => memory\.entries\[here\.key\]\?\.from \?\? null;/);
+  assert.match(read("hooks/use-wake-lock.ts"), /return \(\) => \{[^}]*leave\(\);/s);
+});
+
+test("one action on Start has one name: the header icon and the end screen both say Close, and Exit is gone", () => {
+  assert.equal("exit" in text.routines.start, false);
+  assert.match(start, /<button type="button" className="ib" aria-label=\{start\.leave\} onClick=\{exit\}>/);
+  assert.equal([...start.matchAll(/\{start\.leave\}/g)].length, 3);
+  assert.equal([...start.matchAll(/start\.exit/g)].length, 0);
+});
+
+test("the last page's primary says Finish, the end screen has one primary, Close, and no footer Back", () => {
+  assert.equal(text.routines.start.finish, "Finish");
+  assert.equal(text.routines.start.leave, "Close");
+  assert.match(start, /<StartPage \{\.\.\.moves\} page=\{page\} last=\{upcoming === undefined\} \/>/);
+  assert.match(page, /type Props = Moves & \{ page: ItemRow\[\]; last: boolean \};/);
+  assert.equal([...page.matchAll(/const forward = last \? start\.finish : start\.next;/g)].length, 2);
+  assert.equal([...page.matchAll(/const complete = last \? start\.finish : start\.done;/g)].length, 2);
+  assert.equal([...page.matchAll(/\{start\.next\}/g)].length, 0);
+  assert.match(page, /\{lead === "next" \? forward : complete\}/);
+  assert.match(start, /\{page !== undefined && \(\s*<div className="start-foot">/);
+  assert.equal([...page.matchAll(/\{complete\}/g)].length, 3);
+  assert.equal([...page.matchAll(/\{start\.done\}/g)].length, 2);
+  assert.match(start, /\{isOpen\(page, side, day\) && \(\s*<button type="button" className="secondary start-alt" onClick=\{\(\) => go\(at \+ 1\)\}>\s*\{start\.skip\}/);
+  assert.equal([...start.matchAll(/start-foot/g)].length, 1);
+  assert.match(start, /disabled=\{at === 0\} onClick=\{\(\) => go\(at - 1\)\}/);
+  assert.equal([...start.matchAll(/data-primary/g)].length, 4);
+});
+
+test("the offer is held while ticking, so a tap never moves the rows below it, and is dropped for a finished, folded, paused or new-day routine", (t) => {
+  const document = dom();
+  const view = mount(Held, { now: "start" as Offer | null, release: false, day: "2026-10-26" }, document);
+  t.after(() => view.unmount());
+  const offer = () => (view.tree as unknown as { offer: Offer | null }).offer;
+  assert.equal(offer(), "start");
+  view.update({ now: "continue" });
+  assert.equal(offer(), "continue");
+  view.update({ now: null });
+  assert.equal(offer(), "continue");
+  view.update({ release: true });
+  assert.equal(offer(), null);
+  view.update({ release: false });
+  assert.equal(offer(), null);
+  view.update({ now: "start" });
+  assert.equal(offer(), "start");
+  view.update({ now: null, day: "2026-10-27" });
+  assert.equal(offer(), null);
+  view.update({ now: "start", release: false, day: "2026-10-27" });
+  view.update({ now: "start", day: "2026-10-28" });
+  view.update({ now: null });
+  assert.equal(offer(), "start");
+  assert.match(read("views/today-block.tsx"), /const offer = useHeld\(offerOf\(routine, actions, side, day\), folding, day\);/);
+  assert.match(read("views/routine.tsx"), /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\), !today \|\| finished\(\{ done, total \}\), day\);/);
 });

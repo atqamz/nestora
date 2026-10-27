@@ -11,6 +11,13 @@
   max-width: 100%;
 }
 
+@media (max-width: 25.5rem) {
+  .rt-tools:has(> .rt-lead) > :not([aria-haspopup]) > svg,
+  .rt-tools:has(> .rt-lead) > [aria-haspopup] > .menu-word {
+    display: none;
+  }
+}
+
 .rt-tools svg,
 .rt-add svg {
   flex: none;
@@ -196,7 +203,7 @@
 }
 
 .rt-block h3 {
-  margin: 0 0 var(--s1);
+  margin: 0;
   overflow-wrap: anywhere;
   line-height: inherit;
   font-size: var(--fs-meta);
@@ -449,13 +456,39 @@
   min-width: 0;
 }
 
-.rt-start {
-  margin: var(--s2) 0 var(--s3);
+.rt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s3);
+  margin: 0 0 var(--s1);
 }
 
-.rt-start a {
-  display: flex;
+.rt-head h3 {
+  flex: 1 1 10rem;
   min-width: 0;
+}
+
+.rt-go {
+  flex: none;
+  max-width: 100%;
+  min-height: var(--target-min);
+}
+
+.rt-word {
+  display: inline-grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.rt-word > *,
+.rt-word::after {
+  grid-area: 1 / 1;
+}
+
+.rt-word::after {
+  content: attr(data-wide);
+  visibility: hidden;
 }
 
 .rt-week {

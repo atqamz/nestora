@@ -304,7 +304,7 @@ test("the routine toolbar keeps natural widths so no button is stretched or left
 
 test("the routine detail shows one filled button and two outlined ones in one toolbar, Edit and More first-class beside the primary", async () => {
   const mineRoutine = item({ kind: "routine", status: null, who: "a", title: "Morning care", group_key: "morning", data: {} });
-  const rows = [mineRoutine, item({ kind: "step", status: null, parent_id: mineRoutine.id, title: "Cleanse", data: null }), item({ kind: "step", status: null, parent_id: mineRoutine.id, title: "Tone", data: null })];
+  const rows = [mineRoutine, ...["Cleanse", "Tone", "Serum", "Cream"].map((title) => item({ kind: "step", status: null, parent_id: mineRoutine.id, title, data: null }))];
   stage(rows);
   mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
   try {
@@ -314,7 +314,23 @@ test("the routine detail shows one filled button and two outlined ones in one to
     assert.equal(controls.length, 3);
     const filled = controls.filter((control) => !control.includes("secondary"));
     assert.equal(filled.length, 1);
-    assert.match(filled[0], /^<a class="button"/);
+    assert.match(filled[0], /^<a class="button rt-lead"/);
+    assert.match(tools, /<span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span>/);
+    assert.match(tools, /<button type="button" class="secondary" data-replaces="#\/routines\/[^"]+\/start">/);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("the routine detail keeps the Start box at its widest wording once a step is ticked", async () => {
+  const mineRoutine = item({ kind: "routine", status: null, who: "a", title: "Morning care", group_key: "morning", data: {} });
+  const step = (title: string, data: Record<string, unknown> | null = null) => item({ kind: "step", status: null, parent_id: mineRoutine.id, title, data });
+  const rows = [mineRoutine, step("Cleanse", { done_a: "2026-10-26" }), ...["Tone", "Serum", "Cream", "Mist"].map((title) => step(title))];
+  stage(rows);
+  mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 26, 8) });
+  try {
+    const html = await markupOf("views/routines.tsx", ({ Routines }) => createElement(Routines, { id: mineRoutine.id }));
+    assert.match(html, /<span class="rt-word" data-wide="Step by step"><span>Continue<\/span><\/span>/);
   } finally {
     mock.timers.reset();
   }

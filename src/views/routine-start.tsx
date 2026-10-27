@@ -7,11 +7,14 @@ import type { Page } from "../domain/routine-start.ts";
 import { actionsOf } from "../domain/routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useWakeLock } from "../hooks/use-wake-lock.ts";
 import { timers } from "../store/browser.ts";
 import { chime } from "../ui/chime.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
+import { PausedNote } from "../ui/paused-note.tsx";
+import { cameFrom } from "../ui/place.ts";
 import type { Flows } from "../ui/routine-flows.ts";
 import { press } from "../ui/press.ts";
 import { StartPage } from "../ui/start-page.tsx";
@@ -38,6 +41,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
   const [failure, setFailure] = useState<string[]>([]);
   const wake = useWakeLock();
   const { once } = useBusy();
+  const { locked, hold } = useWriteLock();
   const root = useRef<HTMLElement>(null);
   const moved = useRef(false);
   const since = useRef(performance.now());
@@ -61,7 +65,8 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
 
   const exit = () => {
     timers.keep(me, routine.id, null);
-    location.replace(`#/routines/${routine.id}`);
+    if (cameFrom() === null) location.replace(`#/routines/${routine.id}`);
+    else history.back();
   };
 
   const go = (to: number) => {
@@ -98,17 +103,20 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
     me,
     side,
     day,
+    locked,
     say: setMessage,
-    tick: (action: ItemRow) => void write(() => flows.toggle(routine, action)),
-    plus: (action: ItemRow) => void write(() => flows.plus(routine, action)),
+    tick: (action: ItemRow) => (locked ? hold() : void write(() => flows.toggle(routine, action))),
+    plus: (action: ItemRow) => (locked ? hold() : void write(() => flows.plus(routine, action))),
     done: (action: ItemRow, after?: () => void) =>
-      void write(
-        () => flows.toggle(routine, action),
-        () => {
-          after?.();
-          go(at + 1);
-        },
-      ),
+      locked
+        ? hold()
+        : void write(
+            () => flows.toggle(routine, action),
+            () => {
+              after?.();
+              go(at + 1);
+            },
+          ),
     next: () => go(at + 1),
   };
 
@@ -140,7 +148,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
       <div className="start-head">
         <Title className="start-name">{routine.title}</Title>
         {!idle && <span className="start-pos">{start.position(Math.min(at + 1, total), total)}</span>}
-        <button type="button" className="ib" aria-label={start.exit} onClick={exit}>
+        <button type="button" className="ib" aria-label={start.leave} onClick={exit}>
           <Icon name="close" />
         </button>
       </div>
@@ -159,7 +167,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
       <div className="start-page" key={`${day}:${current ?? "end"}`}>
         {page !== undefined ? (
           <>
-            <StartPage {...moves} page={page} />
+            <StartPage {...moves} page={page} last={upcoming === undefined} />
             <p className="start-up">{upcoming === undefined ? start.last : start.up(label(upcoming))}</p>
           </>
         ) : idle ? (
@@ -188,21 +196,24 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
           </>
         )}
       </div>
+      <PausedNote />
       {failure.length > 0 && (
         <p className="error" role="alert">
           {failure.join(" ")}
         </p>
       )}
-      <div className="start-foot">
-        <button type="button" className="secondary start-alt" disabled={at === 0 || idle} onClick={() => go(at - 1)}>
-          {start.back}
-        </button>
-        {page !== undefined && isOpen(page, side, day) && (
-          <button type="button" className="secondary start-alt" onClick={() => go(at + 1)}>
-            {start.skip}
+      {page !== undefined && (
+        <div className="start-foot">
+          <button type="button" className="secondary start-alt" disabled={at === 0} onClick={() => go(at - 1)}>
+            {start.back}
           </button>
-        )}
-      </div>
+          {isOpen(page, side, day) && (
+            <button type="button" className="secondary start-alt" onClick={() => go(at + 1)}>
+              {start.skip}
+            </button>
+          )}
+        </div>
+      )}
       {wake.state !== "idle" && <p className="hint start-awake">{wake.state === "held" ? start.awake : start.mayDim}</p>}
       <p className="visually-hidden" role="status">
         {page === undefined && !idle ? ending : message}

@@ -111,7 +111,7 @@ test("the routine page keeps Edit beside one More menu, named for the routine, a
   assert.equal(buttons.length, 2);
   assert.match(buttons[1], /aria-haspopup="menu" aria-expanded="false" aria-label="More actions for Morning care"/);
   assert.doesNotMatch(tools, /Duplicate|Pause|Resume|Delete/);
-  assert.match(tools, /<span>More<\/span>|More<\/button>/);
+  assert.match(tools, /<span class="menu-word">More<\/span><\/button>/);
 });
 
 test("the edit sheet no longer carries Delete or the Paused until date", () => {

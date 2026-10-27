@@ -154,21 +154,91 @@ test("only the folded state hides the card's body", (t) => {
   assert.deepEqual([stateOf(), hidden()], ["kept", false]);
 });
 
-test("the Start link shows only on an open card that has something to walk through", (t) => {
+test("the Step by step link sits in the header row of an open card that has a timer or four open steps, stays through the settle with what it showed, goes at the fold, and does not come back stale", (t) => {
   const parent = routine("Morning care");
-  const start = (view: { tree: unknown }) => find(view.tree as never, (element) => element.props.className === "rt-start").length;
+  const steps = ["Cleanse", "Tone", "Serum", "Cream", "Mist"].map((title) => step(parent, title));
+  const ticked = (count: number) => steps.map((row, index) => (index < count ? { ...row, data: { done_a: DAY } } : row));
+  const go = (view: { tree: unknown }) => find(view.tree as never, (element) => String(element.props.className).includes("rt-go"));
+  const word = (view: { tree: unknown }) => go(view).map(textOf);
   const none = mountBlock(t, parent, 1);
-  assert.equal(start(none.view), 0);
-  const some = mountBlock(t, parent, 1, 2, [step(parent, "Cleanse")]);
-  assert.equal(start(some.view), 1);
-  some.progress(2);
-  assert.equal(start(some.view), 1);
+  assert.equal(go(none.view).length, 0);
+  const short = mountBlock(t, parent, 0, 3, steps.slice(0, 3));
+  assert.equal(go(short.view).length, 0);
+  const some = mountBlock(t, parent, 0, 5, steps);
+  assert.deepEqual(word(some.view), [copy.start.open]);
+  assert.equal(find(some.view.tree, (element) => element.props.className === "rt-start").length, 0);
+  assert.equal(go(some.view)[0].props["aria-label"], `${copy.start.open}: Morning care`);
+  some.view.update({ block: block(parent, 1, 5, ticked(1)) });
+  assert.deepEqual(word(some.view), [copy.start.resume]);
+  some.view.update({ block: block(parent, 4, 5, ticked(4)) });
+  assert.deepEqual(word(some.view), [copy.start.resume]);
+  some.view.update({ block: block(parent, 5, 5, ticked(5)) });
   assert.equal(some.stateOf(), "settling");
+  assert.deepEqual(word(some.view), [copy.start.resume]);
   mock.timers.tick(SETTLE_MS);
-  assert.equal(start(some.view), 0);
+  assert.equal(some.stateOf(), "folded");
+  assert.equal(go(some.view).length, 0);
   find(some.view.tree, (element) => element.props.className === "rt-fold")[0].props.onClick();
   assert.equal(some.stateOf(), "kept");
-  assert.equal(start(some.view), 0);
+  assert.equal(go(some.view).length, 0);
+  some.view.update({ block: block(parent, 4, 5, ticked(4)) });
+  assert.equal(some.stateOf(), "open");
+  assert.equal(go(some.view).length, 0);
+});
+
+test("a ticked row never makes the offer vanish before the last tick, and its label changes inside a box that always holds the wider one", (t) => {
+  const parent = routine("Morning care");
+  const steps = ["Cleanse", "Tone", "Serum", "Cream", "Mist"].map((title) => step(parent, title));
+  const ticked = (count: number) => steps.map((row, index) => (index < count ? { ...row, data: { done_a: DAY } } : row));
+  const go = (view: { tree: unknown }) => find(view.tree as never, (element) => String(element.props.className).includes("rt-go"));
+  const word = (view: { tree: unknown }) => find(go(view)[0], (element) => element.props.className === "rt-word")[0];
+  const { view } = mountBlock(t, parent, 0, 5, steps);
+  assert.equal(word(view).props["data-wide"], copy.start.open);
+  assert.equal(textOf(word(view)), copy.start.open);
+  for (let count = 1; count < 5; count++) {
+    view.update({ block: block(parent, count, 5, ticked(count)) });
+    assert.equal(go(view).length, 1, `after ${count} ticks`);
+    assert.equal(word(view).props["data-wide"], copy.start.open, `after ${count} ticks`);
+    assert.equal(textOf(word(view)), copy.start.resume, `after ${count} ticks`);
+  }
+  assert.ok(copy.start.open.length >= copy.start.resume.length);
+});
+
+test("the Start label sits in a one-cell grid with a hidden copy of the wider label, so the link keeps the width and the line count of the wider label at every phone width and text size", () => {
+  eachScreen(({ px, zoom, width }) => {
+    const label = `${px}px ${zoom}`;
+    const word = cascade(routinesCss, ".rt-word", width);
+    assert.deepEqual([word.get("display"), word.get("justify-items"), word.get("text-align")], ["inline-grid", "center", "center"], label);
+    const sizer = cascade(routinesCss, ".rt-word::after", width);
+    assert.deepEqual([sizer.get("content"), sizer.get("visibility"), sizer.get("grid-area")], ["attr(data-wide)", "hidden", "1 / 1"], label);
+    assert.equal(cascade(routinesCss, ".rt-word > *", width).get("grid-area"), "1 / 1", label);
+    const link = cascade(routinesCss, ".rt-go", width);
+    assert.deepEqual([link.get("flex"), link.get("max-width"), link.get("min-height")], ["none", "100%", "var(--target-min)"], label);
+  });
+});
+
+test("the detail toolbar drops the glyphs of Start and Edit and the word of More when the row would not hold them, keeps the ellipsis, and keeps the natural widths that never stretch a control", () => {
+  const glyphs = ".rt-tools:has(> .rt-lead) > :not([aria-haspopup]) > svg";
+  const word = ".rt-tools:has(> .rt-lead) > [aria-haspopup] > .menu-word";
+  const ellipsis = ".rt-tools:has(> .rt-lead) > [aria-haspopup] > svg";
+  eachScreen(({ px, zoom, width }) => {
+    const hidden = px === 412 && zoom === 1 ? undefined : "none";
+    assert.equal(cascade(routinesCss, glyphs, width).get("display"), hidden, `${px}px ${zoom}`);
+    assert.equal(cascade(routinesCss, word, width).get("display"), hidden, `${px}px ${zoom}`);
+    assert.equal(cascade(routinesCss, ellipsis, width).get("display"), undefined, `${px}px ${zoom}`);
+    assert.equal(cascade(routinesCss, ".rt-tools > *", width).get("flex"), "0 1 auto", `${px}px ${zoom}`);
+  });
+  for (const rem of [10, 18.5, 20, 25.5]) assert.deepEqual([at(glyphs, rem).get("display"), at(word, rem).get("display")], ["none", "none"], `${rem}rem`);
+  for (const rem of [25.51, 26, 40]) assert.deepEqual([at(glyphs, rem).get("display"), at(word, rem).get("display")], [undefined, undefined], `${rem}rem`);
+  assert.equal(at(".rt-tools > .rt-lead", 20).get("flex"), undefined);
+});
+
+test("a card's title link names the Start link it stands in for, so Back finds its routine when the offer is gone", (t) => {
+  const parent = routine("Morning care");
+  const { view } = mountBlock(t, parent, 1);
+  const title = find(view.tree, (element) => element.props.href === `#/routines/${parent.id}` && element.type === "a" && element.props["data-replaces"] !== undefined);
+  assert.equal(title.length, 1);
+  assert.equal(title[0].props["data-replaces"], `#/routines/${parent.id}/start`);
 });
 
 test("an open card shows its progress only when there is something to count", (t) => {
@@ -573,7 +643,6 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
     "0 of 1",
     "Mark Dim the lights as done",
     "Dim the lights",
-    "Start",
     "Done today",
     "Morning care",
     "Done",
@@ -594,7 +663,7 @@ test("Today's text nodes are exactly the titles, labels and counts, with no stra
 
 test("Today with one routine, with none, and with one that is not scheduled today each say exactly their own text", async () => {
   const open = routine("Evening wind down", "evening");
-  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "Start", "All routines"]);
+  assert.deepEqual(await textsOf([open, step(open, "Dim the lights")]), ["Today · Mon, 26 Oct", "0 of 1", "Evening wind down", "Evening", "0 of 1", "Mark Dim the lights as done", "Dim the lights", "All routines"]);
   assert.deepEqual(await textsOf([]), ["Today · Mon, 26 Oct", copy.emptyHome, copy.create]);
   const other = item({ kind: "routine", status: null, who: "a", title: "Tuesday only", group_key: "morning", data: { days: "tue" } });
   assert.deepEqual(await textsOf([other, step(other, "Water the plants")]), ["Today · Mon, 26 Oct", copy.nothingToday, "All routines"]);
