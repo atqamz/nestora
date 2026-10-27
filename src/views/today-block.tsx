@@ -72,7 +72,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
     if (fold === "folded" || fold === "open") focus.current = null;
   }, [fold]);
   const folding = fold === "folded" || fold === "kept";
-  const offer = useHeld(offerOf(routine, actions, side, day), folding, day);
+  const offer = useHeld(offerOf(routine, actions, side, day), folding || complete, day);
   const go = offer === "continue" ? copy.start.resume : copy.start.open;
   const strip = weekStrip(routine, actionsOf(items, routine), day, side);
   const again = () => {
@@ -106,7 +106,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
             </button>
           ) : (
             <>
-              <a ref={link} href={`#/routines/${routine.id}`}>
+              <a ref={link} href={`#/routines/${routine.id}`} data-replaces={`#/routines/${routine.id}/start`}>
                 {name}
               </a>
               <span>{momentLabel(momentOf(routine))}</span>
@@ -117,7 +117,9 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
         {offer !== null && (
           <a className="button secondary rt-go" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(go, routine.title)}>
             <Icon name="play" />
-            {go}
+            <span className="rt-word" data-wide={copy.start.open}>
+              <span>{go}</span>
+            </span>
           </a>
         )}
       </div>

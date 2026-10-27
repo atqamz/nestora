@@ -87,12 +87,14 @@ function RoutinePage({ routine, actions, me, day, flows, setSheet }: PageProps) 
       {table && <Timetable days={weekOf(routine, actions, day)} today={day} />}
       <div className="rt-tools">
         {offer !== null && (
-          <a className="button" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(go, routine.title)}>
+          <a className="button rt-lead" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(go, routine.title)}>
             <Icon name="play" />
-            {go}
+            <span className="rt-word" data-wide={copy.start.open}>
+              <span>{go}</span>
+            </span>
           </a>
         )}
-        <button type="button" className="secondary" onClick={() => setSheet("edit")}>
+        <button type="button" className="secondary" data-replaces={`#/routines/${routine.id}/start`} onClick={() => setSheet("edit")}>
           <Icon name="edit" />
           {copy.edit}
         </button>

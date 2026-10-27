@@ -11,6 +11,12 @@
   max-width: 100%;
 }
 
+@media (max-width: 25.5rem) {
+  .rt-tools:has(> .rt-lead) > * > svg {
+    display: none;
+  }
+}
+
 .rt-tools svg,
 .rt-add svg {
   flex: none;
@@ -466,6 +472,22 @@
   flex: none;
   max-width: 100%;
   min-height: var(--target-min);
+}
+
+.rt-word {
+  display: inline-grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.rt-word > *,
+.rt-word::after {
+  grid-area: 1 / 1;
+}
+
+.rt-word::after {
+  content: attr(data-wide);
+  visibility: hidden;
 }
 
 .rt-week {

@@ -900,7 +900,6 @@ export const text = {
       open: "Step by step",
       resume: "Continue",
       openNamed: (label: string, title: string) => `${label}: ${title}`,
-      exit: "Exit",
       position: (at: number, total: number) => `${at} of ${total}`,
       announce: (at: number, total: number, title: string) => `${at} of ${total}: ${title}`,
       items: "Items",

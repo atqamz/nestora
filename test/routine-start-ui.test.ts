@@ -143,10 +143,12 @@ test("the week strip is a list of seven days, today is marked by aria-current, a
 test("the detail and the Today block lead into Start, and the strip shows on both", () => {
   const detail = read("views/routine.tsx");
   assert.match(detail, /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\)/);
-  assert.match(detail, /\{offer !== null && \(\s*<a className="button" href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}>/);
+  assert.match(detail, /\{offer !== null && \(\s*<a className="button rt-lead" href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}>/);
+  assert.match(detail, /<button type="button" className="secondary" data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\} onClick=\{\(\) => setSheet\("edit"\)\}>/);
   assert.match(detail, /\{strip !== null && <RoutineWeek strip=\{strip\} \/>\}/);
   const today = read("views/today-block.tsx");
   assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}/);
+  assert.match(today, /<a ref=\{link\} href=\{`#\/routines\/\$\{routine\.id\}`\} data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
   assert.match(today, /weekStrip\(routine, actionsOf\(items, routine\), day, side\)/);
   assert.match(today, /<RoutineWeek strip=\{strip\} compact \/>/);
 });
@@ -230,6 +232,13 @@ test("leaving Start goes back to where it was opened, and to the routine only wh
   assert.match(read("hooks/use-wake-lock.ts"), /return \(\) => \{[^}]*leave\(\);/s);
 });
 
+test("one action on Start has one name: the header icon and the end screen both say Close, and Exit is gone", () => {
+  assert.equal("exit" in text.routines.start, false);
+  assert.match(start, /<button type="button" className="ib" aria-label=\{start\.leave\} onClick=\{exit\}>/);
+  assert.equal([...start.matchAll(/\{start\.leave\}/g)].length, 3);
+  assert.equal([...start.matchAll(/start\.exit/g)].length, 0);
+});
+
 test("the last page's primary says Finish, the end screen has one primary, Close, and no footer Back", () => {
   assert.equal(text.routines.start.finish, "Finish");
   assert.equal(text.routines.start.leave, "Close");
@@ -270,6 +279,6 @@ test("the offer is held while ticking, so a tap never moves the rows below it, a
   view.update({ now: "start", day: "2026-10-28" });
   view.update({ now: null });
   assert.equal(offer(), "start");
-  assert.match(read("views/today-block.tsx"), /const offer = useHeld\(offerOf\(routine, actions, side, day\), folding, day\);/);
+  assert.match(read("views/today-block.tsx"), /const offer = useHeld\(offerOf\(routine, actions, side, day\), folding \|\| complete, day\);/);
   assert.match(read("views/routine.tsx"), /const offer = useHeld\(offerOf\(routine, actions, keyFor\(routine\.who, me\), day\), !today \|\| finished\(\{ done, total \}\), day\);/);
 });

@@ -314,7 +314,9 @@ test("the routine detail shows one filled button and two outlined ones in one to
     assert.equal(controls.length, 3);
     const filled = controls.filter((control) => !control.includes("secondary"));
     assert.equal(filled.length, 1);
-    assert.match(filled[0], /^<a class="button"/);
+    assert.match(filled[0], /^<a class="button rt-lead"/);
+    assert.match(tools, /<span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span>/);
+    assert.match(tools, /<button type="button" class="secondary" data-replaces="#\/routines\/[^"]+\/start">/);
   } finally {
     mock.timers.reset();
   }

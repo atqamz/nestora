@@ -22,7 +22,7 @@ export type Offer = "start" | "continue";
 export const offerOf = (routine: ItemRow, actions: readonly ItemRow[], side: Side, day: string): Offer | null => {
   const todays = actions.filter((action) => actionOccursOn(routine, action, day));
   const open = todays.filter((action) => (action.kind === "step" || action.kind === "timer") && !isDone(action, side, day));
-  if (!open.some((action) => action.kind === "timer") && open.length < MIN_STEPS) return null;
+  if (!open.some((action) => action.kind === "timer" && typeof action.data?.minutes === "number") && open.length < MIN_STEPS) return null;
   return progress(todays, side, day).done > 0 ? "continue" : "start";
 };
 

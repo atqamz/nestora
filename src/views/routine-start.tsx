@@ -142,7 +142,7 @@ function Session({ routine, items, flows, me, day }: { routine: ItemRow; items: 
       <div className="start-head">
         <Title className="start-name">{routine.title}</Title>
         {!idle && <span className="start-pos">{start.position(Math.min(at + 1, total), total)}</span>}
-        <button type="button" className="ib" aria-label={start.exit} onClick={exit}>
+        <button type="button" className="ib" aria-label={start.leave} onClick={exit}>
           <Icon name="close" />
         </button>
       </div>

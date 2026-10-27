@@ -526,6 +526,17 @@ test("Step by step is offered for a timer or four open steps, and for nothing el
   assert.equal(offerOf(r, steps(r, 1), "a", DAY), null);
 });
 
+test("a timer with no minutes has nothing to time: it counts as a step, not as the reason to offer Step by step", () => {
+  const r = routine();
+  const bare = (title: string, data: Record<string, unknown> | null = {}) => action(r, title, "timer", { data });
+  assert.equal(offerOf(r, [bare("item 1")], "a", DAY), null);
+  assert.equal(offerOf(r, [bare("item 1", null)], "a", DAY), null);
+  assert.equal(offerOf(r, [bare("item 1"), ...steps(r, 2)], "a", DAY), null);
+  assert.equal(offerOf(r, [bare("item 1"), ...steps(r, 3)], "a", DAY), "start");
+  assert.equal(offerOf(r, [bare("item 1"), action(r, "item 2", "timer", { data: { minutes: 5 } })], "a", DAY), "start");
+  assert.equal(offerOf(r, [action(r, "item 1", "step", { data: { minutes: 5 } })], "a", DAY), null);
+});
+
 test("an items-only, a counter-only, a note-only and a finished routine are never offered it", () => {
   const r = routine();
   assert.equal(offerOf(r, steps(r, 6, "pack"), "a", DAY), null);

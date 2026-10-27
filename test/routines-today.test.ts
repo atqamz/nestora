@@ -319,9 +319,9 @@ test("Today puts one compact Step by step link in the header row of a routine wi
     item({ kind: "timer", status: null, parent_id: timed.id, title: "Mask", data: { minutes: 10 } }),
   ]);
   const head = (title: string) => new RegExp(`<div class="rt-head"><h3><a [^>]*>${title}</a>.*?</div>`, "s").exec(html)?.[0] ?? "";
-  assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg>Step by step<\/a><\/div>$/s);
+  assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg><span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span><\/a><\/div>$/s);
   assert.match(head("Mask night"), /aria-label="Step by step: Mask night"/);
-  assert.equal([...html.matchAll(/\/start"/g)].length, 2);
+  assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 2);
   assert.equal(html.includes("rt-start"), false);
 });
 
@@ -341,7 +341,7 @@ test("Today reads Continue once a step is ticked, and offers nothing on items, a
     short,
     ...["One", "Two", "Three"].map((title) => step(short, title)),
   ]);
-  assert.match(html, /aria-label="Continue: Skincare"[^>]*>(?:(?!<\/a>).)*Continue<\/a>/s);
-  assert.equal([...html.matchAll(/\/start"/g)].length, 1);
-  assert.equal(html.includes("Step by step"), false);
+  assert.match(html, /aria-label="Continue: Skincare"[^>]*>(?:(?!<\/a>).)*<span class="rt-word" data-wide="Step by step"><span>Continue<\/span><\/span><\/a>/s);
+  assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 1);
+  assert.doesNotMatch(html, /aria-label="Step by step|<span>Step by step<\/span>/);
 });
