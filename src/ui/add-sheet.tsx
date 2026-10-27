@@ -278,6 +278,7 @@ function AddForm({ seed }: { seed: string }) {
         </button>
       </div>
       <div className="sheet-body">
+        <PausedNote />
         <div role="group" aria-label={text.sheet.kind} className="kinds">
           {KINDS.map((name) => (
             <button key={name} type="button" aria-pressed={kind === name} onClick={() => setKindPick(name)}>
@@ -359,7 +360,6 @@ function AddForm({ seed }: { seed: string }) {
         )}
       </div>
       <div className="sheet-foot">
-        <PausedNote />
         <button type="submit" disabled={busy} {...lockedProps(locked)}>
           {kind === "book" ? book.saveLabel : text.sheet.save[kind]}
         </button>

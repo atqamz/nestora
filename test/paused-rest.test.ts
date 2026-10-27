@@ -1,11 +1,13 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
 import { createElement } from "react";
 import type { ReactElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { overlay } from "../src/ui/overlay.ts";
 import { text } from "../src/ui/text.ts";
 import { entry, item, payment } from "./domain-rows.ts";
+import { cascade, sheet } from "./css.ts";
 import { find, mount } from "./mount.ts";
 import { markupOf } from "./render.ts";
 import { actions, stage, useSnapshot } from "./render-store.ts";
@@ -31,6 +33,9 @@ const { SettingRow } = await load("ui/setting-row.tsx");
 const { StageEditor } = await load("ui/stage-editor.tsx");
 const { CollectionSection } = await load("ui/collection-section.tsx");
 const { FillBook } = await load("ui/book-lookup.tsx");
+const { ScreenPosters } = await load("ui/screen-posters.tsx");
+const { Field } = await load("ui/field.tsx");
+const { Shell } = await load("ui/shell.tsx");
 (globalThis as Record<string, unknown>).BarcodeDetector = class {
   static getSupportedFormats = async () => ["ean_13"];
 };
@@ -368,6 +373,15 @@ add("collection move down", "ui/collection-section.tsx", () => {
   return { view: part(view, "ScreenRow", 0), pick: (props) => props["data-move"] === `down:${rows[0].id}`, fire: "onClick" };
 });
 
+add("collection move up", "ui/collection-section.tsx", () => {
+  const rows = members();
+  stage(rows);
+  const view = mount<Record<string, any>>(CollectionSection, { kind: "movie", group: group(rows) });
+  return { view: part(view, "ScreenRow", 1), pick: (props) => props["data-move"] === `up:${rows[1].id}`, fire: "onClick" };
+});
+
+add("Find posters on a list of movies", "ui/screen-posters.tsx", () => ({ view: part(mount<Record<string, any>>(ScreenPosters, { kind: "movie", rows: [movie({ status: "wish" })] }), "PostersBar"), pick: (props) => props.type === "button" && props.className === "secondary", fire: "onClick", lookup: true }));
+
 add("collection rename Save", "ui/collection-section.tsx", () => {
   const rows = members();
   stage(rows);
@@ -392,9 +406,9 @@ for (const paused of [true, false]) {
       if (!paused && follow) await tag(view, follow).props.onClick(event());
       if (!paused && follow) await settle();
       if (paused) {
-        assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], silent || foot ? [[], 0, 0, undefined] : [[], 0, 1, text.paused]);
+        assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], silent || foot ? [[], 0, 0, undefined] : [[], 0, 1, text.pausedTap]);
       } else {
-        assert.deepEqual([writes.length > 0 || lookup === true, errors(view), overlay.getSnapshot().toast?.message === text.paused], [true, 0, false]);
+        assert.deepEqual([writes.length > 0 || lookup === true, errors(view), overlay.getSnapshot().toast?.message === text.pausedTap], [true, 0, false]);
       }
     });
   }
@@ -411,8 +425,8 @@ for (const [id, label, live] of [["pause", "Resume", "update"], ["delete", "Dele
       assert.deepEqual([entry.label, entry.locked], [label, paused]);
       entry.run();
       await settle();
-      if (paused) assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], 0, 1, text.paused]);
-      else assert.deepEqual([writes.includes(live), errors(view), overlay.getSnapshot().toast?.message === text.paused], [true, 0, false]);
+      if (paused) assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], 0, 1, text.pausedTap]);
+      else assert.deepEqual([writes.includes(live), errors(view), overlay.getSnapshot().toast?.message === text.pausedTap], [true, 0, false]);
     });
   }
 }
@@ -426,8 +440,8 @@ for (const paused of [true, false]) {
     assert.equal(control.locked, paused);
     await control.onChange("1");
     await settle();
-    if (paused) assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], 0, 1, text.paused]);
-    else assert.deepEqual([writes, errors(view), overlay.getSnapshot().toast?.message === text.paused], [["setSetting"], 0, false]);
+    if (paused) assert.deepEqual([writes, errors(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], 0, 1, text.pausedTap]);
+    else assert.deepEqual([writes, errors(view), overlay.getSnapshot().toast?.message === text.pausedTap], [["setSetting"], 0, false]);
   });
 
   test(`ui/scan.tsx: Scan on a detail that writes ${paused ? "only announces the pause while paused" : "opens the camera when live"}`, async (t) => {
@@ -451,28 +465,31 @@ test("ui/scan.tsx: Scan in a form that only fills fields is not a write and stay
   assert.deepEqual([button.props["aria-disabled"], find(view.tree as never, (_, type) => (type as { name?: string }).name === "Camera").length, announced.mock.callCount()], [undefined, 1, 0]);
 });
 
-test("a sheet with a footer carries one quiet paused note and its submit points at it, only while paused", async (t) => {
+test("a sheet that submits carries one quiet paused note at the top of its scrolling body and its submit points at it, only while paused", async (t) => {
   const sheet = (paused: boolean) => {
     snapshot.paused = paused;
     return markupOf("ui/modal.tsx", ({ Modal }) => createElement(Modal, { title: "Edit", onClose: () => undefined, onSubmit: () => undefined, foot: createElement("button", { type: "submit", ...lockedProps(paused) }, "Save") }, "body"));
   };
   t.after(() => void (snapshot.paused = false));
   const held = await sheet(true);
-  assert.match(held, /<div class="sheet-foot"><p class="hint paused-note" id="paused-note" role="status">Sign-in not confirmed yet\./);
-  assert.match(held, /<button type="submit" aria-disabled="true" aria-describedby="paused-note">Save<\/button>/);
+  assert.match(held, /<div class="sheet-body"><p class="hint paused-note" id="paused-note" role="status">Sign-in not confirmed yet\./);
+  assert.match(held, /<div class="sheet-foot"><button type="submit" aria-disabled="true" aria-describedby="paused-note">Save<\/button><\/div>/);
   const live = await sheet(false);
   assert.equal(live.includes("paused-note"), false);
   assert.match(live, /<button type="submit">Save<\/button>/);
   snapshot.paused = true;
   const menu = await markupOf("ui/modal.tsx", ({ Modal }) => createElement(Modal, { title: "More", onClose: () => undefined }, "items"));
   assert.equal(menu.includes("paused-note"), false);
+  const camera = await markupOf("ui/modal.tsx", ({ Modal }) => createElement(Modal, { title: "Scan", onClose: () => undefined, foot: createElement("button", { type: "button" }, "Cancel") }, "view"));
+  assert.equal(camera.includes("paused-note"), false);
 });
 
 test("the Add sheet keeps its footer note and its typed work while paused: nothing in its state is reset by the tap", async (t) => {
   around(t, true);
   overlay.openAdd("Pick the music");
   const view = part(mount<Record<string, any>>(AddSheet, {}), "AddForm");
-  assert.equal(find(view.tree as never, (_, type) => (type as { name?: string }).name === "PausedNote").length, 1);
+  const noteIn = (className: string) => find(find(view.tree as never, (props) => props.className === className)[0], (_, type) => (type as { name?: string }).name === "PausedNote").length;
+  assert.deepEqual([noteIn("sheet-body"), noteIn("sheet-foot")], [1, 0]);
   const input = tag(view, (props) => props.name === "title");
   assert.equal(input.props.value, "Pick the music");
   await tag(view, form).props.onSubmit(event());
@@ -497,4 +514,90 @@ test("ui/where.tsx: the move picker carries the paused note", async (t) => {
   const chip = mount<Record<string, any>>(CopyChip, { copy, bookTitle: row.title, places: new Map([["p1", item({ id: "p1", kind: "place", title: "Living room", status: null })]]) });
   tag(chip, (props) => typeof props.onPick === "function").props.onPick();
   assert.equal(find(part(chip, "PlacePicker").tree as never, (_, type) => (type as { name?: string }).name === "PausedNote").length, 1);
+});
+
+const focusAt = (y: number) => {
+  const globals = globalThis as unknown as { document: { activeElement?: unknown } };
+  globals.document.activeElement = { getBoundingClientRect: () => ({ top: y, height: 40 }) };
+};
+
+test("a held key on a paused control announces once, and a tap lower on the screen moves the toast to the top and announces again", async (t) => {
+  around(t, true);
+  const view = mount<Record<string, any>>(QuickAdd, { name: "guest" });
+  const submit = () => tag(view, form).props.onSubmit(event({ title: "Aunt Rina" }));
+  focusAt(100);
+  for (let repeat = 0; repeat < 11; repeat++) await submit();
+  const first = overlay.getSnapshot().toast;
+  assert.deepEqual([announced.mock.callCount(), first?.message, first?.top, writes], [1, text.pausedTap, undefined, []]);
+  focusAt(280);
+  await submit();
+  assert.deepEqual([announced.mock.callCount(), overlay.getSnapshot().toast?.id === first?.id], [1, true]);
+  focusAt(310);
+  await submit();
+  await submit();
+  const second = overlay.getSnapshot().toast;
+  assert.deepEqual([announced.mock.callCount(), second?.top, second?.id !== first?.id], [2, true, true]);
+  overlay.dismissToast();
+  await submit();
+  assert.equal(announced.mock.callCount(), 3);
+});
+
+test("the toast keeps the first two sentences of the banner", () => {
+  assert.equal(text.paused.startsWith(`${text.pausedTap} `), true);
+});
+
+test("the toast region marks a toast that sits at the top so the stylesheet can move it off the tapped control", async (t) => {
+  around(t, true);
+  const shell = () => find(mount<Record<string, any>>(Shell, { section: "home", children: "page" }).tree as never, (props) => props.className === "toast")[0].props["data-top"];
+  overlay.announce("Held", undefined, true);
+  const top = shell();
+  overlay.announce("Held");
+  const bottom = shell();
+  assert.deepEqual([top, bottom], [true, undefined]);
+  const rules = sheet("ui/sheet.css");
+  const moved = cascade(rules, ".toast[data-top]", 20);
+  assert.deepEqual([moved.get("top"), moved.get("bottom")], ["calc(var(--safe-t) + var(--s3))", "auto"]);
+});
+
+test("ui/field.tsx: a tap on the already selected radio of a locked choice answers the pause, an unselected one leaves it to its change event", async (t) => {
+  around(t, true);
+  const picks: string[] = [];
+  const radios = (locked: boolean) => {
+    const view = mount<Record<string, any>>(Field, { control: { name: "hijri", label: "Hijri", type: "text", required: true, choice: true, locked, value: "0", options: [{ value: "0", label: "None" }, { value: "1", label: "One" }], onChange: (value: string) => picks.push(value) } });
+    return find(view.tree as never, (props) => props.type === "radio");
+  };
+  const [held, other] = radios(true);
+  held.props.onClick();
+  assert.deepEqual([picks, typeof other.props.onClick, radios(false).map((radio) => radio.props.onClick)], [["0"], "undefined", [undefined, undefined]]);
+});
+
+for (const name of ["quick add", "place add", "money add planned line", "money line add payment"]) {
+  for (const paused of [true, false]) {
+    test(`${name}: an empty field ${paused ? "answers the pause instead of the browser's own bubble" : "keeps the browser's own required bubble"}`, async (t) => {
+      around(t, paused);
+      const { view, pick, fire } = controls.find((control) => control.name === name)!.make();
+      assert.equal(tag(view, pick).props.noValidate, paused);
+      await tag(view, pick).props[fire](event({ title: "" }));
+      await settle();
+      assert.deepEqual([writes, announced.mock.callCount()], [[], paused ? 1 : 0]);
+    });
+  }
+}
+
+test("every control family that goes aria-disabled while paused has the shared muted rule in the stylesheet", () => {
+  const tags = new Set<string>();
+  const walkDir = (dir: URL) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) walkDir(new URL(`${entry.name}/`, dir));
+      else if (entry.name.endsWith(".tsx")) {
+        const source = readFileSync(new URL(entry.name, dir), "utf8");
+        for (const use of source.matchAll(/aria-disabled=|lockedProps\(/g)) tags.add([...source.slice(0, use.index).matchAll(/<([A-Za-z]\w*)/g)].at(-1)![1]);
+      }
+    }
+  };
+  walkDir(new URL("../src/", import.meta.url));
+  assert.deepEqual([...tags].sort(), ["button", "input"]);
+  const rules = [...sheet("ui/ui.css"), ...sheet("ui/sheet.css")];
+  for (const selector of ['button[aria-disabled="true"]', '.check input[aria-disabled="true"]', '.choices label:has(input[aria-disabled="true"])'])
+    assert.equal(cascade(rules, selector, 20).get("opacity"), "0.6", selector);
 });

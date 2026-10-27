@@ -41,7 +41,7 @@ export function QuickAdd({ name, onAdded }: { name: ListName; onAdded?: () => vo
   };
 
   return (
-    <form className="quick-add" onSubmit={add}>
+    <form className="quick-add" noValidate={locked} onSubmit={add}>
       <label className="visually-hidden" htmlFor={`add-${name}`}>
         {text.quickAdd[name].label}
       </label>

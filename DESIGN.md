@@ -150,7 +150,7 @@ Controls are gently rounded (`--r-control` 0.625rem); groups and cards 1rem (`--
 - **Secondary (outlined):** transparent with a `--ink-2` border.
 - **Danger:** transparent with `--late` border and text.
 - **Disabled:** 60 % opacity; a control that cannot act today stays focusable with `aria-disabled`.
-- **Paused:** every write control takes the disabled look while the store is held. A tap writes nothing and raises the toast with the banner sentence, keeping focus on the control, because focusing the banner scrolls the page to the top. In a sheet the footer carries the sentence, since a modal dialog makes the banner and the toast inert; the fields stay editable and only the submit is `aria-disabled`.
+- **Paused:** every write control takes the disabled look while the store is held. A tap writes nothing and raises the toast with the first two sentences of the banner, keeping focus on the control, because focusing the banner scrolls the page to the top. The toast sits at the top of the screen when the tapped control is in its lower part, so it never covers the control or its focus ring, and a held key announces it once. In a sheet the top of the scrolling body carries the full sentence, since a modal dialog makes the banner and the toast inert and a note in the fixed footer would squeeze the fields at large text; the fields stay editable and only the submit is `aria-disabled`.
 - **Pill:** a 2rem capsule whose hit area is extended to 44 px; the one quick verb on a row.
 
 ### Row (`.row` in `.rows`)

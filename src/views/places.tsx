@@ -174,7 +174,7 @@ export function Places() {
       </p>
       <Title>{text.books.places}</Title>
       <p className="hint bk-of">{copy.hint}</p>
-      <form className="quick-add" onSubmit={add}>
+      <form className="quick-add" noValidate={locked} onSubmit={add}>
         <label className="visually-hidden" htmlFor="place-add">
           {copy.addLabel}
         </label>

@@ -182,7 +182,7 @@ export function MoneyView({ id }: { id?: string }) {
       </section>
       <section aria-labelledby="by-event">
         <h2 id="by-event">{text.money.byEvent}</h2>
-        <form className="quick-add budget-add" onSubmit={add}>
+        <form className="quick-add budget-add" noValidate={locked} onSubmit={add}>
           <label className="visually-hidden" htmlFor="budget-title">
             {text.budget.addLabel}
           </label>

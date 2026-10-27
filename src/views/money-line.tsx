@@ -97,7 +97,7 @@ export function MoneyLine({ id, wide }: { id: string; wide: boolean }) {
             ))}
           </ul>
         )}
-        <form className="form" onSubmit={add}>
+        <form className="form" noValidate={locked} onSubmit={add}>
           <Sub>{text.budget.addPayment}</Sub>
           <div className="field">
             <label htmlFor="payment-title">{text.budget.paymentLabel}</label>

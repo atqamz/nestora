@@ -71,6 +71,7 @@ export function Field({ control, error }: { control: Control; error?: string }) 
                 name={name}
                 value={option.value}
                 aria-disabled={locked || undefined}
+                onClick={locked && shown === option.value ? () => onChange?.(option.value) : undefined}
                 {...(onChange ? { checked: shown === option.value, onChange: () => onChange(option.value) } : { defaultChecked: shown === option.value })}
               />
               <span>

@@ -82,7 +82,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
         <main data-page={journey ? "journey" : undefined}>{link === "mismatch" ? null : children}</main>
       </div>
       <Nav className="tabs" section={section} locked={link === "mismatch"} />
-      <div className="toast" role="status">
+      <div className="toast" role="status" data-top={toast?.top}>
         {toast && (
           <p key={toast.id}>
             <span>{toast.message}</span>

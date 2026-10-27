@@ -163,7 +163,7 @@ for (const [name, make] of [["movie", () => screenView(movie())], ["book", () =>
     byLabel(view, text.editNamed(title)).props.onClick();
     menuOf(view).run();
     await settle();
-    assert.deepEqual([calls, removed, many, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], [], undefined, 2, text.paused]);
+    assert.deepEqual([calls, removed, many, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], [], undefined, 1, text.pausedTap]);
     snapshot.paused = false;
     assert.deepEqual([byLabel(make(), text.editNamed(title)).props["aria-disabled"], menuOf(make()).locked], [undefined, false]);
   });

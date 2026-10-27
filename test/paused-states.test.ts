@@ -102,7 +102,7 @@ test("a tap while paused only announces the pause in place: the write is never r
       let hook!: { locked: boolean; guard: (run: () => void) => () => void };
       await markupOf("hooks/use-write-lock.ts", (loaded) => ((hook = loaded.useWriteLock()), null as never));
       hook.guard(() => void calls.push("write"))();
-      assert.deepEqual([hook.locked, calls, overlay.getSnapshot().toast?.message], locked ? [true, [], text.paused] : [false, ["write"], undefined]);
+      assert.deepEqual([hook.locked, calls, overlay.getSnapshot().toast?.message], locked ? [true, [], text.pausedTap] : [false, ["write"], undefined]);
     }
   } finally {
     delete globals.document;

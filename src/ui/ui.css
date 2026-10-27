@@ -193,6 +193,10 @@ fieldset.field {
   box-shadow: 0 0 0 1px var(--line);
 }
 
+.choices label:has(input[aria-disabled="true"]) {
+  opacity: 0.6;
+}
+
 .choices label:has(input:focus-visible) {
   outline: 2.5px solid var(--focus);
   outline-offset: 2px;

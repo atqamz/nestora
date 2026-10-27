@@ -185,7 +185,7 @@ test("while paused a tap on a choice, on Edit or on Delete only announces the pa
   byLabel(view, text.editNamed("Pick the music")).props.onClick();
   menuOf(view).run();
   await settle();
-  assert.deepEqual([calls, removed, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], undefined, 3, text.paused]);
+  assert.deepEqual([calls, removed, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], undefined, 1, text.pausedTap]);
 });
 
 test("while paused Edit and the Delete menu item announce aria-disabled, live they carry none", async (t) => {

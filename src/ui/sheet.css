@@ -94,7 +94,7 @@ html:has(dialog[open]) {
 }
 
 .paused-note {
-  margin-bottom: var(--s2);
+  margin: 0 0 var(--s3);
   text-align: center;
   text-wrap: balance;
 }
@@ -293,6 +293,11 @@ html:has(dialog[open]) {
   justify-content: center;
   padding: 0 max(var(--s3), var(--safe-r)) 0 max(var(--s3), var(--safe-l));
   pointer-events: none;
+}
+
+.toast[data-top] {
+  top: calc(var(--safe-t) + var(--s3));
+  bottom: auto;
 }
 
 .toast p {

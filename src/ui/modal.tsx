@@ -39,13 +39,11 @@ export function Modal({ title, onClose, onSubmit, foot, dismissible, className, 
           <Icon name="close" />
         </button>
       </div>
-      <div className="sheet-body">{children}</div>
-      {foot && (
-        <div className="sheet-foot">
-          <PausedNote />
-          {foot}
-        </div>
-      )}
+      <div className="sheet-body">
+        {onSubmit && <PausedNote />}
+        {children}
+      </div>
+      {foot && <div className="sheet-foot">{foot}</div>}
     </>
   );
   return (

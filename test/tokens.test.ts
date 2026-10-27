@@ -111,6 +111,7 @@ test("only decorative or disabled rules use opacity, so a text pair never hides 
   assert.deepEqual(rules, [
     '.sync[data-state="pending"] a::before, .sync[data-state="paused"] a::before, .sync[data-state="offline"] a::before',
     'button:disabled, button[aria-disabled="true"]',
+    '.choices label:has(input[aria-disabled="true"])',
     '.check input:disabled, .check input[aria-disabled="true"]',
     ".av img",
   ]);
