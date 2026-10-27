@@ -148,7 +148,7 @@ test("the detail and the Today block lead into Start, and the strip shows on bot
   assert.match(detail, /\{strip !== null && <RoutineWeek strip=\{strip\} \/>\}/);
   const today = read("views/today-block.tsx");
   assert.match(today, /href=\{`#\/routines\/\$\{routine\.id\}\/start`\} aria-label=\{copy\.start\.openNamed\(go, routine\.title\)\}/);
-  assert.match(today, /<a ref=\{link\} href=\{`#\/routines\/\$\{routine\.id\}`\} data-replaces=\{`#\/routines\/\$\{routine\.id\}\/start`\}>/);
+  assert.match(today, /data-replaces=\{folding \? undefined : `#\/routines\/\$\{routine\.id\}\/start`\}/);
   assert.match(today, /weekStrip\(routine, actionsOf\(items, routine\), day, side\)/);
   assert.match(today, /<RoutineWeek strip=\{strip\} compact \/>/);
 });

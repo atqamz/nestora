@@ -22,11 +22,11 @@ export const SETTLE_CAP_MS = 3000;
 
 const TOUCHES = ["pointerdown", "touchstart", "keydown"] as const;
 
-type Fold = "open" | "settling" | "folded" | "kept";
+type Fold = "open" | "settling" | "folded";
 
-type Props = { block: Block; items: readonly ItemRow[]; flows: Flows; me: Side; day: string };
+type Props = { block: Block; items: readonly ItemRow[]; flows: Flows; me: Side; day: string; expanded: boolean; onToggle: (box: HTMLElement | null) => void; onFold: () => void };
 
-export function TodayBlock({ block, items, flows, me, day }: Props) {
+export function TodayBlock({ block, items, flows, me, day, expanded, onToggle, onFold }: Props) {
   const { routine, actions, label, progress, side } = block;
   const complete = finished(progress);
   const name = label === null ? routine.title : `${routine.title} · ${label}`;
@@ -35,8 +35,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
   const { locked, guard } = useWriteLock();
   const card = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
-  const link = useRef<HTMLAnchorElement>(null);
-  const focus = useRef<"toggle" | "link" | null>(null);
+  const focus = useRef<"toggle" | null>(null);
   if (!complete && fold !== "open") {
     setFold("open");
     setSaid(false);
@@ -57,6 +56,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
         focus.current = inside ? "toggle" : null;
         setSaid(!inside);
         setFold("folded");
+        onFold();
       }, wait);
     };
     for (const event of TOUCHES) document.addEventListener(event, note, true);
@@ -67,54 +67,54 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
     };
   }, [fold]);
   useEffect(() => {
-    if (fold === "folded" && focus.current === "toggle") toggle.current?.focus();
-    if (fold === "open" && focus.current === "link") link.current?.focus();
+    if ((fold === "folded" || fold === "open") && focus.current === "toggle") toggle.current?.focus();
     if (fold === "folded" || fold === "open") focus.current = null;
   }, [fold]);
-  const folding = fold === "folded" || fold === "kept";
+  const folding = fold === "folded";
   const offer = useHeld(offerOf(routine, actions, side, day), folding, day);
   const go = offer === "continue" ? copy.start.resume : copy.start.open;
   const strip = weekStrip(routine, actionsOf(items, routine), day, side);
+  const sub = [momentLabel(momentOf(routine)), progress.total > 0 ? copy.progress(progress.done, progress.total) : null].filter((part) => part !== null).join(" · ");
   const again = () => {
-    focus.current = "link";
+    focus.current = "toggle";
     void flows.clear(routine, actions).then((result) => {
       if (!result.ok) focus.current = null;
     });
   };
   return (
-    <div ref={card} className="rt-block" data-fold={fold}>
+    <div ref={card} className="rt-block" data-fold={folding && expanded ? "kept" : fold}>
       <span className="visually-hidden" role="status">
         {said ? copy.finished(name) : ""}
       </span>
       <div className="rt-head">
         <h3>
-          {folding ? (
-            <button
-              type="button"
-              ref={toggle}
-              className="rt-fold"
-              data-opens={`#/routines/${routine.id}/start`}
-              aria-expanded={fold === "kept"}
-              aria-label={copy.finished(name)}
-              onClick={() => setFold(fold === "kept" ? "folded" : "kept")}
-            >
-              <span className="rt-tick" aria-hidden="true">
-                <Icon name="check" />
-              </span>
-              <span className="rt-name">{name}</span>
-              <span className="rt-state">{copy.done}</span>
-            </button>
-          ) : (
-            <>
-              <a ref={link} href={`#/routines/${routine.id}`} data-replaces={`#/routines/${routine.id}/start`}>
+          <button
+            type="button"
+            ref={toggle}
+            className={folding ? "rt-fold" : "rt-fold rt-live"}
+            data-opens={folding ? `#/routines/${routine.id}/start` : undefined}
+            data-replaces={folding ? undefined : `#/routines/${routine.id}/start`}
+            aria-expanded={expanded}
+            aria-label={folding ? copy.finished(name) : undefined}
+            onClick={() => onToggle(toggle.current)}
+          >
+            {folding ? (
+              <>
+                <span className="rt-tick" aria-hidden="true">
+                  <Icon name="check" />
+                </span>
+                <span className="rt-name">{name}</span>
+                <span className="rt-state">{copy.done}</span>
+              </>
+            ) : (
+              <span className="rt-name">
                 {name}
-              </a>
-              <span>{momentLabel(momentOf(routine))}</span>
-              {progress.total > 0 && <span>{copy.progress(progress.done, progress.total)}</span>}
-            </>
-          )}
+                <span className="rt-sub">{sub}</span>
+              </span>
+            )}
+          </button>
         </h3>
-        {offer !== null && (
+        {offer !== null && expanded && (
           <a className="button secondary rt-go" href={`#/routines/${routine.id}/start`} aria-label={copy.start.openNamed(go, routine.title)}>
             <Icon name="play" />
             <span className="rt-word" data-wide={copy.start.open}>
@@ -123,7 +123,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
           </a>
         )}
       </div>
-      <div hidden={fold === "folded"}>
+      <div hidden={!expanded}>
         {strip !== null && <RoutineWeek strip={strip} compact />}
         <ul className="rows">
           {actions
@@ -132,7 +132,7 @@ export function TodayBlock({ block, items, flows, me, day }: Props) {
               <RoutineAction key={action.id} routine={routine} action={action} flows={flows} me={me} today={day} active={actionOccursOn(routine, action, day)} />
             ))}
         </ul>
-        {folding && (
+        {expanded && (
           <p className="rt-after">
             <a href={`#/routines/${routine.id}`} aria-label={copy.openRoutineNamed(routine.title)}>
               {copy.openRoutine}

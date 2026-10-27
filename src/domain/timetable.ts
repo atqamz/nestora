@@ -60,6 +60,11 @@ export const stateOf = (slot: Slot, elapsed: number): State => {
   return slot.end !== null && minutes(slot.end) <= elapsed ? "done" : "now";
 };
 
+export const glance = (all: readonly Mark[]): Mark[] => {
+  const near = all.filter((mark) => mark.tag !== null);
+  return near.length > 0 ? near : all.filter((mark) => mark.state !== "done").slice(0, 2);
+};
+
 export const marks = (slots: readonly Slot[], elapsed: number): Mark[] => {
   const states = slots.map((slot) => stateOf(slot, elapsed));
   const next = slots.findIndex((slot, at) => states[at] === "later" && slot.start !== "");

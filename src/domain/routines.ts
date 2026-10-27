@@ -63,6 +63,16 @@ export const tally = (blocks: readonly Block[]) => sum(blocks.filter((block) => 
 
 export const allDone = (blocks: readonly Block[]) => finished(tally(blocks));
 
+const NOON = 12 * 60;
+
+const EVENING = 17 * 60;
+
+export const openFirst = (blocks: readonly Block[], elapsed: number): string | null => {
+  const open = blocks.filter((block) => !onDemand(block) && block.progress.done < block.progress.total);
+  const moment = elapsed < NOON ? "morning" : elapsed >= EVENING ? "evening" : null;
+  return (open.find((block) => momentOf(block.routine) === moment) ?? open[0])?.routine.id ?? null;
+};
+
 export type Seen = { day: string; known: ReadonlySet<string>; rested: ReadonlySet<string> };
 
 export const unseen = (day: string): Seen => ({ day, known: new Set(), rested: new Set() });

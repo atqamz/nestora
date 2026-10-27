@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { marks, themToday } from "../domain/timetable.ts";
+import { glance, marks, themToday } from "../domain/timetable.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { useRoutineClock, useRoutines } from "../hooks/use-routines.ts";
 import { SlotItem } from "../ui/timetable.tsx";
@@ -14,15 +14,16 @@ export function Them() {
   const them = useMemo(() => themToday(items, me, day), [items, me, day]);
   if (them.routines.length === 0) return null;
   const name = label(me === "a" ? "b" : "a");
+  const near = glance(marks(them.slots, elapsed));
   const single = them.routines.length === 1;
   return (
     <section className="group rt-them" aria-labelledby="rt-them">
       <h2 id="rt-them">{copy.them.title(name)}</h2>
-      {them.slots.length === 0 ? (
-        <p className="empty">{copy.them.empty(name)}</p>
+      {them.slots.length === 0 || near.length === 0 ? (
+        <p className="empty">{them.slots.length === 0 ? copy.them.empty(name) : copy.them.over(name)}</p>
       ) : (
         <ul className="rt-slots">
-          {marks(them.slots, elapsed).map((mark) => (
+          {near.map((mark) => (
             <SlotItem key={mark.slot.row.id} slot={mark.slot} mark={mark} />
           ))}
         </ul>

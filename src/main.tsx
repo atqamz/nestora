@@ -97,7 +97,8 @@ function App() {
   });
 
   useEffect(() => {
-    const heading = document.querySelector("h1")?.textContent;
+    const title = document.querySelector("h1");
+    const heading = title?.dataset.title ?? title?.textContent;
     document.title = heading ? `${heading} · ${text.appName}` : text.appName;
   });
 

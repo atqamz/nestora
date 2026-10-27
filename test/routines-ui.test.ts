@@ -73,7 +73,7 @@ test("the global Add sheet has no routine chip and the Settings exports list no 
 
 test("Home shows the Today block between the capture box and the due list, and the route is wired", () => {
   const home = read("views/home.tsx");
-  assert.match(home, /<Capture \/>\s*<Today \/>\s*<Them \/>\s*<h2 className="visually-hidden">\{text\.week\.heading\}<\/h2>\s*<Week \/>/);
+  assert.match(home, /<Capture \/>\s*<LateLine \/>\s*<Today \/>\s*<Them \/>\s*<h2 className="visually-hidden">\{text\.week\.heading\}<\/h2>\s*<Week \/>/);
   assert.match(read("main.tsx"), /case "routines":\s*return <Routines id=\{id\} sub=\{sub\} \/>;/);
   assert.match(read("main.tsx"), /import "\.\/views\/routines\.css";/);
 });
@@ -82,7 +82,7 @@ test("the whole Today block collapses by its own choice only, so a tick never cl
   const today = read("views/today.tsx");
   assert.match(today, /useState\(!finished\)/);
   assert.match(today, /<details open=\{open\} onToggle=\{\(event\) => setOpen\(event\.currentTarget\.open\)\}>/);
-  assert.doesNotMatch(today, /useEffect/);
+  assert.doesNotMatch(today, /useEffect\(\(\) => \{[^}]*setOpen/);
 });
 
 test("a tick or a tap leaves keyboard focus on its control: nothing is disabled while a write runs, and the guard refuses a second tap", () => {
@@ -103,7 +103,7 @@ test("the count of a counter is a polite live region, so a screen reader hears e
 
 test("the Today block opens again when the routine day changes", () => {
   const today = read("views/today.tsx");
-  assert.match(today, /const \[shown, setShown\] = useState\(day\);\s*if \(shown !== day\) \{\s*setShown\(day\);\s*setOpen\(!finished\);\s*\}/);
+  assert.match(today, /const \[shown, setShown\] = useState\(day\);\s*if \(shown !== day\) \{\s*setShown\(day\);\s*setOpen\(!finished\);\s*setPick\(undefined\);\s*\}/);
 });
 
 test("the flows write the day the screens show: the clock is read in one place, the day hook, and handed down", () => {
@@ -115,7 +115,7 @@ test("the flows write the day the screens show: the clock is read in one place, 
 });
 
 test("long names, notes and many actions wrap inside the row and never push the page sideways", () => {
-  for (const selector of [".rt-btns", ".rt-act", ".rt-fields", ".rt-block h3 a", ".rt-add button", ".rt-dayset button"]) assert.match(rule(selector), /min-width:\s*(0|var\(--target-min\))/, selector);
+  for (const selector of [".rt-btns", ".rt-act", ".rt-fields", ".rt-add button", ".rt-dayset button"]) assert.match(rule(selector), /min-width:\s*(0|var\(--target-min\))/, selector);
   assert.match(rule(".rt-btns"), /flex-wrap:\s*wrap/);
   assert.match(rule(".rt-side"), /flex-wrap:\s*wrap/);
   assert.match(rule(".rt-note"), /white-space:\s*pre-wrap/);
@@ -126,7 +126,7 @@ test("long names, notes and many actions wrap inside the row and never push the 
 });
 
 test("every control keeps a 44 px target and the summaries are tall enough to tap", () => {
-  for (const selector of [".rt-today summary", ".rt-more summary", ".rt-block h3 a"]) assert.match(rule(selector), /min-height:\s*var\(--target-min\)/, selector);
+  for (const selector of [".rt-today summary", ".rt-more summary"]) assert.match(rule(selector), /min-height:\s*var\(--target-min\)/, selector);
   assert.match(rule(".rt-btns .rt-minus"), /min-width:\s*var\(--target-min\)/);
   assert.match(rule(".rt-btns .rt-minus"), /min-height:\s*var\(--target-min\)/);
   assert.match(rule(".rt-block h3 .rt-fold"), /min-height:\s*var\(--row-min\)/);
@@ -148,8 +148,7 @@ test("a tick never changes the width of what sits beside it, so the block keeps 
   assert.match(rule(".rt-tally"), /min-width:\s*9ch/);
   assert.match(rule(".rt-tally"), /tabular-nums/);
   assert.match(rule(".rt-nums"), /tabular-nums/);
-  assert.match(rule(".rt-block h3 span"), /display:\s*inline-block/);
-  assert.match(rule(".rt-block h3 span"), /min-width:\s*8ch/);
-  assert.match(rule(".rt-block h3 span"), /tabular-nums/);
+  assert.match(rule(".rt-block h3 .rt-sub"), /display:\s*block/);
+  assert.match(rule(".rt-block h3 .rt-sub"), /tabular-nums/);
   assert.match(read("ui/routine-action.tsx"), /className="meta rt-nums"/);
 });

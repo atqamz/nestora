@@ -97,6 +97,7 @@ export const mount = <P extends object>(component: (props: P) => ReactNode, firs
       return slots[index].value;
     },
     useCallback: (fn: unknown, deps: unknown[]) => dispatcher.useMemo(() => fn, deps),
+    useLayoutEffect: (run: () => void | (() => void), deps?: unknown[]) => dispatcher.useEffect(run, deps),
     useEffect: (run: () => void | (() => void), deps?: unknown[]) => {
       const index = cursor++;
       const effect: Effect | undefined = slots[index];

@@ -135,7 +135,7 @@ test("Today draws a finished routine as one folded row with a check, Done and no
   assert.match(finishedBlock, /<span class="rt-tick" aria-hidden="true"><svg/);
   assert.match(finishedBlock, /<span class="rt-state">Done<\/span>/);
   assert.match(html, /<div hidden="">/);
-  assert.match(html, /<p class="rt-label">Done today<\/p>/);
+  assert.match(html, /<details class="rt-done"><summary><span>Done today · 1<\/span><\/summary>/);
   assert.doesNotMatch(finishedBlock, /href="[^"]*\/start"|Step by step|Continue/);
   assert.ok(html.indexOf("Evening wind down") < html.indexOf("Done today"));
   assert.ok(html.indexOf("Morning care") > html.indexOf("Done today"));
@@ -149,17 +149,22 @@ test("Today counts only scheduled routines and shows on-demand ones in a closed 
   const all = [routine("Morning care", "morning"), routine("Before going out", "on_demand")];
   const done = await render([all[0], step(all[0], "Cleanse", { done_a: DAY }), all[1], step(all[1], "Keys")]);
   assert.match(done, /<span class="rt-tally">All done<\/span>/);
-  assert.match(done, /<span>0 of 1<\/span>/);
+  assert.match(done, /<span class="rt-sub">On demand · 0 of 1<\/span>/);
   assert.equal(done.includes("<details open=\"\"><summary><h2"), false);
 });
 
-test("only a finished on-demand routine offers Start over", async () => {
+test("only an open, finished on-demand routine offers Start over", async () => {
   const folded = routine("Morning care", "morning");
   const need = routine("Before going out", "on_demand");
-  const html = await render([folded, step(folded, "Cleanse", { done_a: DAY }), need, step(need, "Keys", { done_a: DAY })]);
-  assert.equal([...html.matchAll(/Start over/g)].length, 2);
-  assert.match(html, /aria-label="Start over: Before going out"[^>]*>Start over<\/button>/);
-  assert.equal(html.includes("Start over: Morning care"), false);
+  const draw = (parent: ItemRow, expanded: boolean) =>
+    markupOf("views/today-block.tsx", ({ TodayBlock: view }) =>
+      createElement(view, { block: { routine: parent, actions: [step(parent, "Keys", { done_a: DAY })], label: null, side: "a", progress: { done: 1, total: 1 } }, items: [], flows: {}, me: "a", day: DAY, expanded, onToggle: () => undefined, onFold: () => undefined }),
+    );
+  const open = await draw(need, true);
+  assert.equal([...open.matchAll(/Start over/g)].length, 2);
+  assert.match(open, /aria-label="Start over: Before going out"[^>]*>Start over<\/button>/);
+  assert.equal((await draw(folded, true)).includes("Start over"), false);
+  assert.equal((await draw(need, false)).includes("Start over"), false);
 });
 
 test("a counter at target shows a check and no +1 on Today, a counter below it shows both −1 and +1", async () => {
@@ -318,10 +323,9 @@ test("Today puts one compact Step by step link in the header row of a routine wi
     step(timed, "Dry the face"),
     item({ kind: "timer", status: null, parent_id: timed.id, title: "Mask", data: { minutes: 10 } }),
   ]);
-  const head = (title: string) => new RegExp(`<div class="rt-head"><h3><a [^>]*>${title}</a>.*?</div>`, "s").exec(html)?.[0] ?? "";
+  const head = (title: string) => new RegExp(`<div class="rt-head"><h3><button [^>]*><span class="rt-name">${title}<span class="rt-sub">.*?</div>`, "s").exec(html)?.[0] ?? "";
   assert.match(head("Skincare"), /<\/h3><a class="button secondary rt-go" href="#\/routines\/[0-9a-f-]+\/start" aria-label="Step by step: Skincare"><svg[^>]*>.*?<\/svg><span class="rt-word" data-wide="Step by step"><span>Step by step<\/span><\/span><\/a><\/div>$/s);
-  assert.match(head("Mask night"), /aria-label="Step by step: Mask night"/);
-  assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 2);
+  assert.equal([...html.matchAll(/href="[^"]*\/start"/g)].length, 1);
   assert.equal(html.includes("rt-start"), false);
 });
 
