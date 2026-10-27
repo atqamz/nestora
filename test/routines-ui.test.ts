@@ -128,6 +128,7 @@ test("long names, notes and many actions wrap inside the row and never push the 
 test("every control keeps a 44 px target and the summaries are tall enough to tap", () => {
   for (const selector of [".rt-today summary", ".rt-more summary", ".rt-block h3 a"]) assert.match(rule(selector), /min-height:\s*var\(--target-min\)/, selector);
   assert.match(rule(".rt-btns .rt-minus"), /min-width:\s*var\(--target-min\)/);
+  assert.match(rule(".rt-btns .rt-minus"), /min-height:\s*var\(--target-min\)/);
   assert.match(rule(".rt-block h3 .rt-fold"), /min-height:\s*var\(--row-min\)/);
 });
 

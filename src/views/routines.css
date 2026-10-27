@@ -118,6 +118,7 @@
 .rt-btns .rt-plus,
 .rt-btns .rt-minus {
   min-width: var(--target-min);
+  min-height: var(--target-min);
   margin-right: 0;
   padding: 0 var(--s3);
 }

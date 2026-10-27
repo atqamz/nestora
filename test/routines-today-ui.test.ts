@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
 import { text } from "../src/ui/text.ts";
-import { cascade, sheet } from "./css.ts";
+import { cascade, eachScreen, sheet } from "./css.ts";
 import { item } from "./domain-rows.ts";
 import { dom, find, mount, textOf } from "./hooks.ts";
 import { load, markupOf } from "./render.ts";
@@ -554,7 +554,7 @@ test("the after row keeps a full-size target on its link and a quiet spacing aro
 });
 
 const PINS: Record<string, Record<string, string>> = {
-  ".rt-btns .rt-plus": { "min-width": "var(--target-min)", "margin-right": "0", padding: "0 var(--s3)" },
+  ".rt-btns .rt-plus": { "min-width": "var(--target-min)", "min-height": "var(--target-min)", "margin-right": "0", padding: "0 var(--s3)" },
   ".rt-block .rt-fold::after": { content: '""', flex: "none", "align-self": "center", width: "0.5rem", height: "0.5rem", margin: "0 var(--s1) 0 0", border: "solid var(--ink-2)", "border-width": "0 2px 2px 0", transform: "translateY(-2px) rotate(45deg)" },
   '.rt-block .rt-fold[aria-expanded="true"]::after': { transform: "translateY(2px) rotate(-135deg)" },
   ".rt-block h3 .rt-fold": { "justify-content": "flex-start", gap: "var(--s2)", width: "100%", "min-height": "var(--row-min)", padding: "var(--s2) var(--s3) var(--s2) var(--s1)", "border-color": "transparent", "border-radius": "var(--r-group)", background: "var(--surface)", "box-shadow": "0 0 0 1px var(--line)", color: "var(--ink-2)", "font-weight": "550", "line-height": "1.3", "text-align": "left" },
@@ -572,4 +572,15 @@ const PINS: Record<string, Record<string, string>> = {
 
 test("every declaration of the folded row, the disc, the chevron, the label, the group and the after row is pinned above the large text step", () => {
   for (const [selector, declarations] of Object.entries(PINS)) assert.deepEqual(Object.fromEntries(at(selector, 20)), declarations, selector);
+});
+
+test("the −1 and +1 pills keep a 44 px target on both axes at every phone width and text size", () => {
+  eachScreen(({ px, zoom, width }) => {
+    for (const selector of [".rt-btns .rt-plus", ".rt-btns .rt-minus"]) {
+      const final = cascade(routinesCss, selector, width);
+      assert.equal(final.get("min-width"), "var(--target-min)", `${selector} ${px}px ${zoom}`);
+      assert.equal(final.get("min-height"), "var(--target-min)", `${selector} ${px}px ${zoom}`);
+      assert.equal(final.get("height"), undefined, `${selector} ${px}px ${zoom}`);
+    }
+  });
 });
