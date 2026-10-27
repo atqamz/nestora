@@ -1,9 +1,10 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { actions } from "../hooks/use-store.ts";
+import type { Written } from "../hooks/use-store.ts";
 import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
 import { ItemForm } from "./item-form.tsx";
@@ -26,6 +27,9 @@ type Props = {
   back: { href: string; word: string };
   wide?: boolean;
   head?: ReactNode;
+  cover?: ReactNode;
+  sheet?: readonly string[];
+  flows?: { remove: () => Promise<Written>; restore: () => Promise<Written> };
   skip?: readonly string[];
   details?: false;
   children?: ReactNode;
@@ -104,12 +108,11 @@ function Facts({ name, row, skip }: { name: ViewName; row: Row; skip: readonly s
   );
 }
 
-export function ItemDetail({ name, row, gone, back, wide, head, skip = [], details, children }: Props) {
-  const [editing, setEditing] = useState(false);
+export function ItemDetail({ name, row, gone, back, wide, head, cover, sheet, flows, skip = [], details, children }: Props) {
+  const [editing, setEditing] = useState<readonly string[] | false>(false);
   const { busy, once } = useBusy();
   const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
-  const only = useMemo(() => sheetFields(name), [name]);
   const edit = useRef<HTMLButtonElement>(null);
   const revived = useRef(false);
   const notice = "item-gone";
@@ -123,13 +126,15 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
   const restore = () =>
     once(async () => {
       revived.current = true;
-      const result = await restoreItem(actions, name, row);
+      const result = await (flows ? flows.restore() : restoreItem(actions, name, row));
       if (!result.ok) revived.current = false;
       setFailure(failureOf(result));
     });
 
   const remove = () =>
-    void once(async () => setFailure(failureOf(await removeItem({ actions, go: (hash) => void (location.hash = hash) }, name, row))));
+    void once(async () =>
+      setFailure(failureOf(await (flows ? flows.remove() : removeItem({ actions, go: (hash) => void (location.hash = hash) }, name, row)))),
+    );
 
   return (
     <>
@@ -141,8 +146,20 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
           </a>
         </p>
       )}
-      {wide === undefined ? <Title>{row.title}</Title> : <DetailTitle wide={wide}>{row.title}</DetailTitle>}
-      {head}
+      {cover ? (
+        <div className="bk-head">
+          {cover}
+          <div className="bk-id">
+            <Title>{row.title}</Title>
+            {head}
+          </div>
+        </div>
+      ) : (
+        <>
+          {wide === undefined ? <Title>{row.title}</Title> : <DetailTitle wide={wide}>{row.title}</DetailTitle>}
+          {head}
+        </>
+      )}
       <p id={notice} className={gone && !editing ? "hint" : "visually-hidden"} role="status">
         {gone && !editing ? text.gone : ""}
       </p>
@@ -155,7 +172,7 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
       )}
       <div inert={gone}>
         <div className="detail-tools">
-          <button ref={edit} type="button" className="secondary" aria-label={text.editNamed(row.title)} aria-disabled={locked || undefined} onClick={guard(() => setEditing(true))}>
+          <button ref={edit} type="button" className="secondary" aria-label={text.editNamed(row.title)} aria-disabled={locked || undefined} onClick={guard(() => setEditing(sheet ?? sheetFields(name)))}>
             <Icon name="edit" />
             {text.edit}
           </button>
@@ -170,7 +187,7 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
         {details !== false && <Facts name={name} row={row} skip={skip} />}
         {children}
       </div>
-      {editing && <ItemForm key={row.id} name={name} row={row} gone={gone} only={only} sheet={() => setEditing(false)} />}
+      {editing && <ItemForm key={row.id} name={name} row={row} gone={gone} only={editing} sheet={() => setEditing(false)} />}
     </>
   );
 }

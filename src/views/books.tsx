@@ -63,7 +63,7 @@ function Head({ mode, shelf, wishes, onAdd }: { mode: Mode; shelf: number; wishe
           </a>
         </div>
         <Menu
-          name={text.frame.moreNamed(text.books.title)}
+          name={text.menu.moreNamed(text.books.title)}
           items={[
             { id: "places", icon: "pin", label: text.books.places, run: go("#/places") },
             { id: "import", icon: "upload", label: text.books.import.open, run: go("#/books/import") },

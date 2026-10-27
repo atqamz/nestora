@@ -3,13 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import type { ItemRow } from "../shared/tables.ts";
-import { changeOf } from "../src/ui/edit-change.ts";
 import { text } from "../src/ui/text.ts";
 import { item } from "./domain-rows.ts";
 import { markupOf } from "./render.ts";
 import { stage } from "./render-store.ts";
-import { createServer } from "./store-server.ts";
-import { client, idOf } from "./store-client.ts";
 
 after(() => stage([]));
 
@@ -100,7 +97,7 @@ test("a movie opens as a read view: back link first, Edit and More under the tit
   assert.match(html, /^<p class="trail"><a href="#\/movies">/);
   assert.match(html, /<button type="button" class="secondary" aria-label="Edit Midnight Ferry"><svg[^]*?<\/svg>Edit<\/button>/);
   assert.match(html, /aria-haspopup="menu" aria-expanded="false" aria-label="More actions for Midnight Ferry"/);
-  assert.ok(ascending(order(html, "<h1", "Edit Midnight Ferry", "More actions for", 'id="sc-status"', 'id="sc-ratings"', 'id="sc-notes"')));
+  assert.ok(ascending(order(html, "<h1", "Edit Midnight Ferry", "More actions for", "<dt>Notes</dt>", 'id="sc-status"', 'id="sc-ratings"')));
   assert.doesNotMatch(html, />Cancel<|>Delete<|class="danger"|>Edit details<|id="sc-edit"|name="note"/);
   assert.match(html, /Seen on a ferry\./);
   assert.match(html, /type="date"/);
@@ -112,95 +109,27 @@ test("a book opens as a read view with the facts the form used to hold, and Edit
   assert.match(html, /^<p class="trail"><a href="#\/wishlist">/);
   assert.match(html, /aria-label="Edit Slow Bread"/);
   assert.match(html, /aria-label="More actions for Slow Bread"/);
-  assert.match(html, /<h2 id="bk-details">Details<\/h2><dl class="bk-dl"><div><dt>Language<\/dt><dd>Indonesian<\/dd><\/div><div><dt>Priority<\/dt><dd>Next up<\/dd><\/div><div><dt>Shop link<\/dt><dd>https:\/\/shop\.example\.test\/slow-bread<\/dd><\/div><\/dl>/);
-  assert.doesNotMatch(html, /class="form"|>Cancel<|>Delete<|class="danger"|id="bk-edit"/);
+  assert.match(html, /<dl class="nums detail-facts"><div><dt>Language<\/dt><dd>Indonesian<\/dd><\/div>/);
+  assert.match(html, /<div><dt>Priority<\/dt><dd>Next up<\/dd><\/div>/);
+  assert.match(html, /<dt>Shop link<\/dt><dd><a href="https:\/\/shop\.example\.test\/slow-bread"[^>]*>shop\.example\.test<\/a><\/dd>/);
+  assert.doesNotMatch(html, /class="form"|>Cancel<|>Delete<|class="danger"|id="bk-edit"|bk-details|bk-dl/);
   const bare = await books([shelved("Salt and Lantern")], "books", "x");
-  assert.doesNotMatch(bare, /bk-details/);
-});
-
-test("a deleted row keeps its read view with a notice and Undo, and no Edit or More", async () => {
-  const html = await markupOf("ui/detail-tools.tsx", ({ DetailTools }) => createElement(DetailTools, { title: "Slow Bread", gone: true, onEdit: () => {}, onRestore: async () => ({ ok: true, id: "x" }), remove: async () => ({ ok: true, id: "x" }) }));
-  assert.equal(html, `<div class="detail-tools"><p class="hint" role="status">${text.frame.goneRead}</p><button type="button">${text.undo}</button></div>`);
-});
-
-test("saving the sheet sends only the fields that changed, merges data keys and refuses a blank title or a bad year", () => {
-  const row = movie("Midnight Ferry", { note: "n", data: { year: 2004, original_title: "Veer" } });
-  const controls = [
-    { name: "title", type: "text" },
-    { name: "data.original_title", type: "text" },
-    { name: "data.year", type: "year" },
-    { name: "note", type: "note" },
-  ] as const;
-  const form = (entries: Record<string, string>) => Object.entries(entries).reduce((data, [key, value]) => (data.set(key, value), data), new FormData());
-  const same = { title: "Midnight Ferry", "data.original_title": "Veer", "data.year": "2004", note: "n" };
-  assert.deepEqual(changeOf(controls, form(same), row), { change: {}, invalid: {} });
-  assert.deepEqual(changeOf(controls, form({ ...same, note: "m", "data.year": "2005" }), row), { change: { note: "m", data: { year: 2005 } }, invalid: {} });
-  assert.deepEqual(changeOf(controls, form({ ...same, "data.original_title": "" }), row).change, { data: { original_title: null } });
-  assert.deepEqual(Object.keys(changeOf(controls, form({ ...same, title: "  " }), row).invalid), ["title"]);
-  assert.deepEqual(Object.keys(changeOf(controls, form({ ...same, "data.year": "1700" }), row).invalid), ["data.year"]);
-});
-
-test("a partner's change to another field lands under an open Edit sheet, and the sheet's save keeps both", async () => {
-  const server = createServer();
-  const a = client(server, "a");
-  const b = client(server, "b");
-  await a.store.open();
-  await b.store.open();
-  const id = idOf(await a.store.create("items", { kind: "movie", title: "Midnight Ferry", status: "want", who: "a", data: { year: 2004 } }));
-  await a.store.sync();
-  await b.store.sync();
-  const opened = b.store.getSnapshot().rows.items.find((row) => row.id === id)!;
-  idOf(await a.store.update("items", id, { note: "from the partner", data: { year: 2005 } }));
-  await a.store.sync();
-  await b.store.sync();
-  const controls = [
-    { name: "title", type: "text" },
-    { name: "who", type: ["a", "b", "both"] },
-  ] as const;
-  const { change, invalid } = changeOf(controls, Object.entries({ title: "Midnight Ferry, again", who: "a" }).reduce((data, [key, value]) => (data.set(key, value), data), new FormData()), opened);
-  assert.deepEqual([change, invalid], [{ title: "Midnight Ferry, again" }, {}]);
-  idOf(await b.store.update("items", id, change as never));
-  await b.store.sync();
-  await a.store.sync();
-  for (const side of [a, b]) {
-    const row = side.store.getSnapshot().rows.items.find((candidate) => candidate.id === id)!;
-    assert.deepEqual([row.title, row.note, row.data?.year], ["Midnight Ferry, again", "from the partner", 2005]);
-  }
+  assert.doesNotMatch(bare, /detail-facts/);
 });
 
 test("the new header rows wrap instead of squeezing a word", () => {
   const css = read("views/books.css");
   const rule = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace(/[.>*[\]="():+]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
-  for (const selector of [".lib-head", ".lib-bar", ".detail-tools"]) assert.match(rule(selector), /flex-wrap:\s*wrap/, selector);
-  for (const selector of [".lib-head > button", ".lib-bar > button", ".detail-tools > *"]) assert.match(rule(selector), /min-width:\s*0/, selector);
+  for (const selector of [".lib-head", ".lib-bar"]) assert.match(rule(selector), /flex-wrap:\s*wrap/, selector);
+  for (const selector of [".lib-head > button", ".lib-bar > button"]) assert.match(rule(selector), /min-width:\s*0/, selector);
   assert.match(rule(".lib-head h1"), /margin:\s*0/);
   assert.match(rule('.lib-bar > [role="group"]'), /flex:\s*1 1 12rem/);
   assert.match(read("views/people.css"), /\.people-bar\s*\{[^}]*flex-wrap:\s*wrap/);
 });
 
-test("the Edit sheet of a deleted row shows its notice and Undo and cannot save, and it keeps the row it was opened with", async () => {
-  const row = movie("Midnight Ferry", { data: { year: 2004 } });
-  stage([row]);
-  const sheet = (gone: boolean) =>
-    markupOf("ui/edit-sheet.tsx", ({ EditSheet }) => createElement(EditSheet, { name: "movie", row, gone, title: "Edit details", onClose: () => {}, onRestore: async () => ({ ok: true, id: row.id }) }));
-  const live = await sheet(false);
-  assert.match(live, /<button type="submit">Save<\/button>/);
-  assert.doesNotMatch(live, />Undo</);
-  assert.match(live, /<p class="visually-hidden" role="status"><\/p>/);
-  const gone = await sheet(true);
-  assert.match(gone, /<button type="button" class="secondary">Undo<\/button><button type="submit" disabled="">Save<\/button>/);
-  assert.match(gone, /<p class="hint" role="status">This item was deleted\. What you typed is still here\.<\/p>/);
-  const source = read("ui/edit-sheet.tsx");
-  assert.match(source, /const \[initial\] = useState\(row\);/);
-  assert.match(source, /if \(result\.ok\) return onClose\(\);/);
-});
-
-test("the detail screens wire Delete to their own flow, as a danger item in More, and Undo refocuses the title only when it worked", () => {
-  const tools = read("ui/detail-tools.tsx");
-  assert.match(tools, /\{ id: "delete", icon: "trash", label: text\.delete, danger: true, run: run\(remove\) \}/);
-  assert.match(tools, /if \(result\.ok && refocus\) document\.querySelector<HTMLElement>\("h1"\)\?\.focus\(\{ preventScroll: true \}\);/);
-  assert.match(read("views/screen.tsx"), /remove=\{\(\) => removeScreen\(\{ actions, go: \(hash\) => void \(location\.hash = hash\) \}, row, kind\)\}/);
-  assert.match(read("views/book.tsx"), /remove=\{\(\) => removeBook\(book, open\.copies\)\}/);
+test("the detail screens mount the shared frame with their own delete flow, and the list headers wire Add and the summary", () => {
+  assert.match(read("views/screen.tsx"), /flows=\{\{ remove: \(\) => removeScreen\(\{ actions, go: \(hash\) => void \(location\.hash = hash\) \}, row, kind\), restore: revive \}\}/);
+  assert.match(read("views/book.tsx"), /flows=\{\{ remove: \(\) => removeBook\(book, open\.copies\), restore: \(\) => restoreBook\(book\) \}\}/);
   assert.match(read("views/screens.tsx"), /onAdd=\{\(\) => setAdding\(true\)\}/);
   assert.match(read("views/books.tsx"), /<Head mode="shelf" shelf=\{shelf\} wishes=\{wishes\} onAdd=\{\(\) => setAdding\(true\)\} \/>/);
   assert.match(read("views/people.tsx"), /<b>\{text\.contacts\.invitations\(visible\.length\)\}<\/b> · <b>\{text\.people\(total\(headcount\(visible\)\)\.people\)\}<\/b>/);

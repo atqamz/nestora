@@ -16,16 +16,14 @@ import { Cover, Stars } from "../ui/book-bits.tsx";
 import { setCollection } from "../ui/collection-flows.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Field } from "../ui/field.tsx";
-import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
-import { DetailTools } from "../ui/detail-tools.tsx";
-import { EditSheet } from "../ui/edit-sheet.tsx";
+import { ItemDetail } from "../ui/item-detail.tsx";
+import { backHref } from "../ui/item-flows.ts";
 import { views } from "../ui/registry.ts";
 import { moveScreen, moveWatched, removePoster, removeScreen } from "../ui/screen-save.ts";
 import { text } from "../ui/text.ts";
 import { DetailTitle } from "../ui/split.tsx";
 import { TmdbCredit } from "../ui/tmdb-credit.tsx";
-import { Title } from "../ui/title.tsx";
 import { Gone } from "./generic-item.tsx";
 
 function WatchedOn({ row, day }: { row: ItemRow; day: string }) {
@@ -241,12 +239,13 @@ function Collection({ row, kind }: { row: ItemRow; kind: ScreenKind }) {
   );
 }
 
+const HEADED = ["data.original_title", "data.year", "who"];
+
 export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   const rows = useTable("items");
   const { me } = usePartner();
   const { row: live, elsewhere } = screenDetail(rows, kind, id);
   const { row, gone } = useOpenRow(live ?? undefined);
-  const [editing, setEditing] = useState(false);
   const words = kind === "movie" ? text.movies : text.series;
   const back = `#/${views[kind].route}`;
   if (!row && elsewhere) {
@@ -267,51 +266,39 @@ export function ScreenDetail({ kind, id }: { kind: ScreenKind; id: string }) {
   const revive = () => actions.update("items", row.id, revivePatch(row));
   return (
     <>
-      <p className="trail">
-        <a href={back}>
-          <Icon name="back" />
-          {words.title}
-        </a>
-      </p>
-      <div className="bk-head">
-        <Cover book={row} alt={text.screen.posterOf(row.title)} />
-        <div className="bk-id">
-          <Title>{row.title}</Title>
-          {original && <p className="bk-sub">{text.screen.original(original)}</p>}
-          {(year !== null || side !== null) && (
-            <p className="hint facts">
-              {year !== null && <span>{year}</span>}
-              {side !== null && <Who side={side} />}
-            </p>
-          )}
-        </div>
-      </div>
-      <DetailTools
-        title={row.title}
+      <ItemDetail
+        name={kind}
+        row={row}
         gone={gone}
-        onEdit={() => setEditing(true)}
-        onRestore={revive}
-        remove={() => removeScreen({ actions, go: (hash) => void (location.hash = hash) }, row, kind)}
-      />
-      {!gone && <Status row={row} watchedOn={watchedOn} />}
-      {!gone && watched && <Ratings row={row} />}
-      {!gone && <Collection row={row} kind={kind} />}
-      {row.note && (
-        <section aria-labelledby="sc-notes">
-          <h2 id="sc-notes">{text.screen.notes}</h2>
-          <p className="bk-text-block">{row.note}</p>
-        </section>
-      )}
-      {tmdb !== null && (
-        <p>
-          <a className="button secondary" href={tmdbPage(kind, tmdb)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-            {text.screen.tmdb}
-          </a>
-        </p>
-      )}
-      {!gone && hasPoster(row) && <PosterRemoval row={row} />}
+        back={{ href: backHref(kind, row), word: words.title }}
+        cover={<Cover book={row} alt={text.screen.posterOf(row.title)} />}
+        head={
+          <>
+            {original && <p className="bk-sub">{text.screen.original(original)}</p>}
+            {(year !== null || side !== null) && (
+              <p className="hint facts">
+                {year !== null && <span>{year}</span>}
+                {side !== null && <Who side={side} />}
+              </p>
+            )}
+          </>
+        }
+        skip={HEADED}
+        flows={{ remove: () => removeScreen({ actions, go: (hash) => void (location.hash = hash) }, row, kind), restore: revive }}
+      >
+        {!gone && <Status row={row} watchedOn={watchedOn} />}
+        {!gone && watched && <Ratings row={row} />}
+        {!gone && <Collection row={row} kind={kind} />}
+        {tmdb !== null && (
+          <p>
+            <a className="button secondary" href={tmdbPage(kind, tmdb)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+              {text.screen.tmdb}
+            </a>
+          </p>
+        )}
+        {!gone && hasPoster(row) && <PosterRemoval row={row} />}
+      </ItemDetail>
       {usesTmdb([row], kind) && <TmdbCredit />}
-      {editing && <EditSheet name={kind} row={row} gone={gone} title={text.screen.edit} onClose={() => setEditing(false)} onRestore={revive} />}
     </>
   );
 }

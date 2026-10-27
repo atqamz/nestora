@@ -72,9 +72,9 @@ test("Delete is off on a deleted row", () => {
 test("the open form keeps the fields it was opened with whichever way the partner turns the book", () => {
   const book = read("views/book.tsx");
   const SHELF = views.book.fields.filter((field) => !["data.shop"].includes(field));
-  assert.match(book, /function BookEdit\(.*\) \{\s*const \[wish\] = useState\(book\.status === "wish"\);\s*return <EditSheet name="book" row=\{book\} gone=\{gone\} title=\{text\.books\.edit\} only=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
-  assert.match(book, /<BookEdit book=\{book\} gone=\{gone\}/);
-  assert.doesNotMatch(book.slice(book.indexOf("export function BookDetail")), /only=/);
+  assert.match(book, /sheet=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
+  assert.match(read("ui/item-detail.tsx"), /onClick=\{guard\(\(\) => setEditing\(sheet \?\? sheetFields\(name\)\)\)\}/);
+  assert.match(read("ui/item-detail.tsx"), /only=\{editing\}/);
   assert.ok(views.book.fields.includes("data.shop") && !SHELF.includes("data.shop"));
 });
 
@@ -101,7 +101,7 @@ test("the book form's Undo brings back the copies the book's delete took with it
   assert.deepEqual([stored(server, book).deleted_at, stored(server, copy).deleted_at], [null, null]);
   assert.deepEqual(items(a.store).map((row) => row.id).sort(), [book, copy].sort());
   const source = read("views/book.tsx");
-  assert.match(source, /onRestore=\{\(\) => restoreBook\(book\)\}/);
+  assert.match(source, /flows=\{\{ remove: \(\) => removeBook\(book, open\.copies\), restore: \(\) => restoreBook\(book\) \}\}/);
   assert.match(source, /useOpenRow\(found && \{ book: found, copies: copies\.get\(found\.id\) \?\? \[\] \}\)/);
 });
 

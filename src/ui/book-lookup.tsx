@@ -153,7 +153,7 @@ export function FillBook({ book }: { book: ItemRow }) {
 
   const note = state === "busy" ? WORDS.filling : state === "done" ? WORDS.filled : state === "nothing" ? WORDS.nothingNew : notice(state);
   return (
-    <div className="fill" ref={box} onKeyDown={(event) => dismisses(event.key, pending !== null, event.target instanceof Element && event.target.closest("dialog") !== null) && dismiss()}>
+    <div className="fill fill-page" ref={box} onKeyDown={(event) => dismisses(event.key, pending !== null, event.target instanceof Element && event.target.closest("dialog") !== null) && dismiss()}>
       {isbn !== null && (
         <button type="button" className="secondary" disabled={state === "busy"} onClick={() => void run(isbn)}>
           {WORDS.fill}

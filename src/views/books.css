@@ -43,46 +43,6 @@
   margin-top: var(--s4);
 }
 
-.detail-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-  margin: 0 0 var(--s5);
-}
-
-.detail-tools > * {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.detail-tools > p {
-  flex: 1 1 8rem;
-  margin: 0;
-}
-
-.bk-dl {
-  display: grid;
-  gap: var(--s3);
-  margin: 0;
-}
-
-.bk-dl > div {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.bk-dl dt {
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-  font-weight: 600;
-}
-
-.bk-dl dd {
-  margin: 0;
-}
-
 .posters {
   display: grid;
   gap: var(--s2);
@@ -102,7 +62,6 @@
   visibility: hidden;
 }
 
-.detail-tools svg,
 .lib-head svg,
 .lib-bar svg,
 .bk-add svg,
@@ -612,7 +571,7 @@ button.where {
   min-width: 0;
 }
 
-.bk-head ~ .fill {
+.fill-page {
   margin: 0 0 var(--s4);
 }
 

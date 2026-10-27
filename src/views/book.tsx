@@ -9,28 +9,29 @@ import { useOpenRow } from "../hooks/use-open-row.ts";
 import { useLibrary } from "../hooks/use-books.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
 import { actions } from "../hooks/use-store.ts";
-import type { Written } from "../hooks/use-store.ts";
-import { Avatar, Who } from "../ui/avatar.tsx";
+import { Avatar } from "../ui/avatar.tsx";
 import { useBookActions } from "../ui/book-actions.ts";
 import { Cover, Stars } from "../ui/book-bits.tsx";
 import { FillBook } from "../ui/book-lookup.tsx";
 import { CopySheet } from "../ui/copy-sheet.tsx";
-import { DetailTools } from "../ui/detail-tools.tsx";
-import { EditSheet } from "../ui/edit-sheet.tsx";
 import { failureOf } from "../ui/failure.ts";
 import { formatDate } from "../ui/format.ts";
 import { Icon } from "../ui/icons.tsx";
-import { fieldLabel, optionLabel } from "../ui/labels.ts";
-import { Money } from "../ui/money.tsx";
+import { ItemDetail } from "../ui/item-detail.tsx";
+import { backHref } from "../ui/item-flows.ts";
+import { optionLabel } from "../ui/labels.ts";
 import { views } from "../ui/registry.ts";
 import { text } from "../ui/text.ts";
-import { Title } from "../ui/title.tsx";
 import { CopyChip } from "../ui/where.tsx";
 import { Gone } from "./generic-item.tsx";
 
 const WISH_ONLY = ["who", "data.priority", "data.gift", "amount", "data.shop", "data.shop_url"];
 
 const SHELF_FIELDS = views.book.fields.filter((field) => !WISH_ONLY.includes(field));
+
+const HEADED = ["data.author", "data.original_title", "data.series", "data.series_no", "data.isbn", "group_key", "data.rated_elsewhere"];
+
+const SHELF_SKIP = [...HEADED, ...WISH_ONLY];
 
 const word = (row: ItemRow, key: string) => (typeof row.data?.[key] === "string" ? (row.data[key] as string) : null);
 
@@ -173,42 +174,11 @@ function Copy({ copy, book, places, onEdit }: { copy: ItemRow; book: ItemRow; pl
   );
 }
 
-const MORE = ["data.language", "data.priority", "data.shop_url"] as const;
-
-function Details({ book }: { book: ItemRow }) {
-  const { label } = usePartner();
-  const rows = MORE.flatMap((field) => {
-    const value = word(book, field.slice(5));
-    return value === null ? [] : [{ field, name: fieldLabel("book", field), value: optionLabel("book", field, value, label) }];
-  });
-  if (rows.length === 0) return null;
-  return (
-    <section aria-labelledby="bk-details">
-      <h2 id="bk-details">{text.frame.details}</h2>
-      <dl className="bk-dl">
-        {rows.map(({ field, name, value }) => (
-          <div key={field}>
-            <dt>{name}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function BookEdit({ book, gone, onClose, onRestore }: { book: ItemRow; gone: boolean; onClose: () => void; onRestore: () => Promise<Written> }) {
-  const [wish] = useState(book.status === "wish");
-  return <EditSheet name="book" row={book} gone={gone} title={text.books.edit} only={wish ? views.book.fields : SHELF_FIELDS} onClose={onClose} onRestore={onRestore} />;
-}
-
 export function BookDetail({ id }: { id: string }) {
   const { items, places, copies } = useLibrary();
-  const { label } = usePartner();
   const { gotIt, removeBook, restoreBook } = useBookActions();
   const { busy, once } = useBusy();
   const [sheet, setSheet] = useState<"add" | ItemRow | null>(null);
-  const [editing, setEditing] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
   const found = items.find((row) => row.id === id && row.kind === "book");
   const { row: open, gone } = useOpenRow(found && { book: found, copies: copies.get(found.id) ?? [] });
@@ -227,90 +197,78 @@ export function BookDetail({ id }: { id: string }) {
 
   return (
     <>
-      <p className="trail">
-        <a href={wish ? "#/wishlist" : "#/books"}>
-          <Icon name="back" />
-          {wish ? text.books.wishlist : text.books.shelf}
-        </a>
-      </p>
-      <div className="bk-head">
-        <Cover book={book} alt={text.books.lookup.coverOf(book.title)} />
-        <div className="bk-id">
-          <Title>{book.title}</Title>
-          {original && <p className="bk-sub">{text.books.original(original)}</p>}
-          {author && <p className="bk-sub">{author}</p>}
-          {facts.length > 0 && <p className="hint">{facts.join(" · ")}</p>}
-          {rated !== null && <p className="hint">{text.books.ratedElsewhere(rated)}</p>}
-        </div>
-      </div>
-      <DetailTools title={book.title} gone={gone} onEdit={() => setEditing(true)} onRestore={() => restoreBook(book)} remove={() => removeBook(book, open.copies)} />
-      {!gone && <FillBook key={book.id} book={book} />}
-      {gone ? null : wish ? (
-        <section aria-labelledby="bk-wish">
-          <h2 id="bk-wish">{text.books.wishBook}</h2>
-          <p className="facts">
-            {book.who !== null && <Who side={book.who} />}
-            {book.data?.gift === true && <span>{text.books.giftIdea}</span>}
-            {book.amount !== null && <Money rupiah={book.amount} />}
-            {word(book, "shop") && <span>{word(book, "shop")}</span>}
-          </p>
-          <button
-            type="button"
-            className="got"
-            disabled={busy}
-            onClick={() =>
-              once(async () => {
-                const result = await gotIt(book);
-                setFailure(failureOf(result));
-                if (result.ok) document.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
-              })
-            }
-          >
-            <Icon name="check" />
-            {text.books.gotIt}
-          </button>
-        </section>
-      ) : (
-        <>
-          <section aria-labelledby="bk-where">
-            <h2 id="bk-where">{text.books.where}</h2>
-            {mine.length === 0 ? (
-              <p className="empty">{text.books.noCopy}</p>
-            ) : (
-              <ul className="copies">
-                {mine.map((copy) => (
-                  <Copy key={copy.id} copy={copy} book={book} places={places} onEdit={() => setSheet(copy)} />
-                ))}
-              </ul>
-            )}
-            <button type="button" className="secondary bk-add" onClick={() => setSheet("add")}>
-              <Icon name="plus" />
-              {mine.length === 0 ? text.books.addFirstCopy : text.books.addCopy}
+      <ItemDetail
+        name="book"
+        row={book}
+        gone={gone}
+        back={{ href: backHref("book", book), word: wish ? text.books.wishlist : text.books.shelf }}
+        cover={<Cover book={book} alt={text.books.lookup.coverOf(book.title)} />}
+        head={
+          <>
+            {original && <p className="bk-sub">{text.books.original(original)}</p>}
+            {author && <p className="bk-sub">{author}</p>}
+            {facts.length > 0 && <p className="hint">{facts.join(" · ")}</p>}
+            {rated !== null && <p className="hint">{text.books.ratedElsewhere(rated)}</p>}
+          </>
+        }
+        sheet={wish ? views.book.fields : SHELF_FIELDS}
+        skip={wish ? HEADED : SHELF_SKIP}
+        flows={{ remove: () => removeBook(book, open.copies), restore: () => restoreBook(book) }}
+      >
+        {!gone && <FillBook key={book.id} book={book} />}
+        {gone ? null : wish ? (
+          <section aria-labelledby="bk-wish">
+            <h2 id="bk-wish">{text.books.wishBook}</h2>
+            <button
+              type="button"
+              className="got"
+              disabled={busy}
+              onClick={() =>
+                once(async () => {
+                  const result = await gotIt(book);
+                  setFailure(failureOf(result));
+                  if (result.ok) document.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+                })
+              }
+            >
+              <Icon name="check" />
+              {text.books.gotIt}
             </button>
           </section>
-          <Reader book={book} />
-          <LostIt key={book.id} book={book} />
-        </>
-      )}
-      {blurb && (
-        <section aria-labelledby="bk-about">
-          <h2 id="bk-about">{text.books.about}</h2>
-          <p className="bk-text-block">{blurb}</p>
-        </section>
-      )}
-      {book.note && (
-        <section aria-labelledby="bk-notes">
-          <h2 id="bk-notes">{text.books.notes}</h2>
-          <p className="bk-text-block">{book.note}</p>
-        </section>
-      )}
-      {failure.length > 0 && (
-        <p className="error" role="alert">
-          {failure.join(" ")}
-        </p>
-      )}
-      <Details book={book} />
-      {editing && <BookEdit book={book} gone={gone} onClose={() => setEditing(false)} onRestore={() => restoreBook(book)} />}
+        ) : (
+          <>
+            <section aria-labelledby="bk-where">
+              <h2 id="bk-where">{text.books.where}</h2>
+              {mine.length === 0 ? (
+                <p className="empty">{text.books.noCopy}</p>
+              ) : (
+                <ul className="copies">
+                  {mine.map((copy) => (
+                    <Copy key={copy.id} copy={copy} book={book} places={places} onEdit={() => setSheet(copy)} />
+                  ))}
+                </ul>
+              )}
+              <button type="button" className="secondary bk-add" onClick={() => setSheet("add")}>
+                <Icon name="plus" />
+                {mine.length === 0 ? text.books.addFirstCopy : text.books.addCopy}
+              </button>
+            </section>
+            <Reader book={book} />
+            <LostIt key={book.id} book={book} />
+          </>
+        )}
+        {blurb && (
+          <section aria-labelledby="bk-about">
+            <h2 id="bk-about">{text.books.about}</h2>
+            <p className="bk-text-block">{blurb}</p>
+          </section>
+        )}
+        {failure.length > 0 && (
+          <p className="error" role="alert">
+            {failure.join(" ")}
+          </p>
+        )}
+      </ItemDetail>
       {sheet !== null && !gone && <CopySheet book={book} copy={sheet === "add" ? undefined : sheet} onClose={() => setSheet(null)} />}
     </>
   );
