@@ -11,8 +11,12 @@ export const menuTarget = (key: string, at: number, count: number): number | nul
 
 const ITEM_REM = 3.25;
 const FRAME_REM = 2.5;
+const BORDER_PX = 1;
+const CLAMP_REM = 1.25;
 
-export const menuHeight = (count: number, rem: number) => (count * ITEM_REM + FRAME_REM) * rem;
+export const menuHeight = (count: number, rem: number) => (count * ITEM_REM + FRAME_REM) * rem + 2 * BORDER_PX;
+
+export const menuSpace = (count: number, rem: number) => menuHeight(count, rem) + CLAMP_REM * rem;
 
 export const menuAnchor = (button: { top: number; bottom: number; right: number }, viewport: { width: number; height: number }, need: number) => {
   const below = viewport.height - button.bottom;
