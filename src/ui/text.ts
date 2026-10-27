@@ -517,7 +517,7 @@ export const text = {
     original: (title: string) => `Original title: ${title}`,
     posterOf: (title: string) => `Poster of ${title}`,
     added: (title: string) => `Added: ${title}`,
-    deleted: (title: string) => `Deleted: ${title}`,
+    deleted: (title: string) => `Deleted ${title}`,
     moved: (title: string, to: string) => `Moved to ${to}: ${title}`,
     notHere: "We can't find that here.",
     sheet: {
@@ -624,7 +624,7 @@ export const text = {
     lostItDone: (title: string) => `Back on the wishlist: ${title}`,
     giftIdea: "Gift idea",
     addedBook: (title: string) => `Added: ${title}`,
-    deleted: (title: string) => `Deleted: ${title}`,
+    deleted: (title: string) => `Deleted ${title}`,
     wishBook: "Wishlist",
     where: "Where",
     noCopy: "No copy yet.",

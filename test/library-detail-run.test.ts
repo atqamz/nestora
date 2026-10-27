@@ -120,7 +120,7 @@ for (const [kind, route] of [["movie", "/movies"], ["series", "/series"]] as con
     assert.deepEqual([del.id, del.danger, del.icon], ["delete", true, "trash"]);
     del.run();
     await settle();
-    assert.deepEqual([removed, page.hash, overlay.getSnapshot().toast?.message], [[`items:${row.id}`], route, `Deleted: ${row.title}`]);
+    assert.deepEqual([removed, page.hash, overlay.getSnapshot().toast?.message], [[`items:${row.id}`], route, `Deleted ${row.title}`]);
     overlay.getSnapshot().toast?.action?.run();
     await settle();
     assert.deepEqual(calls, [["items", row.id, { deleted_at: null }]]);

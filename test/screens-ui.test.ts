@@ -113,5 +113,5 @@ test("deleting a row goes back to its own list and offers Undo", () => {
   const save = read("ui/screen-save.ts");
   assert.match(save, /go\(`\/\$\{views\[kind\]\.route\}`\)/);
   assert.match(save, /label: text\.undo/);
-  assert.equal(text.screen.deleted("Inception"), "Deleted: Inception");
+  assert.equal(text.screen.deleted("Inception"), "Deleted Inception");
 });
