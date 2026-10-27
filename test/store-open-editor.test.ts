@@ -168,10 +168,10 @@ test("every screen that mounts the item form keeps it through a delete instead o
   for (const file of ["views/generic-item.tsx", "views/person.tsx", "views/money-line.tsx", "views/book.tsx", "views/screen.tsx"]) {
     const source = read(file);
     assert.match(source, /const \{ row(: \w+)?, gone \} = useOpenRow\(/, file);
-    assert.match(source, /<ItemForm\s[^>]*gone=\{gone\}/, file);
+    assert.match(source, /<Item(Form|Detail)\s[^>]*gone=\{gone\}/, file);
     assert.match(source, /if \(!(row|line|open)\) return <Gone /, file);
   }
-  assert.match(read("views/money-line.tsx"), /<section aria-labelledby="payments" inert=\{gone\}>/);
+  assert.match(read("ui/item-detail.tsx"), /<div inert=\{gone\}>/);
   const screen = read("views/screen.tsx");
   assert.match(screen, /\{!gone && <Status /);
   assert.match(screen, /\{!gone && watched && <Ratings /);

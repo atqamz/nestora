@@ -930,6 +930,41 @@ main:has(> .split[data-wide]) {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
+.detail-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+}
+
+.detail-tools > * {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detail-tools svg {
+  flex: none;
+}
+
+.detail-facts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+.instant .hint {
+  margin: 0 0 var(--s1);
+}
+
+.detail-facts [data-long] dd {
+  flex-basis: 100%;
+  margin: var(--s1) 0 0;
+  font-weight: 400;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
 .split[data-wide] > .pane h3,
 .split[data-wide] > .pane h4 {
   margin-top: var(--s6);
@@ -971,4 +1006,16 @@ main:has(> .split[data-wide]) {
   border-top: 1px solid var(--line);
   border-radius: 0 0 0.75rem 0.75rem;
   color: var(--late);
+}
+
+.menu button.danger:first-child {
+  margin-top: var(--s7);
+  border-top: 0;
+  border-radius: 0.75rem;
+}
+
+@media (min-width: 62.5rem) {
+  .menu button.danger:first-child {
+    margin-top: 0;
+  }
 }

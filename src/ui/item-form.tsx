@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { BudgetEntryRow, ItemRow } from "../../shared/tables.ts";
 import { eventKeys } from "../domain/budget.ts";
 import { parseField } from "../domain/field.ts";
 import { useBusy } from "../hooks/use-busy.ts";
@@ -11,31 +10,26 @@ import { Avatar, Pair } from "./avatar.tsx";
 import { failureOf, splitErrors } from "./failure.ts";
 import { Field } from "./field.tsx";
 import type { Control } from "./field.tsx";
+import { backHref } from "./item-flows.ts";
+import type { Row } from "./item-flows.ts";
 import { fieldLabel, optionLabel } from "./labels.ts";
+import { Modal } from "./modal.tsx";
 import { fieldOptions, fieldType, isRequired, views } from "./registry.ts";
 import type { View, ViewName } from "./registry.ts";
 import { text } from "./text.ts";
-
-type Row = ItemRow | BudgetEntryRow;
 
 type Value = string | number | boolean | null;
 
 const valueOf = (row: Row, field: string) =>
   (field.startsWith("data.") ? (row.data?.[field.slice(5)] ?? null) : (row[field as keyof Row] ?? null)) as Value;
 
-export const backHref = (name: ViewName, row: Row) =>
-  name === "payment"
-    ? `#/money/${(row as BudgetEntryRow).budget_id}`
-    : name === "book" && (row as ItemRow).status === "wish"
-      ? "#/wishlist"
-      : `#/${views[name].route}`;
+type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written>; sheet?: () => void };
 
-type Props = { name: ViewName; row: Row; gone: boolean; only?: readonly string[]; onRemove?: () => Promise<Written>; onRestore?: () => Promise<Written> };
-
-export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) {
+export function ItemForm({ name, row, gone, only, onRemove, onRestore, sheet }: Props) {
   const view: View = views[name];
   const [initial] = useState(row);
   const form = useRef<HTMLFormElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const undo = useRef<HTMLButtonElement>(null);
   const removed = useRef(false);
   const revived = useRef(false);
@@ -110,7 +104,8 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) 
     if (Object.keys(data).length > 0) change.data = data;
     const result = await actions.update(view.table, row.id, change as never);
     if (result.ok) {
-      location.hash = backHref(name, row).slice(1);
+      if (sheet) sheet();
+      else location.hash = backHref(name, row).slice(1);
       return;
     }
     const { fields, rest } = splitErrors(failureOf(result), controls.map((control) => control.name));
@@ -121,8 +116,10 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) 
   const friendly = (control: Control, message: string) =>
     typeof control.type === "string" ? ((text.invalid as Record<string, string>)[control.type] ?? message) : message;
 
+  const root = () => form.current ?? body.current;
+
   useEffect(() => {
-    form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    root()?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
   }, [errors]);
 
   const restore = () =>
@@ -136,7 +133,7 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) 
   useEffect(() => {
     if (gone || busy || !revived.current) return;
     revived.current = false;
-    form.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
+    root()?.querySelector<HTMLElement>("input, select, textarea")?.focus();
   }, [gone, busy]);
 
   useEffect(() => {
@@ -152,6 +149,40 @@ export function ItemForm({ name, row, gone, only, onRemove, onRestore }: Props) 
       if (!result.ok) removed.current = false;
       setFailure(failureOf(result));
     });
+
+  if (sheet) {
+    return (
+      <Modal
+        title={text.edit}
+        onClose={sheet}
+        onSubmit={save}
+        foot={
+          <button type="submit" disabled={busy || gone}>
+            {text.save}
+          </button>
+        }
+      >
+        <div className="form" ref={body}>
+          <p id={notice} className={gone ? "hint" : "visually-hidden"} role="status">
+            {gone ? text.goneOpen : ""}
+          </p>
+          {gone && (
+            <button ref={undo} type="button" className="secondary" aria-describedby={notice} disabled={busy} onClick={restore}>
+              {text.undo}
+            </button>
+          )}
+          {controls.map((control) => (
+            <Field key={control.name} control={control} error={errors[control.name]} />
+          ))}
+          {failure.length > 0 && (
+            <p className="error" role="alert">
+              {failure.join(" ")}
+            </p>
+          )}
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <form ref={form} className="form" noValidate onSubmit={save}>
