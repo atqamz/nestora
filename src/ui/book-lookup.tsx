@@ -50,7 +50,7 @@ export function BookLookup({ form }: { form: BookForm }) {
             {search.hits.map((hit) => (
               <li key={hit.work}>
                 <button type="button" className="hit" onClick={() => accept(hit)}>
-                  <Cover book={{ id: hit.work, title: hit.title, data: { cover: hit.cover } }} />
+                  <Cover book={{ title: hit.title, data: { cover: hit.cover } }} />
                   <span className="bk-text">
                     <span className="title">{hit.title}</span>
                     {(hit.author !== "" || hit.year !== null) && <span className="bk-by">{[hit.author, hit.year].filter(Boolean).join(" · ")}</span>}
@@ -153,7 +153,7 @@ export function FillBook({ book }: { book: ItemRow }) {
 
   const note = state === "busy" ? WORDS.filling : state === "done" ? WORDS.filled : state === "nothing" ? WORDS.nothingNew : notice(state);
   return (
-    <div className="fill" ref={box} onKeyDown={(event) => dismisses(event.key, pending !== null, event.target instanceof Element && event.target.closest("dialog") !== null) && dismiss()}>
+    <div className="fill fill-page" ref={box} onKeyDown={(event) => dismisses(event.key, pending !== null, event.target instanceof Element && event.target.closest("dialog") !== null) && dismiss()}>
       {isbn !== null && (
         <button type="button" className="secondary" disabled={state === "busy"} onClick={() => void run(isbn)}>
           {WORDS.fill}

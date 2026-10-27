@@ -313,10 +313,10 @@ const vendorPage = (data: Record<string, unknown>) =>
 test("a contract link reads as its host, keeps the whole URL as its target and names itself with the host", async () => {
   const url = "https://files.example.com/contracts/2026/studio-agreement-final-signed-copy.pdf?download=1";
   const html = await vendorPage({ contract_url: url });
-  const link = /<a [^>]*>[^<]*<\/a>/.exec(html)![0];
+  const link = /<a href="https:[^>]*>.*?<\/a>/.exec(html)![0];
   assert.match(link, /href="https:\/\/files\.example\.com\/contracts\/2026\/studio-agreement-final-signed-copy\.pdf\?download=1"/);
   assert.match(link, /aria-label="[^"]*files\.example\.com"/);
-  assert.match(link, />files\.example\.com<\/a>$/);
+  assert.match(link, />files\.<wbr\/>example\.<wbr\/>com<\/a>$/);
   assert.equal(html.split(">").some((chunk) => chunk.startsWith("https://")), false);
 });
 

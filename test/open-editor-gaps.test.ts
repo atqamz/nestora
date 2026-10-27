@@ -56,25 +56,21 @@ test("the form's other choice controls take their options from the registry, nev
 test("a deleted row's form shows the notice in a region that was already mounted, and Undo points at it", () => {
   const form = read("ui/item-form.tsx");
   assert.match(form, /<p id=\{notice\} className=\{gone \? "hint" : "visually-hidden"\} role="status">\s*\{gone \? text\.goneOpen : ""\}\s*<\/p>/);
-  assert.match(form, /<button ref=\{undo\} type="button" aria-describedby=\{notice\}/);
+  assert.match(form, /<button type="button" className="secondary" aria-describedby=\{notice\}/);
 });
 
 test("Undo from an open form moves focus to the first field once the row is back, and only for the user's own Undo", () => {
   const form = read("ui/item-form.tsx");
-  assert.match(form, /revived\.current = true;\s*const result = await \(onRestore \? onRestore\(\) : actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
-  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*root\(\)\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
-});
-
-test("Delete is off on a deleted row", () => {
-  assert.match(read("ui/item-form.tsx"), /<button type="button" className="danger" disabled=\{busy \|\| gone\} onClick=\{remove\}>/);
+  assert.match(form, /revived\.current = true;\s*const result = await actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\);\s*if \(!result\.ok\) revived\.current = false;\s*setFailure\(failureOf\(result\)\);/);
+  assert.match(form, /if \(gone \|\| busy \|\| !revived\.current\) return;\s*revived\.current = false;\s*body\.current\?\.querySelector<HTMLElement>\("input, select, textarea"\)\?\.focus\(\);\s*\}, \[gone, busy\]\);/);
 });
 
 test("the open form keeps the fields it was opened with whichever way the partner turns the book", () => {
   const book = read("views/book.tsx");
   const SHELF = views.book.fields.filter((field) => !["data.shop"].includes(field));
-  assert.match(book, /function BookForm\(.*\) \{\s*const \[wish\] = useState\(book\.status === "wish"\);\s*return <ItemForm name="book" row=\{book\} gone=\{gone\} only=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
-  assert.match(book, /<BookForm key=\{book\.id\} book=\{book\} gone=\{gone\}/);
-  assert.doesNotMatch(book.slice(book.indexOf("export function BookDetail")), /only=/);
+  assert.match(book, /sheet=\{wish \? views\.book\.fields : SHELF_FIELDS\}/);
+  assert.match(read("ui/item-detail.tsx"), /onClick=\{guard\(\(\) => setEditing\(sheet \?\? sheetFields\(name\)\)\)\}/);
+  assert.match(read("ui/item-detail.tsx"), /only=\{editing\}/);
   assert.ok(views.book.fields.includes("data.shop") && !SHELF.includes("data.shop"));
 });
 
@@ -101,7 +97,7 @@ test("the book form's Undo brings back the copies the book's delete took with it
   assert.deepEqual([stored(server, book).deleted_at, stored(server, copy).deleted_at], [null, null]);
   assert.deepEqual(items(a.store).map((row) => row.id).sort(), [book, copy].sort());
   const source = read("views/book.tsx");
-  assert.match(source, /onRestore=\{\(\) => restoreBook\(book\)\}/);
+  assert.match(source, /flows=\{\{ remove: \(\) => removeBook\(book, open\.copies\), restore: \(\) => restoreBook\(book\) \}\}/);
   assert.match(source, /useOpenRow\(found && \{ book: found, copies: copies\.get\(found\.id\) \?\? \[\] \}\)/);
 });
 

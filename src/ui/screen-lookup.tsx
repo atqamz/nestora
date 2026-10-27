@@ -44,7 +44,7 @@ export function ScreenLookup({ kind, search, have, onPick }: { kind: ScreenKind;
               return (
                 <li key={hit.tmdb}>
                   <button type="button" className="hit" onClick={(event) => choose(event, hit, onPick)}>
-                    <Cover book={{ id: String(hit.tmdb), title: hit.title, data: { cover: hit.cover } }} />
+                    <Cover book={{ title: hit.title, data: { cover: hit.cover } }} />
                     <span className="bk-text">
                       <span className="title">{hit.title}</span>
                       {sub !== "" && <span className="bk-by">{sub}</span>}
