@@ -79,11 +79,11 @@ test("the form saves only a draft: Save is aria-disabled and Enter does nothing 
     form,
     /const draft = settleDraft\(typed, current \?\? ""\);\s*if \(draft !== typed\) setTyped\(draft\);\s*const shown = draft \?\? current \?\? "";/,
   );
-  assert.match(form, /return draft === null \? undefined : run\(draft\);/);
-  assert.match(form, /<button type="submit" aria-disabled=\{busy \|\| draft === null \|\| undefined\}>/);
+  assert.match(form, /if \(locked\) return hold\(\);\s*return draft === null \? undefined : run\(draft\);/);
+  assert.match(form, /<button type="submit" aria-disabled=\{busy \|\| draft === null \|\| locked \|\| undefined\}>/);
   assert.match(form, /value: shown, onChange: setTyped/);
   assert.match(form, /if \(result\.ok\) setTyped\(null\);/);
-  assert.match(form, /className="secondary"\s+disabled=\{busy\}\s+onClick=\{\(\) => run\(""\)\}/);
+  assert.match(form, /className="secondary"\s+disabled=\{busy\}\s+aria-disabled=\{locked \|\| undefined\}\s+onClick=\{guard\(\(\) => void run\(""\)\)\}/);
 });
 
 test("an untouched field follows a partner's rename and saves nothing", async () => {

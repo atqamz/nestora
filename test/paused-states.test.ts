@@ -9,6 +9,7 @@ import { badgeFor } from "../src/domain/status.ts";
 import type { Health } from "../src/domain/status.ts";
 import { text } from "../src/ui/text.ts";
 import { client, idOf, task, titles } from "./store-client.ts";
+import { overlay } from "../src/ui/overlay.ts";
 import { markupOf } from "./render.ts";
 import { createServer } from "./store-server.ts";
 
@@ -88,23 +89,24 @@ test("a step that does not occur today keeps its native disabled state, paused o
   assert.match(input(await rendered(true, step, false)), /\sdisabled(=|\s|>)/);
 });
 
-test("a tap while paused only moves focus to the banner: the write is never run and focus goes to the banner", async () => {
+test("a tap while paused only announces the pause in place: the write is never run and nothing is focused or looked up", async () => {
   const calls: string[] = [];
-  const spot = { focus: () => void calls.push("focus") };
   const globals = globalThis as unknown as { document?: unknown };
-  globals.document = { getElementById: (id: string) => (calls.push(id), spot) };
+  globals.document = { getElementById: (id: string) => (calls.push(id), { focus: () => calls.push("focus") }) };
   try {
     const { useSnapshot } = (await import("./render-store.ts")) as unknown as { useSnapshot: () => { paused: boolean } };
     for (const locked of [true, false]) {
       useSnapshot().paused = locked;
       calls.length = 0;
+      overlay.dismissToast();
       let hook!: { locked: boolean; guard: (run: () => void) => () => void };
       await markupOf("hooks/use-write-lock.ts", (loaded) => ((hook = loaded.useWriteLock()), null as never));
       hook.guard(() => void calls.push("write"))();
-      assert.deepEqual([hook.locked, calls], locked ? [true, ["paused-notice", "focus"]] : [false, ["write"]]);
+      assert.deepEqual([hook.locked, calls, overlay.getSnapshot().toast?.message], locked ? [true, [], text.pausedTap] : [false, ["write"], undefined]);
     }
   } finally {
     delete globals.document;
+    overlay.dismissToast();
   }
 });
 
@@ -116,18 +118,18 @@ test("the paused badge is a quiet link to Sync that reads Paused, not the offlin
   useSnapshot().paused = false;
 });
 
-test("the banner takes the id the hook looks for, and the badge is told whether the store is paused", () => {
-  assert.match(read("ui/shell.tsx"), /import \{ PAUSED_NOTICE \} from "\.\.\/hooks\/use-write-lock\.ts";/);
-  assert.match(read("ui/shell.tsx"), /id=\{PAUSED_NOTICE\} tabIndex=\{-1\}/);
-  assert.equal([...read("hooks/use-write-lock.ts").matchAll(/PAUSED_NOTICE = "paused-notice"/g)].length, 1);
+test("the banner is one live status that nothing focuses, and the badge is told whether the store is paused", () => {
+  assert.match(read("ui/shell.tsx"), /paused && link !== "mismatch" && \(\s*<div className="notice" role="status">/);
+  assert.doesNotMatch(read("ui/shell.tsx"), /PAUSED_NOTICE|tabIndex/);
+  assert.doesNotMatch(read("hooks/use-write-lock.ts"), /getElementById|focus/);
   assert.match(read("ui/sync-badge.tsx"), /badgeFor\(\{ storage, link, pending, rejected: rejected\.length, paused \}\)/);
 });
 
-test("a disabled or aria-disabled check is muted and, when open, dashed; the banner shows a ring when focused", () => {
+test("a disabled or aria-disabled check is muted and, when open, dashed; the banner is not a focus target", () => {
   const css = read("ui/ui.css");
   assert.match(css, /\.check input:disabled,\s*\.check input\[aria-disabled="true"\] \{\s*opacity: 0\.6;/);
   assert.match(css, /\.check input:disabled:not\(:checked\),\s*\.check input\[aria-disabled="true"\]:not\(:checked\) \{\s*border-style: dashed;/);
-  assert.match(css, /\.notice:focus \{\s*outline: 2\.5px solid var\(--focus\);\s*outline-offset: 2px;/);
+  assert.doesNotMatch(css, /\.notice:focus/);
   assert.match(read("style.css"), /\.sync\[data-state="paused"\] a::before/);
 });
 

@@ -10,6 +10,7 @@ import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { lookup, useSearch } from "../hooks/use-lookup.ts";
 import { actions, useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { fillOutcome, turns } from "../store/lookup.ts";
 import type { Fill } from "../store/lookup.ts";
 import type { Written } from "../store/store.ts";
@@ -21,6 +22,7 @@ import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { ScanIsbn } from "./scan.tsx";
 import { overlay } from "./overlay.ts";
 import { text } from "./text.ts";
@@ -220,6 +222,7 @@ export function BookFields({ form, children }: { form: BookForm; children?: Reac
 
 export function BookSheet({ kind: start, onClose }: { kind: Kind; onClose: () => void }) {
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const [title, setTitle] = useState(() => overlay.keptBook()?.title ?? "");
   const form = useBookForm(start, title, setTitle);
   const [failure, setFailure] = useState<string[]>([]);
@@ -227,6 +230,7 @@ export function BookSheet({ kind: start, onClose }: { kind: Kind; onClose: () =>
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     form.reveal();
     if (title.trim() === "" || !form.valid) return;
     return once(async () => {
@@ -244,7 +248,7 @@ export function BookSheet({ kind: start, onClose }: { kind: Kind; onClose: () =>
       onClose={onClose}
       onSubmit={save}
       foot={
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} {...lockedProps(locked)}>
           {form.saveLabel}
         </button>
       }

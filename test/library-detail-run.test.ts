@@ -32,14 +32,16 @@ const settle = async () => {
 };
 
 const page = { hash: "" };
-const doc = { notices: 0, getElementById: (id: string) => ({ focus: () => void (id === "paused-notice" && doc.notices++) }), querySelector: () => null };
+const doc = { querySelector: () => null };
+
+let announced!: { mock: { callCount: () => number; restore: () => void } };
 
 const around = (t: { after: (fn: () => void) => void }, paused = false) => {
   const globals = globalThis as Record<string, unknown>;
   globals.location = page;
   globals.document = doc;
   page.hash = "";
-  doc.notices = 0;
+  announced = mock.method(overlay, "announce");
   snapshot.paused = paused;
   const calls: Call[] = [];
   const removed: string[] = [];
@@ -53,6 +55,7 @@ const around = (t: { after: (fn: () => void) => void }, paused = false) => {
   mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-27T05:00:00Z") });
   t.after(() => {
     mock.timers.reset();
+    announced.mock.restore();
     snapshot.paused = false;
     delete globals.location;
     delete globals.document;
@@ -152,7 +155,7 @@ test("Delete on a wishlist book leaves for the wishlist", async (t) => {
 });
 
 for (const [name, make] of [["movie", () => screenView(movie())], ["book", () => bookView(book())]] as const) {
-  test(`while paused Edit and Delete on a ${name} announce aria-disabled and only move focus to the banner`, async (t) => {
+  test(`while paused Edit and Delete on a ${name} announce aria-disabled and only announce the pause`, async (t) => {
     const { calls, removed, many } = around(t, true);
     const view = make();
     const title = (name === "movie" ? "Midnight Ferry" : "Slow Bread");
@@ -160,7 +163,7 @@ for (const [name, make] of [["movie", () => screenView(movie())], ["book", () =>
     byLabel(view, text.editNamed(title)).props.onClick();
     menuOf(view).run();
     await settle();
-    assert.deepEqual([calls, removed, many, formOf(view), doc.notices], [[], [], [], undefined, 2]);
+    assert.deepEqual([calls, removed, many, formOf(view), announced.mock.callCount(), overlay.getSnapshot().toast?.message], [[], [], [], undefined, 1, text.pausedTap]);
     snapshot.paused = false;
     assert.deepEqual([byLabel(make(), text.editNamed(title)).props["aria-disabled"], menuOf(make()).locked], [undefined, false]);
   });

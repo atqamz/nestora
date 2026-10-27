@@ -9,7 +9,7 @@ import { Icon } from "./icons.tsx";
 import { views } from "./registry.ts";
 import { text } from "./text.ts";
 
-export type Member = { position: number; next: boolean; first: boolean; last: boolean; onMove: (step: -1 | 1) => void };
+export type Member = { position: number; next: boolean; first: boolean; last: boolean; locked?: boolean; onMove: (step: -1 | 1) => void };
 
 export function ScreenRow({ row, kind, member }: { row: ItemRow; kind: ScreenKind; member?: Member }) {
   const { me, label } = usePartner();
@@ -39,10 +39,10 @@ export function ScreenRow({ row, kind, member }: { row: ItemRow; kind: ScreenKin
       </a>
       {member && (
         <span className="acts">
-          <button type="button" className="ib" data-move={`up:${row.id}`} disabled={member.first} aria-label={words.up(row.title)} onClick={() => member.onMove(-1)}>
+          <button type="button" className="ib" data-move={`up:${row.id}`} disabled={member.first} aria-disabled={member.locked || undefined} aria-label={words.up(row.title)} onClick={() => member.onMove(-1)}>
             <Icon name="up" />
           </button>
-          <button type="button" className="ib" data-move={`down:${row.id}`} disabled={member.last} aria-label={words.down(row.title)} onClick={() => member.onMove(1)}>
+          <button type="button" className="ib" data-move={`down:${row.id}`} disabled={member.last} aria-disabled={member.locked || undefined} aria-label={words.down(row.title)} onClick={() => member.onMove(1)}>
             <Icon name="down" />
           </button>
         </span>

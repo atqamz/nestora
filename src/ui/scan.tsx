@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { camera, frameOf, timer } from "../domain/scan.ts";
 import type { Scanned } from "../domain/scan.ts";
 import { newDetector, useCanScan } from "../hooks/use-scan.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
 import { text } from "./text.ts";
@@ -55,8 +56,10 @@ function Camera({ onDone }: { onDone: (outcome: Scanned) => void }) {
   );
 }
 
-export function ScanIsbn({ onIsbn, tip }: { onIsbn: (isbn: string) => void; tip?: true }) {
+export function ScanIsbn({ onIsbn, tip, writes }: { onIsbn: (isbn: string) => void; tip?: true; writes?: true }) {
   const can = useCanScan();
+  const { locked, hold } = useWriteLock();
+  const held = writes && locked;
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const button = useRef<HTMLButtonElement>(null);
@@ -84,7 +87,9 @@ export function ScanIsbn({ onIsbn, tip }: { onIsbn: (isbn: string) => void; tip?
         ref={button}
         type="button"
         className="secondary"
+        aria-disabled={held || undefined}
         onClick={() => {
+          if (held) return hold();
           setNote("");
           setOpen(true);
         }}

@@ -369,7 +369,7 @@ test("both Add sheets and the book detail get the scan: the shared form fills th
   assert.match(sheet, /if \(!fresh\(typed\.current\.isbn, code\)\) return;/);
   assert.match(sheet, /typed\.current = \{ \.\.\.typed\.current, isbn: code \};\s*setIsbn\(code\);\s*void lookUp\(code, code\);/);
   const detail = read("ui/book-lookup.tsx");
-  assert.match(detail, /\{\(isbn === null \|\| kept\) && <ScanIsbn onIsbn=\{\(code\) => void onScan\(code\)\} \/>\}/);
+  assert.match(detail, /\{\(isbn === null \|\| kept\) && <ScanIsbn writes onIsbn=\{\(code\) => void onScan\(code\)\} \/>\}/);
   assert.match(detail, /if \(isbn === null && work === null && !can\) return null;/);
   assert.match(detail, /const step = await scanBook\(lookup, code, \(\) => latest\.current\);/);
   assert.match(detail, /if \(next\.kind === "write"\) return write\(code\);/);

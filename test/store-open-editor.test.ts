@@ -155,7 +155,7 @@ test("an open form takes every value from its own snapshot, and a deleted row ke
   assert.match(form, /value: initial\.title/);
   assert.match(form, /value: valueOf\(initial, field\)/);
   assert.doesNotMatch(form, /valueOf\(row,|value: row\.|\[row, siblings/);
-  assert.match(form, /<button type="submit" disabled=\{busy \|\| gone\}>/);
+  assert.match(form, /<button type="submit" disabled=\{busy \|\| gone\} \{\.\.\.lockedProps\(locked\)\}>/);
   assert.match(form, /actions\.update\(view\.table, row\.id, \{ deleted_at: null \} as never\)/);
   assert.match(form, /\{gone && \(\s*<button type="button" className="secondary" aria-describedby=\{notice\} disabled=\{busy\} onClick=\{restore\}>\s*\{text\.undo\}\s*<\/button>\s*\)\}/);
   assert.doesNotMatch(form, /removed|onRemove|onRestore|undo\.current/);

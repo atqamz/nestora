@@ -5,10 +5,12 @@ import { placesOf } from "../domain/places.ts";
 import { movable, whereOf } from "../domain/shelf.ts";
 import { useBusy } from "../hooks/use-busy.ts";
 import { useTable } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { useBookActions } from "./book-actions.ts";
 import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { PausedNote, lockedProps } from "./paused-note.tsx";
 import { text } from "./text.ts";
 
 type Places = ReadonlyMap<string, ItemRow>;
@@ -53,6 +55,7 @@ function PlacePicker({ copy, title, onClose }: { copy: ItemRow; title: string; o
   const first = places.find((place) => place.id === copy.group_key)?.id ?? places[0]?.id;
   const { move, addPlace } = useBookActions();
   const { busy, once } = useBusy();
+  const { locked } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
 
   const pick = (id: string | null, name: string) =>
@@ -65,7 +68,7 @@ function PlacePicker({ copy, title, onClose }: { copy: ItemRow; title: string; o
   const create = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = String(new FormData(event.currentTarget).get("title") ?? "").trim();
-    if (name === "") return;
+    if (name === "" || locked) return;
     return once(async () => {
       const made = await addPlace(name);
       if (!made.ok) return setFailure(failureOf(made));
@@ -78,6 +81,7 @@ function PlacePicker({ copy, title, onClose }: { copy: ItemRow; title: string; o
   return (
     <Modal title={text.books.moveTo} onClose={onClose} dismissible>
       <p className="hint bk-of">{title}</p>
+      <PausedNote />
       {places.length === 0 ? (
         <p className="empty">{text.books.noPlacesYet}</p>
       ) : (
@@ -90,7 +94,8 @@ function PlacePicker({ copy, title, onClose }: { copy: ItemRow; title: string; o
                 data-first={place.id === first || undefined}
                 aria-current={place.id === copy.group_key ? "true" : undefined}
                 disabled={busy}
-                onClick={() => pick(place.id, place.title)}
+                {...lockedProps(locked)}
+                onClick={locked ? undefined : () => pick(place.id, place.title)}
               >
                 <span>{place.title}</span>
                 {place.id === copy.group_key && <Icon name="check" />}
@@ -104,7 +109,7 @@ function PlacePicker({ copy, title, onClose }: { copy: ItemRow; title: string; o
           {text.books.newPlaceLabel}
         </label>
         <input id="new-place" name="title" maxLength={500} autoComplete="off" autoCapitalize="words" placeholder={text.books.newPlacePlaceholder} />
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy} {...lockedProps(locked)}>
           <Icon name="plus" />
           {text.books.newPlace}
         </button>

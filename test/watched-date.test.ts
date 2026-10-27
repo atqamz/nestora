@@ -303,7 +303,7 @@ test("the draft follows the live row until the user types, and a typed draft is 
 
 test("the button stays focusable after a save: aria-disabled while there is nothing to save, never disabled", () => {
   const form = watchedOn();
-  assert.match(form, /<button type="submit" className="secondary" aria-disabled=\{busy \|\| shown === day \|\| undefined\}>/);
+  assert.match(form, /<button type="submit" className="secondary" aria-disabled=\{busy \|\| shown === day \|\| locked \|\| undefined\}>/);
   assert.doesNotMatch(form, /(?<!-)\bdisabled=/);
   assert.match(read("ui/ui.css"), /button:disabled,\s*button\[aria-disabled="true"\] \{/);
 });

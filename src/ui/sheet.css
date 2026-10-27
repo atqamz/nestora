@@ -93,6 +93,12 @@ html:has(dialog[open]) {
   text-wrap: balance;
 }
 
+.paused-note {
+  margin: 0 0 var(--s3);
+  text-align: center;
+  text-wrap: balance;
+}
+
 .kinds {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
@@ -287,6 +293,11 @@ html:has(dialog[open]) {
   justify-content: center;
   padding: 0 max(var(--s3), var(--safe-r)) 0 max(var(--s3), var(--safe-l));
   pointer-events: none;
+}
+
+.toast[data-top] {
+  top: calc(var(--safe-t) + var(--s3));
+  bottom: auto;
 }
 
 .toast p {

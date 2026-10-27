@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useSettings } from "../hooks/use-plan.ts";
 import { actions, useSnapshot } from "../hooks/use-store.ts";
-import { PAUSED_NOTICE } from "../hooks/use-write-lock.ts";
 import { AddSheet } from "./add-sheet.tsx";
 import { Pair } from "./avatar.tsx";
 import { sweepUndone } from "./book-import.ts";
@@ -65,7 +64,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
           </div>
         )}
         {paused && link !== "mismatch" && (
-          <div className="notice" role="status" id={PAUSED_NOTICE} tabIndex={-1}>
+          <div className="notice" role="status">
             <p>{text.paused}</p>
           </div>
         )}
@@ -83,7 +82,7 @@ export function Shell({ section, children }: { section: string; children: ReactN
         <main data-page={journey ? "journey" : undefined}>{link === "mismatch" ? null : children}</main>
       </div>
       <Nav className="tabs" section={section} locked={link === "mismatch"} />
-      <div className="toast" role="status">
+      <div className="toast" role="status" data-top={toast?.top}>
         {toast && (
           <p key={toast.id}>
             <span>{toast.message}</span>

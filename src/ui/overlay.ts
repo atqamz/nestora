@@ -21,7 +21,7 @@ export const withSeed = (kept: string, seed: string) => [kept.trim(), seed.trim(
 
 export type ToastAction = { label: string; run: () => void };
 
-type State = { adding: boolean; seed: string; session: number; toast: { id: number; message: string; action?: ToastAction } | null };
+type State = { adding: boolean; seed: string; session: number; toast: { id: number; message: string; action?: ToastAction; top?: true } | null };
 
 const TOAST_MS = 6000;
 const TOAST_ACTION_MS = 12000;
@@ -63,9 +63,9 @@ export const overlay = {
     opener = null;
     target?.focus({ preventScroll: true });
   },
-  announce: (message: string, action?: ToastAction) => {
+  announce: (message: string, action?: ToastAction, top?: true) => {
     clearTimeout(timer);
-    set({ toast: { id: ++toasts, message, action } });
+    set({ toast: { id: ++toasts, message, action, top } });
     timer = setTimeout(() => set({ toast: null }), action ? TOAST_ACTION_MS : TOAST_MS);
   },
   dismissToast: () => {

@@ -35,7 +35,7 @@ test("the browser store is a session over one database per side, with the side h
 });
 
 test("the shell and the sync page say that changes are paused while the side is unconfirmed", () => {
-  assert.match(read("../src/ui/shell.tsx"), /paused && link !== "mismatch" && \(\s*<div className="notice" role="status" id=\{PAUSED_NOTICE\} tabIndex=\{-1\}>\s*<p>\{text\.paused\}<\/p>/);
+  assert.match(read("../src/ui/shell.tsx"), /paused && link !== "mismatch" && \(\s*<div className="notice" role="status">\s*<p>\{text\.paused\}<\/p>/);
   assert.match(read("../src/ui/shell.tsx"), /<main data-page=\{journey \? "journey" : undefined\}>\{link === "mismatch" \? null : children\}<\/main>/);
   assert.match(read("../src/views/sync.tsx"), /paused\s*\? text\.sync\.pausedExpiredBody\s*: text\.sync\.expiredBody/);
   assert.match(read("../src/views/sync.tsx"), /link === "offline"\s*\? paused\s*\? text\.paused\s*: text\.sync\.offlineBody\s*: text\.sync\.onlineBody/);

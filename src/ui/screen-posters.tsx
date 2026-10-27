@@ -6,6 +6,7 @@ import { needsPoster } from "../domain/tmdb.ts";
 import { useDetails } from "../hooks/use-details.ts";
 import type { Details } from "../hooks/use-details.ts";
 import { useTmdbDay } from "../hooks/use-plan.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { fillScreen } from "../store/details.ts";
 import { text } from "./text.ts";
 
@@ -30,14 +31,14 @@ export const postersLine = ({ phase, done, total, tally }: Pick<Details, "phase"
                 ? WORDS.need(remaining)
                 : "";
 
-type Bar = { phase: Details["phase"]; line: string; remaining: number; again: boolean; start: () => void; stop: () => void };
+type Bar = { phase: Details["phase"]; line: string; remaining: number; again: boolean; locked?: boolean; start: () => void; stop: () => void };
 
 export const resumes = (tried: number, phase: Details["phase"]) => tried > 0 || phase === "stopped" || phase === "offline" || phase === "busy";
 
 export const takesFocus = (phase: Details["phase"], inside: boolean, active: unknown, body: unknown) =>
   phase === "finished" && (inside || active === null || active === body);
 
-export function PostersBar({ phase, line, remaining, again, start, stop, status, bar }: Bar & { status?: Ref<HTMLParagraphElement>; bar?: Ref<HTMLDivElement> }) {
+export function PostersBar({ phase, line, remaining, again, locked, start, stop, status, bar }: Bar & { status?: Ref<HTMLParagraphElement>; bar?: Ref<HTMLDivElement> }) {
   const going = phase === "running" || phase === "stopping";
   const spent = phase === "finished" && remaining === 0;
   return (
@@ -52,7 +53,7 @@ export function PostersBar({ phase, line, remaining, again, start, stop, status,
           </button>
         ) : (
           remaining > 0 && (
-            <button type="button" className="secondary" onClick={start}>
+            <button type="button" className="secondary" aria-disabled={locked || undefined} onClick={start}>
               {again ? BOOKS.resume : WORDS.find}
             </button>
           )
@@ -64,6 +65,7 @@ export function PostersBar({ phase, line, remaining, again, start, stop, status,
 
 export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly ItemRow[] }) {
   const stamp = useTmdbDay();
+  const { locked, guard } = useWriteLock();
   const { state, remaining, tried, start, stop } = useDetails(`screens-${kind}`, rows, {
     needs: (row) => needsPoster(row, stamp()),
     attempt: (lookup, _, current) => fillScreen(lookup, current, stamp()),
@@ -76,5 +78,5 @@ export function ScreenPosters({ kind, rows }: { kind: ScreenKind; rows: readonly
     if (takesFocus(state.phase, bar.current?.contains(document.activeElement) ?? false, document.activeElement, document.body)) status.current?.focus();
   }, [state.phase]);
   if (line === "") return null;
-  return <PostersBar phase={state.phase} line={line} remaining={remaining} again={again} start={() => void start()} stop={stop} status={status} bar={bar} />;
+  return <PostersBar phase={state.phase} line={line} remaining={remaining} again={again} locked={locked} start={guard(() => void start())} stop={stop} status={status} bar={bar} />;
 }

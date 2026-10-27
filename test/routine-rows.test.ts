@@ -146,7 +146,7 @@ test("the menu offers Duplicate, then Pause or Resume, then Delete last and mark
   assert.deepEqual(calls, ["open copy", "resume", "remove"]);
   const page = read("views/routine.tsx");
   assert.match(page, /items=\{routineMenu\(\{\s*away,\s*open: setSheet,/);
-  assert.match(page, /resume: \(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.resume\(routine\)\)\)\),\s*remove: \(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.remove\(routine\)\)\)\),/);
+  assert.match(page, /resume: guard\(\(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.resume\(routine\)\)\)\)\),\s*remove: guard\(\(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.remove\(routine\)\)\)\)\),/);
 });
 
 test("the menu keeps its roles, its danger class, its More icon, and stops the page from scrolling on an arrow key", () => {
@@ -159,7 +159,7 @@ test("the menu keeps its roles, its danger class, its More icon, and stops the p
 
 test("the Resume pill writes through flows.resume, is guarded while it runs, and shows a failure under its row", () => {
   const list = read("views/routines.tsx");
-  assert.match(list, /disabled=\{busy\} aria-label=\{copy\.resumeNamed\(routine\.title\)\} onClick=\{\(\) => once\(async \(\) => setFailure\(failureOf\(await flows\.resume\(routine\)\)\)\)\}/);
+  assert.match(list, /disabled=\{busy\} aria-disabled=\{locked \|\| undefined\} aria-label=\{copy\.resumeNamed\(routine\.title\)\} onClick=\{guard\(\(\) => void once\(async \(\) => setFailure\(failureOf\(await flows\.resume\(routine\)\)\)\)\)\}/);
   assert.match(list, /\{failure\.length > 0 && \(\s*<p className="error" role="alert">/);
 });
 

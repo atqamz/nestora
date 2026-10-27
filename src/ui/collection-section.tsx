@@ -4,11 +4,13 @@ import { COLLECTION_MAX } from "../../shared/tables.ts";
 import type { Collection } from "../domain/collection.ts";
 import type { ScreenKind } from "../domain/screen.ts";
 import { actions, readItems } from "../hooks/use-store.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { moveMember, renameCollection } from "./collection-flows.ts";
 import { failureOf } from "./failure.ts";
 import { Field } from "./field.tsx";
 import { Icon } from "./icons.tsx";
 import { Modal } from "./modal.tsx";
+import { lockedProps } from "./paused-note.tsx";
 import { ScreenRow } from "./screen-row.tsx";
 import { text } from "./text.ts";
 
@@ -19,8 +21,10 @@ const deps = { items: readItems, actions };
 function Rename({ kind, group, onClose }: { kind: ScreenKind; group: Collection; onClose: () => void }) {
   const [name, setName] = useState(group.name);
   const [failure, setFailure] = useState<string[]>([]);
+  const { locked } = useWriteLock();
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (locked) return;
     const result = await renameCollection(deps, kind, group.name, name);
     setFailure(failureOf(result));
     if (result.ok) onClose();
@@ -30,7 +34,7 @@ function Rename({ kind, group, onClose }: { kind: ScreenKind; group: Collection;
       title={words.renameTitle}
       onClose={onClose}
       onSubmit={save}
-      foot={<button type="submit">{words.renameSave}</button>}
+      foot={<button type="submit" {...lockedProps(locked)}>{words.renameSave}</button>}
     >
       <div className="form bk-form">
         <Field control={{ name: "collection", label: words.renameLabel, type: "text", words: true, required: true, max: COLLECTION_MAX, value: name, onChange: setName }} error={failure[0]} />
@@ -45,6 +49,7 @@ export function CollectionSection({ kind, group }: { kind: ScreenKind; group: Co
   const moved = useRef<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [failure, setFailure] = useState<string[]>([]);
+  const { locked, hold } = useWriteLock();
   const order = group.rows.map((row) => row.id).join();
 
   useEffect(() => {
@@ -78,7 +83,9 @@ export function CollectionSection({ kind, group }: { kind: ScreenKind; group: Co
               next: row.id === group.next,
               first: index === 0,
               last: index === group.rows.length - 1,
+              locked,
               onMove: (step) => {
+                if (locked) return hold();
                 moved.current = `${step < 0 ? "up" : "down"}:${row.id}`;
                 void moveMember(deps, kind, row, step).then((result) => {
                   if (!result.ok) moved.current = null;

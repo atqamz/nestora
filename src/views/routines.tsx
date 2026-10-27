@@ -6,6 +6,7 @@ import { blankDraft } from "../domain/routine-draft.ts";
 import { actionsOf, listing, routinesOf } from "../domain/routines.ts";
 import { useRoutineFlows, useRoutines } from "../hooks/use-routines.ts";
 import { useBusy } from "../hooks/use-busy.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { usePartner } from "../hooks/use-plan.ts";
 import { failureOf } from "../ui/failure.ts";
 import { Icon } from "../ui/icons.tsx";
@@ -23,6 +24,7 @@ type Sheet = { kind: "new" | "timetable" } | null;
 
 function Row({ routine, items, me, day, flows }: { routine: ItemRow; items: readonly ItemRow[]; me: Side; day: string; flows: Flows }) {
   const { busy, once } = useBusy();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const own = routine.who === me || routine.who === "both";
   const tally = own
@@ -47,7 +49,7 @@ function Row({ routine, items, me, day, flows }: { routine: ItemRow; items: read
           {!away && <Icon name="forward" />}
         </a>
         {away && (
-          <button type="button" className="pill rt-resume" disabled={busy} aria-label={copy.resumeNamed(routine.title)} onClick={() => once(async () => setFailure(failureOf(await flows.resume(routine))))}>
+          <button type="button" className="pill rt-resume" disabled={busy} aria-disabled={locked || undefined} aria-label={copy.resumeNamed(routine.title)} onClick={guard(() => void once(async () => setFailure(failureOf(await flows.resume(routine)))))}>
             {copy.resume}
           </button>
         )}

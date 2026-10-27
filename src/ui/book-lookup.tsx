@@ -6,6 +6,7 @@ import type { Source } from "../domain/openlibrary.ts";
 import { lookup } from "../hooks/use-lookup.ts";
 import { actions } from "../hooks/use-store.ts";
 import { useCanScan } from "../hooks/use-scan.ts";
+import { useWriteLock } from "../hooks/use-write-lock.ts";
 import { decide, dismisses, fillBook, landing, scanBook, turns } from "../store/lookup.ts";
 import type { Choice, Fill, Pending } from "../store/lookup.ts";
 import { Cover } from "./book-bits.tsx";
@@ -96,6 +97,7 @@ export function FillBook({ book }: { book: ItemRow }) {
   const box = useRef<HTMLDivElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
   const can = useCanScan();
+  const { locked, guard } = useWriteLock();
   const latest = useRef(book);
   latest.current = book;
   useEffect(() => {
@@ -155,14 +157,14 @@ export function FillBook({ book }: { book: ItemRow }) {
   return (
     <div className="fill fill-page" ref={box} onKeyDown={(event) => dismisses(event.key, pending !== null, event.target instanceof Element && event.target.closest("dialog") !== null) && dismiss()}>
       {isbn !== null && (
-        <button type="button" className="secondary" disabled={state === "busy"} onClick={() => void run(isbn)}>
+        <button type="button" className="secondary" disabled={state === "busy"} aria-disabled={locked || undefined} onClick={guard(() => void run(isbn))}>
           {WORDS.fill}
         </button>
       )}
       <p className="hint look-note" role="status">
         {note}
       </p>
-      {(isbn === null || kept) && <ScanIsbn onIsbn={(code) => void onScan(code)} />}
+      {(isbn === null || kept) && <ScanIsbn writes onIsbn={(code) => void onScan(code)} />}
       {pending !== null && (
         <div className="replace" role="group" aria-label={WORDS.replace}>
           <p>{WORDS.replace}</p>

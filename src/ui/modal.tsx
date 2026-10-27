@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Icon } from "./icons.tsx";
+import { PausedNote } from "./paused-note.tsx";
 import { text } from "./text.ts";
 import { useSheet } from "./use-sheet.ts";
 
@@ -38,7 +39,10 @@ export function Modal({ title, onClose, onSubmit, foot, dismissible, className, 
           <Icon name="close" />
         </button>
       </div>
-      <div className="sheet-body">{children}</div>
+      <div className="sheet-body">
+        {onSubmit && <PausedNote />}
+        {children}
+      </div>
       {foot && <div className="sheet-foot">{foot}</div>}
     </>
   );
