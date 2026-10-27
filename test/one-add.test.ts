@@ -70,6 +70,8 @@ const chip = (view: { tree: unknown }, label: string) => {
   return found.props;
 };
 
+const data = (view: { tree: unknown }) => find(view.tree as never, (props) => props.className === "sheet-form add-form")[0].props["data-pristine"];
+
 const titleInput = (view: { tree: unknown }) => find(view.tree as never, (props) => props.name === "title")[0].props;
 
 const type = (view: { tree: unknown }, value: string) => titleInput(view).onChange({ target: { value } });
@@ -102,6 +104,19 @@ test("a hand-off closes the Add sheet and opens its target only after the sheet 
   overlay.landOnward();
   assert.equal(overlay.getSnapshot().compose, null);
   overlay.landOnward();
+});
+
+test("a hand-off is dropped when the page changed before the sheet closed", (t) => {
+  around(t);
+  const globals = globalThis as unknown as { location: { hash: string } };
+  overlay.openAdd();
+  overlay.handOff({ kind: "movie", title: "Dune" });
+  globals.location.hash = "#/tasks";
+  overlay.landOnward();
+  assert.equal(overlay.getSnapshot().compose, null);
+  overlay.handOff({ kind: "movie", title: "Dune" });
+  overlay.landOnward();
+  assert.deepEqual(overlay.getSnapshot().compose, { kind: "movie", title: "Dune" });
 });
 
 test("the Add sheet closing hands off, then returns focus first: the sheet it opens remembers the + as its opener", () => {
@@ -215,6 +230,31 @@ test("a routine is handed the typed name, for the person adding it, and clears t
   assert.deepEqual([created.length > 0, overlay.keptDraft()], [true, null]);
 });
 
+test("Compose renders nothing while nothing is handed off", (t) => {
+  around(t);
+  overlay.closeCompose();
+  assert.equal(mount<Record<string, any>>(Compose, {}).tree, null);
+});
+
+test("a routine that fails to save stays open with its error and keeps the draft; the line is trimmed when handed across", async (t) => {
+  around(t);
+  stage([]);
+  const view = form("routine");
+  type(view, "  Evening wind-down  ");
+  await submit(view);
+  overlay.landOnward();
+  assert.deepEqual(overlay.getSnapshot().compose, { kind: "routine", title: "Evening wind-down" });
+  const compose = mount<Record<string, any>>(Compose, {});
+  const entry = find(compose.tree as never, (_, kind) => (kind as { name?: string }).name === "NewRoutine")[0];
+  const sheetView = find(mount<Record<string, any>>(entry.type as never, entry.props).tree as never, (_, kind) => (kind as { name?: string }).name === "RoutineSheet")[0];
+  stub.many = async (...args: unknown[]) => (created.push(args), { ok: false as const, storage: false, paused: false, errors: ["nope"] });
+  const routine = mount<Record<string, any>>(sheetView.type as never, sheetView.props);
+  await find(routine.tree as never, (props) => typeof props.onSubmit === "function")[0].props.onSubmit({ preventDefault: () => undefined });
+  await settle();
+  assert.equal(created.length > 0, true);
+  assert.deepEqual([overlay.getSnapshot().compose !== null, overlay.keptDraft()?.input], [true, "  Evening wind-down  "]);
+});
+
 test("the typed text survives switching kinds, to a hand-off kind and back", (t) => {
   around(t);
   const view = form("movie");
@@ -233,6 +273,82 @@ test("an explicit pick kept in the draft beats the section's start, and an autom
   overlay.keepDraft({ input: "Florist 5 jt", kindPick: null, ignore: [], edits: {}, ownerPick: null });
   const view = form("movie");
   assert.deepEqual([chip(view, "Movie")["aria-pressed"], titleInput(view).value], [true, "Florist 5 jt"]);
+});
+
+const SECTIONS = ["", "tasks", "marriage", "money", "people", "settings", "payments", "guests", "vendors", "budget", "sync", "routines", "movies", "series", "books", "wishlist", "places"];
+
+const submitLabel = (view: { tree: unknown }) => find(view.tree as never, (props) => props.type === "submit")[0].props.children;
+
+const backdropCloses = (pristine: boolean) => {
+  const dialog = find(mount<Record<string, any>>(AddSheet, {}).tree as never, (props) => props.className === "add-sheet")[0].props;
+  const target = { querySelector: () => (pristine ? {} : null) };
+  overlay.openAdd();
+  dialog.onClick({ target, currentTarget: target });
+  return !overlay.getSnapshot().adding;
+};
+
+test("a section's start is a preselect, not a pick: Books opened and closed empty leaves Task for the next +, and the label is Add task", (t) => {
+  around(t);
+  const books = form("book");
+  const wishlist = submitLabel(books);
+  assert.deepEqual([chip(books, "Book")["aria-pressed"], wishlist === text.sheet.save.task], [true, false]);
+  assert.equal(overlay.keptDraft(), null);
+  overlay.closeAdd();
+  const tasks = form(addStartsAs("tasks"));
+  assert.deepEqual([chip(tasks, "Task")["aria-pressed"], chip(tasks, "Book")["aria-pressed"], submitLabel(tasks)], [true, false, text.sheet.save.task]);
+  type(tasks, "Call the florist tomorrow");
+  assert.equal(overlay.keptDraft()?.kindPick, null);
+  assert.equal(created.length, 0);
+});
+
+test("every section opens with its own preselect each time, whatever the last section was", (t) => {
+  around(t);
+  const pressed = (section: string) => {
+    const view = form(addStartsAs(section));
+    const on = chips(view).filter((entry) => entry.props["aria-pressed"]).map((entry) => entry.props.children[1]);
+    overlay.closeAdd();
+    return on;
+  };
+  const expected: Record<string, string> = { routines: "Routine", movies: "Movie", series: "Series", books: "Book", wishlist: "Book", places: "Book" };
+  for (const order of [SECTIONS, [...SECTIONS].reverse()]) for (const section of order) assert.deepEqual(pressed(section), [expected[section] ?? "Task"], section);
+});
+
+test("a real tap on a chip is kept for the next +, over the section's own start", (t) => {
+  around(t);
+  const view = form("book");
+  chip(view, "Vendor").onClick();
+  assert.deepEqual([overlay.keptDraft()?.kindPick, data(view)], ["vendor", undefined]);
+  overlay.closeAdd();
+  assert.equal(chip(form(addStartsAs("tasks")), "Vendor")["aria-pressed"], true);
+  const again = form("book");
+  chip(again, "Book").onClick();
+  assert.equal(overlay.keptDraft()?.kindPick, "book");
+});
+
+test("a typed draft is kept for the next +, on any section", (t) => {
+  around(t);
+  type(form("book"), "Dune");
+  overlay.closeAdd();
+  const view = form(addStartsAs("tasks"));
+  assert.deepEqual([titleInput(view).value, chip(view, "Book")["aria-pressed"]], ["Dune", false]);
+});
+
+test("with nothing typed and nothing tapped the sheet is pristine on every section, and a backdrop tap closes it; with a tap or a line it is not", (t) => {
+  around(t);
+  for (const section of SECTIONS) {
+    const view = form(addStartsAs(section));
+    assert.equal(data(view), true, section);
+    assert.equal(backdropCloses(data(view) === true), true, section);
+    assert.equal(overlay.keptDraft(), null, section);
+  }
+  const tapped = form();
+  chip(tapped, "Guest").onClick();
+  assert.equal(data(tapped), undefined);
+  overlay.keepDraft(null);
+  const typed = form("book");
+  type(typed, "Dune");
+  assert.equal(data(typed), undefined);
+  assert.equal(backdropCloses(false), false);
 });
 
 test("a hand-off kind picked for a kept draft never lands in the draft as a kind", (t) => {
@@ -278,14 +394,14 @@ test("a quick-add field is a plain solid input", () => {
   assert.equal(own.get("flex"), "1 1 8rem");
 });
 
-test("the nine kind chips sit three to a row on a 390 px phone, two on 320 px, one per row at 200 % text, so the common Task sheet keeps its owner row", () => {
+test("the nine kind chips sit three to a row from 356 px up (360, 390, 412), two on 320 px, one per row at 200 % text, so the common Task sheet keeps its owner row", () => {
   const rules = sheet("ui/sheet.css");
   const grid = cascade(rules, ".kinds", 24.375).get("grid-template-columns") ?? "";
   const [, min] = /^repeat\(auto-fit, minmax\(([\d.]+)rem, 1fr\)\)$/.exec(grid) ?? [];
   const gap = 0.5;
   const sheetPadding = 2 * 1.25;
   const columns = (rem: number) => Math.floor((rem - sheetPadding + gap) / (Number(min) + gap));
-  assert.deepEqual([390 / 16, 320 / 16, 390 / 32, 320 / 32].map(columns), [3, 2, 1, 1]);
+  assert.deepEqual([412 / 16, 390 / 16, 360 / 16, 356 / 16, 355 / 16, 320 / 16, 412 / 32, 390 / 32, 360 / 32, 320 / 32].map(columns), [3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
   assert.equal(cascade(rules, ".kinds", 24.375).get("gap"), "var(--s2)");
 });
 

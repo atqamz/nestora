@@ -31,6 +31,7 @@ const TOAST_ACTION_MS = 12000;
 let state: State = { adding: false, preset: null, compose: null, session: 0, toast: null };
 let opener: HTMLElement | null = null;
 let onward: Compose | null = null;
+let onwardAt = "";
 let timer: ReturnType<typeof setTimeout> | undefined;
 let toasts = 0;
 let kept: SheetDraft | null = null;
@@ -56,12 +57,13 @@ export const overlay = {
   closeAdd: () => set({ adding: false }),
   handOff: (next: Compose) => {
     onward = next;
+    onwardAt = location.hash;
     set({ adding: false });
   },
   landOnward: () => {
     const next = onward;
     onward = null;
-    if (next) set({ compose: next });
+    if (next && location.hash === onwardAt) set({ compose: next });
   },
   closeCompose: () => set({ compose: null }),
   keepDraft: (draft: SheetDraft | null) => {

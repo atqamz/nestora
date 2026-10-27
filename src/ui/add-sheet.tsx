@@ -57,7 +57,8 @@ function AddForm({ preset }: { preset: Kind | Onward | null }) {
 
   const [start] = useState(overlay.keptDraft);
   const [input, setInput] = useState(start?.input ?? "");
-  const [pick, setPick] = useState<Kind | Onward | null>(start?.kindPick ?? preset);
+  const [tapped, setTapped] = useState<Kind | null>(start?.kindPick ?? null);
+  const pick = tapped ?? preset;
   const [ignore, setIgnore] = useState<ReadonlySet<Parsed>>(new Set(start?.ignore));
   const [edits, setEdits] = useState<Partial<Record<Detail, string>>>((start?.edits ?? {}) as Partial<Record<Detail, string>>);
   const [ownerPick, setOwnerPick] = useState<Owner | null>((start?.ownerPick ?? null) as Owner | null);
@@ -265,11 +266,11 @@ function AddForm({ preset }: { preset: Kind | Onward | null }) {
     });
   };
 
-  const pristine = input === "" && Object.keys(edits).length === 0 && kindPick === null && ownerPick === null;
+  const pristine = input === "" && Object.keys(edits).length === 0 && tapped === null && ownerPick === null;
 
   useEffect(() => {
-    overlay.keepDraft(pristine ? null : { input, kindPick, ignore: [...ignore], edits: edits as Record<string, string>, ownerPick });
-  }, [pristine, input, kindPick, ignore, edits, ownerPick]);
+    overlay.keepDraft(pristine ? null : { input, kindPick: tapped, ignore: [...ignore], edits: edits as Record<string, string>, ownerPick });
+  }, [pristine, input, tapped, ignore, edits, ownerPick]);
 
   const read = draft.title !== "" && draft.title !== input.trim().replace(/\s+/g, " ");
   const fieldName = (detail: Detail) => (detail === "group" ? text.sheet.group[kind as keyof typeof text.sheet.group] : text.sheet.detail[detail]);
@@ -292,7 +293,7 @@ function AddForm({ preset }: { preset: Kind | Onward | null }) {
         <PausedNote />
         <div role="group" aria-label={text.sheet.kind} className="kinds">
           {KINDS.map((name) => (
-            <button key={name} type="button" aria-pressed={onward === null && kind === name} onClick={() => setPick(name)}>
+            <button key={name} type="button" aria-pressed={onward === null && kind === name} onClick={() => setTapped(name)}>
               <Icon name={KIND_ICON[name]} />
               {text.sheet.kinds[name]}
             </button>

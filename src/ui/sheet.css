@@ -105,7 +105,7 @@ html:has(dialog[open]) {
 
 .kinds {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr));
   gap: var(--s2);
   margin: var(--s2) 0 var(--s4);
 }
