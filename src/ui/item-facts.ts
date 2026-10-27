@@ -7,7 +7,9 @@ import { text } from "./text.ts";
 
 export type Fact = { field: string; label: string; value: string | number; kind: "text" | "money" | "link" | "long" };
 
-const web = (value: string) => /^https?:\/\//i.test(value);
+const web = (value: string) => /^https?:\/\//i.test(value) && URL.canParse(value);
+
+export const hostOf = (value: string) => new URL(value).host;
 
 const valueOf = (row: Row, field: string): unknown => (field.startsWith("data.") ? (row.data?.[field.slice(5)] ?? null) : (row[field as keyof Row] ?? null));
 

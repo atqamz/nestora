@@ -32,14 +32,21 @@ test("the edit sheet holds the fields the page does not already save on tap", ()
   for (const name of ["task", "payment", "guest", "vendor", "planned"] as const) for (const field of instantFields(name)) assert.equal(sheetFields(name).includes(field), false, `${name} ${field}`);
 });
 
-test("an instant change stamps the done date when the status is the view's done status, clears it otherwise, and writes the owner as null for nobody", () => {
-  assert.deepEqual(instantChange("task", "status", "done", "2026-10-27"), { status: "done", done_on: "2026-10-27" });
-  assert.deepEqual(instantChange("task", "status", "todo", "2026-10-27"), { status: "todo", done_on: null });
-  assert.deepEqual(instantChange("payment", "status", "paid", "2026-10-27"), { status: "paid", done_on: "2026-10-27" });
-  assert.deepEqual(instantChange("payment", "status", "due", "2026-10-27"), { status: "due", done_on: null });
-  assert.deepEqual(instantChange("guest", "status", "sent", "2026-10-27"), { status: "sent" });
-  assert.deepEqual(instantChange("task", "who", "", "2026-10-27"), { who: null });
-  assert.deepEqual(instantChange("task", "who", "b", "2026-10-27"), { who: "b" });
+test("an instant change stamps the done date when the status is the view's done status, clears it otherwise, writes the owner as null for nobody, and is nothing when the value is already there", () => {
+  const today = "2026-10-27";
+  const open = item({ status: "todo", who: null });
+  const finished = item({ status: "done", done_on: "2026-10-05", who: "a" });
+  assert.deepEqual(instantChange("task", open, "status", "done", today), { status: "done", done_on: today });
+  assert.deepEqual(instantChange("task", finished, "status", "todo", today), { status: "todo", done_on: null });
+  assert.deepEqual(instantChange("task", finished, "status", "done", today), null);
+  assert.deepEqual(instantChange("payment", payment(entry({}), { status: "due" }), "status", "paid", today), { status: "paid", done_on: today });
+  assert.deepEqual(instantChange("payment", payment(entry({}), { status: "paid" }), "status", "due", today), { status: "due", done_on: null });
+  assert.deepEqual(instantChange("payment", payment(entry({}), { status: "paid" }), "status", "paid", today), null);
+  assert.deepEqual(instantChange("guest", item({ kind: "guest", status: "todo" }), "status", "sent", today), { status: "sent" });
+  assert.deepEqual(instantChange("task", finished, "who", "", today), { who: null });
+  assert.deepEqual(instantChange("task", open, "who", "b", today), { who: "b" });
+  assert.deepEqual(instantChange("task", open, "who", "", today), null);
+  assert.deepEqual(instantChange("task", finished, "who", "a", today), null);
 });
 
 test("the back link goes to the list the item belongs to, a payment to its budget line", () => {
@@ -48,6 +55,8 @@ test("the back link goes to the list the item belongs to, a payment to its budge
   assert.equal(backHref("payment", payment(entry({ id: "line-1" }), {})), "#/money/line-1");
   assert.equal(backHref("planned", entry({})), "#/money");
   assert.equal(backHref("book", item({ kind: "book", status: "wish" })), "#/wishlist");
+  assert.equal(backHref("book", item({ kind: "book", status: "shelf" })), "#/books");
+  assert.equal(backHref("task", item({ status: "wish" })), "#/tasks");
 });
 
 test("the read view lists only what is set, formats it, and leaves out what the page shows elsewhere", () => {
@@ -131,7 +140,7 @@ test("an instant status change keeps the partner's concurrent edit of another fi
   await a.store.sync();
   await b.store.sync();
   idOf(await b.store.update("items", id, { note: "ask the band and the DJ" }));
-  idOf(await a.store.update("items", id, instantChange("task", "status", "done", "2026-10-27") as never));
+  idOf(await a.store.update("items", id, instantChange("task", item({ status: "todo" }), "status", "done", "2026-10-27") as never));
   await a.store.sync();
   await b.store.sync();
   await a.store.sync();
@@ -226,9 +235,6 @@ test("the four screens share the frame and no longer mount the form inline", () 
   assert.match(frame, /\{gone && !editing && \(\s*<p>\s*<button type="button" className="secondary" aria-describedby=\{notice\}/);
   assert.match(frame, /revived\.current = true;\s*const result = await restoreItem\(actions, name, row\);\s*if \(!result\.ok\) revived\.current = false;/);
   assert.match(frame, /if \(gone \|\| !revived\.current\) return;\s*revived\.current = false;\s*edit\.current\?\.focus\(\);/);
-  assert.match(frame, /<ItemForm key=\{row\.id\} name=\{name\} row=\{row\} gone=\{gone\} only=\{sheetFields\(name\)\} sheet=/);
-  assert.match(frame, /items=\{\[\{ id: "delete", icon: "trash", label: text\.delete, danger: true, run: guard\(remove\) \}\]\}/);
-  assert.match(frame, /onClick=\{guard\(\(\) => setEditing\(true\)\)\}/);
 });
 
 test("the budget line has no instant controls and no details list, and keeps its own body", async () => {

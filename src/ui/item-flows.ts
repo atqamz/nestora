@@ -24,7 +24,10 @@ export const instantFields = (name: ViewName): readonly ("status" | "who")[] => 
 
 export const sheetFields = (name: ViewName) => views[name].fields.filter((field) => !instantFields(name).some((own) => own === field));
 
-export const instantChange = (name: ViewName, field: "status" | "who", value: string, today: string) => {
+export const instantValue = (row: Row, field: "status" | "who") => String((row as Record<string, unknown>)[field] ?? "");
+
+export const instantChange = (name: ViewName, row: Row, field: "status" | "who", value: string, today: string) => {
+  if (instantValue(row, field) === value) return null;
   const view = views[name] as { done?: string };
   if (field === "who") return { who: value === "" ? null : value };
   return view.done === undefined ? { status: value } : { status: value, done_on: value === view.done ? today : null };

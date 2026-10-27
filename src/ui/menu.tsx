@@ -37,6 +37,7 @@ export function Menu({ name, items }: { name: string; items: readonly MenuItem[]
                 type="button"
                 role="menuitem"
                 className={item.danger ? "danger" : undefined}
+                aria-disabled={item.locked || undefined}
                 data-first={index === 0 ? "" : undefined}
                 onClick={(event) => {
                   swallowClicks(document, 400);

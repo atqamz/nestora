@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useBusy } from "../hooks/use-busy.ts";
 import { usePartner, useStamp } from "../hooks/use-plan.ts";
@@ -7,8 +7,8 @@ import { actions } from "../hooks/use-store.ts";
 import { failureOf } from "./failure.ts";
 import { Icon } from "./icons.tsx";
 import { ItemForm } from "./item-form.tsx";
-import { factsOf } from "./item-facts.ts";
-import { instantChange, instantFields, removeItem, restoreItem, sheetFields } from "./item-flows.ts";
+import { factsOf, hostOf } from "./item-facts.ts";
+import { instantChange, instantFields, instantValue, removeItem, restoreItem, sheetFields } from "./item-flows.ts";
 import type { Row } from "./item-flows.ts";
 import { fieldLabel, optionLabel } from "./labels.ts";
 import { Menu } from "./menu.tsx";
@@ -38,12 +38,16 @@ function Instant({ name, row }: { name: ViewName; row: Row }) {
   const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
   const id = useId();
-  const set = (field: "status" | "who", value: string) => once(async () => setFailure(failureOf(await actions.update(views[name].table, row.id, instantChange(name, field, value, stamp()) as never))));
+  const set = (field: "status" | "who", value: string) =>
+    once(async () => {
+      const change = instantChange(name, row, field, value, stamp());
+      if (change) setFailure(failureOf(await actions.update(views[name].table, row.id, change as never)));
+    });
   return (
     <>
       {instantFields(name).map((field) => {
         const options = [...(field === "who" ? [{ value: "", label: text.nobody }] : []), ...(fieldOptions(name, field) ?? []).map((value) => ({ value, label: optionLabel(name, field, value, label) }))];
-        const now = String((row as Record<string, unknown>)[field] ?? "");
+        const now = instantValue(row, field);
         return (
           <div key={field} className="instant">
             <p className="hint" id={`${id}-${field}`}>
@@ -87,8 +91,8 @@ function Facts({ name, row, skip }: { name: ViewName; row: Row; skip: readonly s
             {fact.kind === "money" ? (
               <Money rupiah={Number(fact.value)} />
             ) : fact.kind === "link" ? (
-              <a href={String(fact.value)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-                {fact.value}
+              <a href={String(fact.value)} aria-label={`${fact.label}: ${hostOf(String(fact.value))}`} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+                {hostOf(String(fact.value))}
               </a>
             ) : (
               fact.value
@@ -103,8 +107,9 @@ function Facts({ name, row, skip }: { name: ViewName; row: Row; skip: readonly s
 export function ItemDetail({ name, row, gone, back, wide, head, skip = [], details, children }: Props) {
   const [editing, setEditing] = useState(false);
   const { busy, once } = useBusy();
-  const { guard } = useWriteLock();
+  const { locked, guard } = useWriteLock();
   const [failure, setFailure] = useState<string[]>([]);
+  const only = useMemo(() => sheetFields(name), [name]);
   const edit = useRef<HTMLButtonElement>(null);
   const revived = useRef(false);
   const notice = "item-gone";
@@ -150,11 +155,11 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
       )}
       <div inert={gone}>
         <div className="detail-tools">
-          <button ref={edit} type="button" className="secondary" aria-label={text.editNamed(row.title)} onClick={guard(() => setEditing(true))}>
+          <button ref={edit} type="button" className="secondary" aria-label={text.editNamed(row.title)} aria-disabled={locked || undefined} onClick={guard(() => setEditing(true))}>
             <Icon name="edit" />
             {text.edit}
           </button>
-          <Menu name={text.menu.moreNamed(row.title)} items={[{ id: "delete", icon: "trash", label: text.delete, danger: true, run: guard(remove) }]} />
+          <Menu name={text.menu.moreNamed(row.title)} items={[{ id: "delete", icon: "trash", label: text.delete, danger: true, locked, run: guard(remove) }]} />
         </div>
         {failure.length > 0 && (
           <p className="error" role="alert">
@@ -165,7 +170,7 @@ export function ItemDetail({ name, row, gone, back, wide, head, skip = [], detai
         {details !== false && <Facts name={name} row={row} skip={skip} />}
         {children}
       </div>
-      {editing && <ItemForm key={row.id} name={name} row={row} gone={gone} only={sheetFields(name)} sheet={() => setEditing(false)} />}
+      {editing && <ItemForm key={row.id} name={name} row={row} gone={gone} only={only} sheet={() => setEditing(false)} />}
     </>
   );
 }
