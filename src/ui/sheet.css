@@ -51,6 +51,22 @@ html:has(dialog[open]) {
   letter-spacing: -0.015em;
 }
 
+@media (max-width: 18.5rem) {
+  .sheet-head {
+    flex-wrap: wrap;
+  }
+
+  .sheet-head h2 {
+    flex: 1 1 0;
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .sheet-head > button {
+    margin-left: auto;
+  }
+}
+
 .sheet-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -241,6 +257,23 @@ html:has(dialog[open]) {
 
 .capture input:focus-visible {
   outline: none;
+}
+
+@media (max-width: 18.5rem) {
+  .capture {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--s1);
+    padding: 0 var(--s1) var(--s1);
+  }
+
+  .capture svg {
+    margin-left: var(--s2);
+  }
+
+  .capture button {
+    grid-column: 1 / -1;
+  }
 }
 
 .toast {

@@ -90,8 +90,9 @@
 .bk-link {
   display: flex;
   flex: 1 1 14rem;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s3);
+  gap: var(--s2) var(--s3);
   min-width: 0;
   min-height: var(--target-min);
   color: inherit;
@@ -100,7 +101,7 @@
 
 .bk-text {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 8rem;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
@@ -124,6 +125,7 @@
 .bk-note {
   display: grid;
   flex: 1 1 100%;
+  overflow-wrap: anywhere;
   gap: 2px;
   margin: 0;
   color: var(--ink-2);
@@ -243,6 +245,7 @@ button.where {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
+  overflow-wrap: anywhere;
 }
 
 .reads[data-reading]::before {
@@ -269,6 +272,13 @@ button.where {
   width: min(0.875rem, 3.4vw);
   height: min(0.875rem, 3.4vw);
   fill: none;
+}
+
+@media (max-width: 18.5rem) {
+  .stars svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
 }
 
 .stars [data-on] svg {
@@ -333,7 +343,9 @@ button.where {
 
 .reader {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s2);
+  overflow-wrap: anywhere;
   margin: 0 0 var(--s4);
 }
 

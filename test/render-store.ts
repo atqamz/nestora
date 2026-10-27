@@ -1,7 +1,7 @@
 const snapshot = { ready: true, me: "a", rows: { items: [], budget_entries: [], settings: [] }, pending: 0, rejected: [], link: "online", storage: "ok", notice: null, paused: false, dated: true };
 
-export const stage = (items: unknown[], settings: unknown[] = []) => {
-  snapshot.rows = { items, budget_entries: [], settings } as never;
+export const stage = (items: unknown[], settings: unknown[] = [], budget_entries: unknown[] = []) => {
+  snapshot.rows = { items, budget_entries, settings } as never;
 };
 
 export const useSnapshot = () => snapshot;

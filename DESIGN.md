@@ -124,7 +124,7 @@ One cool hue family (hue 265 to 268) in two complete themes, light and dark, swi
 - **Count** (`--fs-count` 7rem, `--fs-count-wide` 7.5rem): the akad countdown numeral.
 
 ### Named Rules
-**The Text Scales Rule.** Sizes are `rem` tokens. No `vw` or `px` caps on text (**Target**: the brand, bottom-bar labels, stars and the countdown numeral still carry `vw` caps today); a label that cannot fit is hidden with its accessible name kept, never shrunk. Long words wrap; they never collapse a flex child to one letter.
+**The Text Scales Rule.** Sizes are `rem` tokens. No `vw` or `px` caps on text (**Target**: the countdown numeral still carries a `vw` cap, and the book stars do until text is large for the screen, below 18.5rem wide); a label that cannot fit is hidden with its accessible name kept, never shrunk. Long words wrap; they never collapse a flex child to one letter.
 **The Heading Order Rule.** One `h1` per screen, then `h2`, then `h3`; no level is skipped.
 
 ## Layout

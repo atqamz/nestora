@@ -140,6 +140,12 @@ fieldset.field {
   background: var(--surface-2);
 }
 
+@media (max-width: 25.5rem) {
+  .choices:has(> label:nth-child(4):last-child) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(6.5rem, calc(50% - 0.125rem))), 1fr));
+  }
+}
+
 .choices label {
   position: relative;
   display: flex;
@@ -163,6 +169,7 @@ fieldset.field {
   justify-content: center;
   gap: var(--s1);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .choices input {
@@ -263,6 +270,30 @@ fieldset.field {
   text-decoration: none;
 }
 
+@media (max-width: 18.5rem) {
+  .choices {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+  }
+
+  .row > .check {
+    align-self: flex-start;
+  }
+
+  .row-b {
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .row-b:last-child {
+    flex-basis: 0;
+  }
+
+  .row-b .title,
+  .row-b .who {
+    overflow-wrap: break-word;
+  }
+}
+
 .row > .row-b:first-child {
   padding-left: var(--s3);
 }
@@ -276,6 +307,7 @@ fieldset.field {
   max-width: 100%;
   min-width: 0;
   margin-left: auto;
+  overflow-wrap: anywhere;
 }
 
 .lead {
@@ -342,10 +374,12 @@ fieldset.field {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 500;
 }
 
 .amt {
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 650;
 }
@@ -566,6 +600,7 @@ progress::-moz-progress-bar {
 .trail a {
   display: inline-flex;
   align-items: center;
+  overflow-wrap: anywhere;
   min-width: var(--target-min);
   min-height: var(--target-min);
 }
@@ -591,6 +626,7 @@ progress::-moz-progress-bar {
   justify-content: center;
   gap: var(--s2);
   min-width: 0;
+  overflow-wrap: anywhere;
   min-height: var(--target-min);
   padding: var(--s1) var(--s3);
   border: 0;
@@ -682,6 +718,7 @@ progress::-moz-progress-bar {
 .note {
   display: flex;
   align-items: flex-start;
+  overflow-wrap: anywhere;
   gap: var(--s2);
   margin: var(--s3) 0 0;
   color: var(--ink-2);
@@ -787,6 +824,7 @@ progress::-moz-progress-bar {
 
 .contact .button {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .split[data-wide] {
@@ -842,6 +880,7 @@ main:has(> .split[data-wide]) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  overflow-wrap: anywhere;
   gap: var(--s1) var(--s3);
   margin: 0 0 var(--s4);
   color: var(--ink-2);
@@ -870,6 +909,7 @@ main:has(> .split[data-wide]) {
 
 .nums dd {
   margin: 0 0 0 auto;
+  overflow-wrap: anywhere;
   font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums lining-nums;
